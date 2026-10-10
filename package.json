@@ -1,6 +1,6 @@
 {
   "name": "providock",
-  "version": "3.20.4",
+  "version": "1.0.0",
   "description": "All-in-One Assistant for Claude Code, Codex & Kimi Code",
   "type": "module",
   "scripts": {
@@ -16,7 +16,7 @@
     "test:unit:watch": "vitest watch"
   },
   "keywords": [],
-  "author": "Jason Young",
+  "author": "Abyssaler",
   "license": "MIT",
   "packageManager": "pnpm@10.12.3",
   "devDependencies": {

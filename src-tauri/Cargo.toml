@@ -1,8 +1,8 @@
 [package]
 name = "providock"
-version = "3.20.4"
+version = "1.0.0"
 description = "All-in-One Assistant for Claude Code, Codex & Kimi Code"
-authors = ["Jason Young"]
+authors = ["Abyssaler"]
 license = "MIT"
 repository = "https://github.com/Abyssaler/providock"
 edition = "2021"

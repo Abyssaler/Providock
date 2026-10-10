@@ -1,6 +1,6 @@
 # Changelog
 
-## 3.20.4 — Providock initial release (2026-10-10)
+## 1.0.0 — Providock initial release (2026-10-10)
 
 Providock 首个版本，基于 CC Switch v3.20.4（MIT License, © Jason Young）：
 
