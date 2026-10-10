@@ -62,7 +62,7 @@
       }
     },
     "updater": {
-      "pubkey": "ZFc1MGNuVnpkR1ZrSUdOdmJXMWxiblE2SUcxcGJtbHphV2R1SUhCMVlteHBZeUJyWlhrNklFWkRNa0UyT0VSQ1FVTXlNRE0yTjBVS1VsZFNLMDVwUTNNeU1tZHhMMHhZVEVaSFRrODJNV3hQVTFCc1NrSXlRMlZ5UzFWeE9WcHhVRk4yZERaUmVVVlhhMjF3YmpBdmEyUUs=",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEZDMkE2OERCQUMyMDM2N0UKUldSK05pQ3MyMmdxL0xYTEZHTk82MWxPU1BsSkIyQ2VyS1VxOVpxUFN2dDZReUVXa21wbjAva2QK",
       "endpoints": [
         "https://github.com/Abyssaler/providock/releases/latest/download/latest.json"
       ]
