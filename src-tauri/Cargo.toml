@@ -28,6 +28,12 @@ thiserror = "2.0.21"
 time = { version = "0.3.45", features = ["formatting", "parsing"] }
 zstd = "0.14.2"
 
+# T03：凭据抽象、掩码指纹与诊断脱敏（仅新增这四个）
+hmac = "0.12"
+sha2 = "0.10"
+zeroize = "1"
+rand = "0.10"
+
 [profile.release]
 lto = true
 codegen-units = 1
