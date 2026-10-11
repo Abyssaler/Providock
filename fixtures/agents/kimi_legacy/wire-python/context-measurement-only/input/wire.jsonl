@@ -1,0 +1,5 @@
+{"type": "metadata", "protocol_version": "1.10"}
+{"timestamp": 1778563980.0, "message": {"type": "StepBegin", "payload": {"n": 1}}}
+{"timestamp": 1778563981.0, "message": {"type": "StatusUpdate", "payload": {"context_usage": 3.5, "context_tokens": 8192, "max_context_tokens": 262144, "token_usage": null, "message_id": null, "plan_mode": false, "mcp_status": null}}}
+{"timestamp": 1778563982.0, "message": {"type": "TurnEnd", "payload": {}}}
+{"timestamp": 1778563990.0, "message": {"type": "StatusUpdate", "payload": {"context_usage": 0.0, "context_tokens": 0, "max_context_tokens": 262144, "token_usage": null, "message_id": null, "plan_mode": false, "mcp_status": null}}}

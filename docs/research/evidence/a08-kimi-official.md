@@ -649,3 +649,117 @@ class TokenUsage(BaseModel):
 8. **Windows 实际行为未经双平台验证**：Windows 结论来自源码（`workdir-slug.ts:18,25-31`、`data-locations.md:11,46-47`）与 `workdir-bucket.ts:14-18` 的注释，**未在 Windows 上运行**。按项目约束，不得仅凭 macOS 侧阅读宣布 Windows 可用。
 9. **`session_index.jsonl` 中 `sessionDir` 是绝对路径还是相对路径**：`sessionLifecycleService.ts:326` 用 `sessionDirOf(bootstrap.homeDir, ...)`（若 `homeDir` 绝对则为绝对路径），但仓库测试夹具里出现了 `'sessions/a/s1'` 这样的相对值（`packages/agent-core-v2/test/app/workspace/workspaceService.test.ts:519-521`）。两种形态都可能存在，采集端应**两者都容错**；本文未确定生产环境下的实际形态。
 10. **旧版 `context.jsonl` 的 `_checkpoint` / `_system_prompt` / `_usage` 行的完整枚举**：本文只确认了出现在夹具与 `context.py` 中的三种；未穷尽旧版所有 `role.startswith('_')` 的行类型。
+
+---
+
+## 11. 补充核实（2026-10-11）：旧版 usage 记录形状、子 Agent 双重观察与 fork
+
+本节为新增核实，**只追加**，不修改前文任何段落。核实对象仍是 `MoonshotAI/kimi-cli` @ `9ab1286`
+（`9ab1286b8fe4e6bcd116949a27ce5e0ac3389c82`，`main`）；URL 前缀
+`https://raw.githubusercontent.com/MoonshotAI/kimi-cli/9ab1286/`。方法：本地浅克隆（`/tmp/kimi-cli`）
+后全仓库检索，未运行 CLI、未读取任何真实用户日志。
+
+### 11.1 更新第 10 节第 7 条：旧版写用量的路径已枚举完整
+
+全仓库检索 `StatusUpdate(`（排除 `examples/` 与测试）得到全部发射点：
+
+| 发射点 | 携带字段 |
+| --- | --- |
+| `src/kimi_cli/soul/kimisoul.py:1262` | **唯一**携带 `token_usage` 的点（`token_usage=usage, message_id=result.id, plan_mode=…`） |
+| `src/kimi_cli/soul/kimisoul.py:967, 992` | 仅 `mcp_status` |
+| `src/kimi_cli/soul/kimisoul.py:1289` | 仅 `plan_mode`（工具执行期间计划模式被改变时补发） |
+| `src/kimi_cli/soul/slash.py:72, 89`（`/compact`、`/clear`） | 仅 `context_usage/context_tokens/max_context_tokens` |
+| `src/kimi_cli/soul/slash.py:169, 174, 197`（`/plan`） | 仅 `plan_mode` |
+| `src/kimi_cli/wire/server.py:788` | 仅 `plan_mode`（协议侧回显） |
+| `src/kimi_cli/ui/shell/replay.py:75`、`examples/kimi-psql/main.py:415`、`ui/shell/__init__.py:873,927` | UI 初始化状态，不落盘为会话记录 |
+
+检索 `token_usage` 全仓库同样只有 `wire/types.py:188`（定义）、`soul/kimisoul.py:1263`（赋值）、
+`vis/api/sessions.py:414` 与 `vis/api/statistics.py:136`（读取）。因此第 10 节第 7 条的
+“未穷尽”风险收敛为：**旧版只有 `kimisoul.py` 一处写用量**，且该处位于“step 成功返回之后”
+（`kimisoul.py` 的 2e.5 段），失败或被重试的 step（`StepRetry`/tenacity 重试）**不写任何
+token_usage 记录** —— 那些尝试的消耗在 wire 里不存在，而不是 0。
+
+### 11.2 旧版 usage 的 record 形状（本任务的关键确认项）
+
+- **一个成功 step 一条记录**，不是按调用聚合，也不是会话累计：`StatusUpdate.token_usage`
+  是该 step 的绝对值（`wire/types.py:188` 注释 “The token usage statistics of the current step.”）。
+  读取方必须求和；官方 `vis/api/statistics.py:134-144` 正是逐条累加
+  `input_other + input_cache_read + input_cache_creation` 与 `output`。
+- 非空对象的字段形状来自 `packages/kosong/src/kosong/chat_provider/__init__.py:99-114` 的
+  `TokenUsage.model_dump(mode="json")`（`WireMessageEnvelope.from_wire_message` 用
+  `model_dump(mode="json")` 生成 payload）：`input_other`（必填）、`output`（必填）、
+  `input_cache_read`（默认 0）、`input_cache_creation`（默认 0）。
+- **仍未证实**：这一非空形状没有实测样本。仓库内唯一的旧版 wire 夹具
+  （`packages/migration-legacy/test/fixtures/recent-protocol-1.10/wire.jsonl`，`kimi-code`
+  一侧）里唯一的 `StatusUpdate`（`timestamp 1778563951.827712`）`token_usage` 为 `null`，
+  其余记录类型只有 `TurnBegin/StepBegin/ContentPart/TurnEnd`。四键形状是**由模型代码推导**，
+  不是从磁盘样本观察到；若未来拿到真实旧版会话，应先用它复核。
+- `token_usage: null` 的语义存在固有歧义：`StatusUpdate` 类注释（`wire/types.py:177-180`）
+  写明 “None fields indicate no change from the previous status”，而计划模式、MCP 快照、
+  `/compact`、`/clear` 都发同形状记录。step 版本虽然带 `message_id`（`result.id`，
+  `kosong` 里类型是 `str | None`），但**仅凭记录不能可靠区分**「step 完成但上游未报 usage」
+  与「纯状态更新」。因此适配器对 `token_usage: null` 一律不产生用量事件（诊断计数），
+  不猜测、不补零。同样，四项全零的 `token_usage` 不制造零消耗事件。
+- 旧版 wire 的**任何**消息类型都没有模型名字段（`wire/types.py` 全文无 `model`），
+  也没有轮次 id（`TurnBegin` 只有 `user_input`，`StepBegin` 只有步号 `n`）。
+- `timestamp` 是 `time.time()` 的 f64 秒（`wire/file.py`），在 ~1.7e9 s 处的绝对分辨率约
+  2e-7 s；适配器按**微秒**取整后转 RFC3339，避免把浮点噪声（…827712 → …827712059 ns）
+  当成真实精度。
+
+### 11.3 子 Agent 的同一消耗有两处物理观察（前文未覆盖）
+
+- 子 Agent 有**自己**的 `subagents/<agent_id>/wire.jsonl`：`subagents/store.py:81-82`
+  （`wire_path`）、`subagents/store.py:121`（创建即 `touch`）、`subagents/runner.py:85`
+  （`run_soul(..., wire_file=WireFile(wire_path))`）。
+- 同一份子 Agent 消息还会被镜像进父 wire：`subagents/runner.py:400-427` 的 `_ui_loop_fn` 把
+  非 `ApprovalRequest/ApprovalResponse/ToolCallRequest/QuestionRequest/HookRequest` 的消息
+  包成 `SubagentEvent{parent_tool_call_id, agent_id, subagent_type, event: <envelope>}` 发给
+  父 wire；`wire/__init__.py` 的 `_WireRecorder` 订阅 merged 队列，因此**父 wire 文件里也会
+  落盘这条镜像**（reporter 记录的是完整 Wire message，不只 soul 侧）。
+- 嵌套：子 Agent 的 `_ui_loop_fn` 会把更深一层子 Agent 的 `SubagentEvent` 再包一层转发给
+  祖父，官方读取方用 `collect_events`（`vis/api/sessions.py:28-43`）递归解包。
+- **官方口径**：`vis/api/statistics.py:60-70` 只读 `<bucket>/<uuid>/wire.jsonl`（不遍历
+  `subagents/`），靠递归解包 `SubagentEvent` 把子 Agent 用量计一次。即官方 reader 走的是
+  「父镜像」这一路。
+- 一致性风险：同一消耗在父镜像与子 Agent 自有文件里各出现一次，**任何“见到 token_usage 就
+  求和”的实现都会翻倍**。适配器默认以「各 Agent 自有 wire」为准（父镜像只记诊断），
+  子 Agent 自有文件用 `mirrored_in_parent=true` 声明“父处已计”；仅当子 Agent 文件不可达时
+  才开启镜像计入（actor_id 取最内层 `agent_id`）。
+
+### 11.4 修正：旧版**有** fork/undo，但 wire 内无标记
+
+任务假设“旧版是否支持 fork 按证据，没有就写未见”。实读结论相反：
+
+- `src/kimi_cli/session_fork.py` 提供 `fork_session()`：`turn_index=None` 复制**整份**
+  wire 与 context，给定 `turn_index` 则按 `TurnBegin/TurnEnd` 截取前缀
+  （`truncate_wire_at_turn`），写进 `Session.create()` 新建的会话目录；不复制 subagents。
+- 命令入口：`ui/shell/slash.py` 的 `/fork`（整份复制，`title_prefix="Fork"`）与
+  `/undo`（在选定轮次之前 fork，`title_prefix="Undo"`；`turn_index==0` 时建空会话）；
+  HTTP 侧 `web/api/sessions.py:685-712` 复用同一函数。
+- **wire 内没有任何 fork 标记**，也没有父会话 id：唯一线索是复制后的
+  `state.json.custom_title` 前缀约定（`"Fork: "` / `"Undo: "`，见 `session_fork.py` 与
+  `slash.py` 的 undo 分支）以及 `wire_mtime`。`SessionState`（`session_state.py:28-44`）
+  没有 `forked_from` 之类的字段。
+- 因此跨会话去重只能由调用方做**前缀指纹比对**后给出边界（契约第 4 节允许：完整前缀复制
+  可用序列指纹确认）；给不出边界或复制源不在采集范围时，适配器全部保留并记诊断，不静默丢弃。
+
+### 11.5 与适配器决策的界分（哪些是上游事实、哪些是本项目选择）
+
+| 事项 | 性质 |
+| --- | --- |
+| 1 step 一条绝对值记录、读取方求和 | 上游事实（11.2） |
+| 子 Agent 自有 wire + 父镜像双观察 | 上游事实（11.3） |
+| 旧版有 fork 复制、无 wire 标记 | 上游事实（11.4） |
+| `token_usage: null` 不产生事件 | 本项目选择（上游语义歧义，见 11.2） |
+| 缺 metadata 首行 → 不解析（`MissingMetadata`） | 本项目选择。上游 `wire/file.py` 在无 header 时把版本降级为 `1.1`（`WIRE_PROTOCOL_LEGACY_VERSION`）；本适配器不沿用该降级，避免把未知版本当已知 |
+| 版本族 = 主版本 1、次版本 ≤ 10 | 本项目选择（`1.10` 当前、`1.1` 历史遗留；更高版本标记不兼容） |
+
+### 11.6 仍未证实（新增条目）
+
+1. **非空 `token_usage` 的磁盘样本**：仓库内旧版 wire 夹具只有 `null` 形态，四键形状由
+   `TokenUsage` + `model_dump` 推导（见 11.2）。未获取真实旧版会话文件核对。
+2. **嵌套 `SubagentEvent` 的真实层数与字段**：结论来自代码（`runner.py` 转发 + 递归解包），
+   未在任何真实文件中观察多层嵌套；适配器项目的夹具为合成数据。
+3. **旧版 `/undo` 是否会被上游实现改写为“原地截断 + 写入新分支”**（类似新版的
+   `agent.switched`）：本提交的 `session_fork.py` 是“新建会话目录 + 复制前缀”，
+   未检查更早提交是否有过其它实现。

@@ -1,0 +1,2 @@
+{"type": "metadata", "protocol_version": "1.11"}
+{"timestamp": 1778564000.0, "message": {"type": "StatusUpdate", "payload": {"context_usage": null, "context_tokens": null, "max_context_tokens": null, "token_usage": {"input_other": 10, "output": 5, "input_cache_read": 0, "input_cache_creation": 0}, "message_id": "chatcmpl-future-1", "plan_mode": null, "mcp_status": null}}}

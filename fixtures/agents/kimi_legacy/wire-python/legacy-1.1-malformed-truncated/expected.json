@@ -1,0 +1,22 @@
+{
+  "config": {
+    "agent_id": "main",
+    "mirrored_in_parent": false,
+    "count_mirrored_subagent_usage": false,
+    "fork": "none"
+  },
+  "compatibility": "ok",
+  "events": 2,
+  "totals": {
+    "input_fresh": "105",
+    "input_cache_read": "0",
+    "input_cache_write": "0",
+    "input_total": "105",
+    "output_total": "31",
+    "total": "136",
+    "request_count": "2"
+  },
+  "completeness": "complete",
+  "consumed": "before_trailing_partial",
+  "diagnostics_include": ["malformed_line_at_offset"]
+}

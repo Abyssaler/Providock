@@ -1,0 +1,25 @@
+{
+  "config": {
+    "agent_id": "main",
+    "mirrored_in_parent": false,
+    "count_mirrored_subagent_usage": false,
+    "fork": "none"
+  },
+  "compatibility": "ok",
+  "events": 3,
+  "totals": {
+    "input_fresh": "1500",
+    "input_cache_read": "2400",
+    "input_cache_write": "100",
+    "input_total": "4000",
+    "output_total": "160",
+    "total": "4160",
+    "request_count": "3"
+  },
+  "actors": {
+    "main": { "events": 3, "total": "4160" }
+  },
+  "completeness": "complete",
+  "consumed": "all",
+  "diagnostics_include": ["status_without_token_usage:1"]
+}

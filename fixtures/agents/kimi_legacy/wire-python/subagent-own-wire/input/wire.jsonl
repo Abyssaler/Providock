@@ -1,0 +1,6 @@
+{"type": "metadata", "protocol_version": "1.10"}
+{"timestamp": 1778563960.0, "message": {"type": "StepBegin", "payload": {"n": 1}}}
+{"timestamp": 1778563961.0, "message": {"type": "StatusUpdate", "payload": {"context_usage": null, "context_tokens": null, "max_context_tokens": null, "token_usage": {"input_other": 200, "output": 30, "input_cache_read": 0, "input_cache_creation": 0}, "message_id": "chatcmpl-s1", "plan_mode": null, "mcp_status": null}}}
+{"timestamp": 1778563962.0, "message": {"type": "StatusUpdate", "payload": {"context_usage": null, "context_tokens": null, "max_context_tokens": null, "token_usage": null, "message_id": null, "plan_mode": false, "mcp_status": null}}}
+{"timestamp": 1778563963.0, "message": {"type": "SubagentEvent", "payload": {"parent_tool_call_id": "call-grand", "agent_id": "a9f9f9f9", "subagent_type": "explore", "event": {"type": "StatusUpdate", "payload": {"context_usage": null, "context_tokens": null, "max_context_tokens": null, "token_usage": {"input_other": 50, "output": 5, "input_cache_read": 0, "input_cache_creation": 0}, "message_id": "chatcmpl-g1", "plan_mode": null, "mcp_status": null}}}}}
+{"timestamp": 1778563964.0, "message": {"type": "TurnEnd", "payload": {}}}

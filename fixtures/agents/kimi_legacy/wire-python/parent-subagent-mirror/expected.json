@@ -1,0 +1,27 @@
+{
+  "config": {
+    "agent_id": "main",
+    "mirrored_in_parent": false,
+    "count_mirrored_subagent_usage": true,
+    "fork": "none"
+  },
+  "compatibility": "ok",
+  "events": 3,
+  "totals": {
+    "input_fresh": "550",
+    "input_cache_read": "0",
+    "input_cache_write": "0",
+    "input_total": "550",
+    "output_total": "65",
+    "total": "615",
+    "request_count": "3"
+  },
+  "actors": {
+    "main": { "events": 1, "total": "330" },
+    "a1b2c3d4": { "events": 1, "total": "230" },
+    "a9f9f9f9": { "events": 1, "total": "55" }
+  },
+  "completeness": "complete",
+  "consumed": "all",
+  "diagnostics_include": ["mirrored_subagent_records_counted:2"]
+}

@@ -1,0 +1,25 @@
+{
+  "config": {
+    "agent_id": "a1b2c3d4",
+    "mirrored_in_parent": true,
+    "count_mirrored_subagent_usage": false,
+    "fork": "none"
+  },
+  "compatibility": "ok",
+  "events": 0,
+  "totals": {
+    "input_fresh": null,
+    "input_cache_read": null,
+    "input_cache_write": null,
+    "input_total": null,
+    "output_total": null,
+    "total": null,
+    "request_count": null
+  },
+  "consumed": "all",
+  "diagnostics_include": [
+    "subagent_mirrored_in_parent:1",
+    "mirrored_subagent_records_skipped:1",
+    "status_without_token_usage:1"
+  ]
+}

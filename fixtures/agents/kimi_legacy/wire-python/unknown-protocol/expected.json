@@ -1,0 +1,12 @@
+{
+  "config": {
+    "agent_id": "main",
+    "mirrored_in_parent": false,
+    "count_mirrored_subagent_usage": false,
+    "fork": "none"
+  },
+  "compatibility": "unsupported_protocol:1.11",
+  "events": 0,
+  "consumed": "first_line_only",
+  "diagnostics_include": ["wire_compatibility"]
+}

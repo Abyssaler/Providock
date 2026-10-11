@@ -1,0 +1,13 @@
+{"type": "metadata", "protocol_version": "1.10"}
+{"timestamp": 1778563950.730085, "message": {"type": "TurnBegin", "payload": {"user_input": [{"type": "text", "text": "看看这个项目的结构"}]}}}
+{"timestamp": 1778563950.733035, "message": {"type": "StepBegin", "payload": {"n": 1}}}
+{"timestamp": 1778563951.794603, "message": {"type": "ContentPart", "payload": {"type": "think", "think": "先列一下顶层目录。", "encrypted": null}}}
+{"timestamp": 1778563951.827712, "message": {"type": "StatusUpdate", "payload": {"context_usage": 12.5, "context_tokens": 4096, "max_context_tokens": 262144, "token_usage": {"input_other": 1000, "output": 100, "input_cache_read": 400, "input_cache_creation": 0}, "message_id": "chatcmpl-1", "plan_mode": false, "mcp_status": null}}}
+{"timestamp": 1778563952.5, "message": {"type": "StatusUpdate", "payload": {"context_usage": 12.5, "context_tokens": 4096, "max_context_tokens": 262144, "token_usage": null, "message_id": null, "plan_mode": false, "mcp_status": null}}}
+{"timestamp": 1778563953.0, "message": {"type": "StepBegin", "payload": {"n": 2}}}
+{"timestamp": 1778563954.1005, "message": {"type": "StatusUpdate", "payload": {"context_usage": 20.0, "context_tokens": 8192, "max_context_tokens": 262144, "token_usage": {"input_other": 500, "output": 20, "input_cache_read": 2000, "input_cache_creation": 100}, "message_id": "chatcmpl-2", "plan_mode": false, "mcp_status": null}}}
+{"timestamp": 1778563955.0, "message": {"type": "TurnEnd", "payload": {}}}
+{"timestamp": 1778563970.010856, "message": {"type": "TurnBegin", "payload": {"user_input": "再补充一轮"}}}
+{"timestamp": 1778563970.013, "message": {"type": "StepBegin", "payload": {"n": 1}}}
+{"timestamp": 1778563971.5, "message": {"type": "StatusUpdate", "payload": {"context_usage": 25.0, "context_tokens": 9100, "max_context_tokens": 262144, "token_usage": {"input_other": 0, "output": 40, "input_cache_read": 0, "input_cache_creation": 0}, "message_id": "chatcmpl-3", "plan_mode": false, "mcp_status": null}}}
+{"timestamp": 1778563972.0, "message": {"type": "TurnEnd", "payload": {}}}

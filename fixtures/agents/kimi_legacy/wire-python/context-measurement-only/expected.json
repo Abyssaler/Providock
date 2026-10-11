@@ -1,0 +1,21 @@
+{
+  "config": {
+    "agent_id": "main",
+    "mirrored_in_parent": false,
+    "count_mirrored_subagent_usage": false,
+    "fork": "none"
+  },
+  "compatibility": "ok",
+  "events": 0,
+  "totals": {
+    "input_fresh": null,
+    "input_cache_read": null,
+    "input_cache_write": null,
+    "input_total": null,
+    "output_total": null,
+    "total": null,
+    "request_count": null
+  },
+  "consumed": "all",
+  "diagnostics_include": ["status_without_token_usage:2"]
+}
