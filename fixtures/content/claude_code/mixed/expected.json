@@ -1,0 +1,26 @@
+{
+  "limit": 3,
+  "pages": [
+    {
+      "blocks": 3,
+      "roles": ["user", "assistant", "tool_use"],
+      "text_present": [true, true, true],
+      "truncated": [false, false, false],
+      "tool_names": [null, null, "Read"],
+      "collapsible": [false, false, true],
+      "has_more": true,
+      "next_cursor_before_marker": "{\"type\":\"user\",\"uuid\":\"u2\"",
+      "diagnostics_include": []
+    },
+    {
+      "blocks": 3,
+      "roles": ["tool_result", "assistant", "other:thinking"],
+      "text_present": [true, true, true],
+      "truncated": [false, true, false],
+      "tool_names": [null, null, null],
+      "collapsible": [true, false, false],
+      "has_more": false,
+      "diagnostics_include": ["other_content_block_at_offset"]
+    }
+  ]
+}

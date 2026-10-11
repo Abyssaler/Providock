@@ -1,0 +1,26 @@
+{
+  "limit": 3,
+  "pages": [
+    {
+      "blocks": 3,
+      "roles": ["user", "assistant", "tool_use"],
+      "text_present": [true, true, true],
+      "truncated": [false, false, false],
+      "tool_names": [null, null, "shell"],
+      "collapsible": [false, false, true],
+      "has_more": true,
+      "next_cursor_before_marker": "{\"timestamp\":\"2026-10-11T02:00:06.000Z\",\"type\":\"response_item\",\"payload\":{\"type\":\"function_call_output\"",
+      "diagnostics_include": []
+    },
+    {
+      "blocks": 3,
+      "roles": ["tool_result", "other:reasoning", "user"],
+      "text_present": [true, true, true],
+      "truncated": [false, false, false],
+      "tool_names": [null, null, null],
+      "collapsible": [true, false, false],
+      "has_more": false,
+      "diagnostics_include": ["unknown_response_item_type_at_offset"]
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "limit": 200,
+  "pages": [
+    {
+      "blocks": 0,
+      "roles": [],
+      "has_more": false,
+      "diagnostics_include": ["not_kimi_wire", "no_conversation_records"]
+    }
+  ]
+}

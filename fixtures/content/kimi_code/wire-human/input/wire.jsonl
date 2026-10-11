@@ -1,0 +1,10 @@
+{"type":"metadata","protocol_version":"1.5","created_at":1760000000000}
+{"type":"usage.record","agentId":"main","model":"kimi-k2","usage":{"inputOther":10,"output":5,"inputCacheRead":0,"inputCacheCreation":0},"usageScope":"turn","time":1760000001000}
+{"type":"token_counting.measured","agentId":"main","tokens":4096,"time":1760000002000}
+{"type":"turn.prompt","agentId":"main","turnId":"t1","prompt":"Run the test suite","time":1760000003000}
+{"type":"context.append_message","agentId":"main","role":"assistant","content":"Running it now.","time":1760000004000}
+{"type":"context.append_message","agentId":"main","role":"tool","toolName":"Bash","content":"12 passed","time":1760000005000}
+{"type":"forked","agentId":"main","time":1760000006000}
+{"type":"agent.message.appended","agentId":"main","role":"assistant","content":"Here is the summary.","time":1760000007000}
+{"type":"turn.ended","agentId":"main","turnId":"t1","time":1760000008000}
+{"type":"agent.switched","agentId":"main","branch":"b1","reason":"undo","base":{"branch":"main","line":2},"turns":["t1"],"time":1760000009000}
