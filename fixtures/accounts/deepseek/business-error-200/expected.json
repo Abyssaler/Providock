@@ -1,0 +1,9 @@
+{
+  "http_status": 200,
+  "outcome": "failure",
+  "status": "unavailable",
+  "business_code": "invalid_api_key",
+  "schema_changed": false,
+  "transport_failed": false,
+  "unsupported": false
+}

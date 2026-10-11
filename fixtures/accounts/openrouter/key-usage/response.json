@@ -1,0 +1,15 @@
+{
+  "data": {
+    "limit": 100,
+    "limit_remaining": 74.25,
+    "limit_reset": "monthly",
+    "usage": 25.75,
+    "usage_daily": 1.5,
+    "usage_weekly": 9.5,
+    "usage_monthly": 25.75,
+    "is_free_tier": false,
+    "is_management_key": false,
+    "rate_limit": { "interval": "minute", "note": "deprecated", "requests": 20 },
+    "free_model_daily_requests": { "limit": 50, "remaining": 37, "used": 13 }
+  }
+}

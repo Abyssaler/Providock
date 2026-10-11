@@ -1,0 +1,29 @@
+{
+  "http_status": 200,
+  "outcome": "success",
+  "provider_as_of": null,
+  "balances": [
+    {
+      "kind": "available",
+      "amount": "110.00",
+      "currency": "CNY",
+      "formula": "total = granted + topped_up",
+      "quality": "reported"
+    },
+    {
+      "kind": "grant",
+      "amount": "10.00",
+      "currency": "CNY",
+      "formula": null,
+      "quality": "reported"
+    },
+    {
+      "kind": "paid",
+      "amount": "100.00",
+      "currency": "CNY",
+      "formula": null,
+      "quality": "reported"
+    }
+  ],
+  "quota_windows": []
+}

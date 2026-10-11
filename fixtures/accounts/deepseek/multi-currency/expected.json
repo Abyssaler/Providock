@@ -1,0 +1,50 @@
+{
+  "http_status": 200,
+  "outcome": "success",
+  "provider_as_of": null,
+  "balances": [
+    {
+      "kind": "available",
+      "amount": "110.00",
+      "currency": "CNY",
+      "formula": "total = granted + topped_up",
+      "quality": "reported"
+    },
+    {
+      "kind": "grant",
+      "amount": "10.00",
+      "currency": "CNY",
+      "formula": null,
+      "quality": "reported"
+    },
+    {
+      "kind": "paid",
+      "amount": "100.00",
+      "currency": "CNY",
+      "formula": null,
+      "quality": "reported"
+    },
+    {
+      "kind": "available",
+      "amount": "25.50",
+      "currency": "USD",
+      "formula": "total = granted + topped_up",
+      "quality": "reported"
+    },
+    {
+      "kind": "grant",
+      "amount": "0.00",
+      "currency": "USD",
+      "formula": null,
+      "quality": "reported"
+    },
+    {
+      "kind": "paid",
+      "amount": "25.50",
+      "currency": "USD",
+      "formula": null,
+      "quality": "reported"
+    }
+  ],
+  "quota_windows": []
+}

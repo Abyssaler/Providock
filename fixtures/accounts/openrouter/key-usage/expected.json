@@ -1,0 +1,75 @@
+{
+  "endpoint": "current_key",
+  "http_status": 200,
+  "outcome": "success",
+  "provider_as_of": null,
+  "balances": [],
+  "quota_windows": [
+    {
+      "window_id": "openrouter:key:spend_limit:usd",
+      "unit": "currency",
+      "scope": "key",
+      "label": "Key 消费上限 (USD)",
+      "period_kind": "calendar",
+      "duration_seconds": null,
+      "used": "25.75",
+      "limit": "100",
+      "remaining": "74.25"
+    },
+    {
+      "window_id": "openrouter:key:usage:total:usd",
+      "unit": "currency",
+      "scope": "key",
+      "label": "Key 累计用量 (USD)",
+      "period_kind": null,
+      "duration_seconds": null,
+      "used": "25.75",
+      "limit": null,
+      "remaining": null
+    },
+    {
+      "window_id": "openrouter:key:usage:daily:usd",
+      "unit": "currency",
+      "scope": "key",
+      "label": "Key 当日用量 (USD)",
+      "period_kind": "calendar",
+      "duration_seconds": 86400,
+      "used": "1.5",
+      "limit": null,
+      "remaining": null
+    },
+    {
+      "window_id": "openrouter:key:usage:weekly:usd",
+      "unit": "currency",
+      "scope": "key",
+      "label": "Key 本周用量 (USD)",
+      "period_kind": "calendar",
+      "duration_seconds": 604800,
+      "used": "9.5",
+      "limit": null,
+      "remaining": null
+    },
+    {
+      "window_id": "openrouter:key:usage:monthly:usd",
+      "unit": "currency",
+      "scope": "key",
+      "label": "Key 本月用量 (USD)",
+      "period_kind": "calendar",
+      "duration_seconds": null,
+      "used": "25.75",
+      "limit": null,
+      "remaining": null
+    },
+    {
+      "window_id": "openrouter:key:free_model_daily_requests:requests",
+      "unit": "requests",
+      "scope": "key",
+      "label": "免费模型每日请求数",
+      "period_kind": "calendar",
+      "duration_seconds": 86400,
+      "used": "13",
+      "limit": "50",
+      "remaining": "37"
+    }
+  ]
+}

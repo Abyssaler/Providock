@@ -1,0 +1,43 @@
+{
+  "http_status": 200,
+  "outcome": "success",
+  "provider_as_of": null,
+  "balances": [
+    {
+      "kind": "available",
+      "amount": "100",
+      "currency": "USD",
+      "formula": "USD = availableBalance / 10000 (1/10000 USD)",
+      "quality": "reported"
+    },
+    {
+      "kind": "paid",
+      "amount": "80",
+      "currency": "USD",
+      "formula": "USD = cashBalance / 10000 (充值剩余, 1/10000 USD)",
+      "quality": "reported"
+    },
+    {
+      "kind": "credit",
+      "amount": "20",
+      "currency": "USD",
+      "formula": "USD = creditLimit / 10000 (授信上限, 非现金)",
+      "quality": "reported"
+    },
+    {
+      "kind": "credit",
+      "amount": "0",
+      "currency": "USD",
+      "formula": "USD = pendingCharges / 10000 (待结算, 非现金)",
+      "quality": "reported"
+    },
+    {
+      "kind": "credit",
+      "amount": "0",
+      "currency": "USD",
+      "formula": "USD = outstandingInvoices / 10000 (欠款, 非现金)",
+      "quality": "reported"
+    }
+  ],
+  "quota_windows": []
+}

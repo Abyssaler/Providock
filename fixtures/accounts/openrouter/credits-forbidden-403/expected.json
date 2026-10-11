@@ -1,0 +1,10 @@
+{
+  "endpoint": "credits",
+  "http_status": 403,
+  "outcome": "failure",
+  "status": "auth_required",
+  "business_code": null,
+  "schema_changed": false,
+  "transport_failed": false,
+  "unsupported": false
+}

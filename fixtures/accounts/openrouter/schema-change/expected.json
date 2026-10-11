@@ -1,0 +1,10 @@
+{
+  "endpoint": "credits",
+  "http_status": 200,
+  "outcome": "failure",
+  "status": "incompatible",
+  "business_code": null,
+  "schema_changed": true,
+  "transport_failed": false,
+  "unsupported": false
+}

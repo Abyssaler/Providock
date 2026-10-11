@@ -1,0 +1,23 @@
+{
+  "endpoint": "credits",
+  "http_status": 200,
+  "outcome": "success",
+  "provider_as_of": null,
+  "balances": [
+    {
+      "kind": "available",
+      "amount": "-15.75",
+      "currency": "USD",
+      "formula": "available = total_credits - total_usage",
+      "quality": "derived"
+    },
+    {
+      "kind": "credit",
+      "amount": "10",
+      "currency": "USD",
+      "formula": "total_credits (purchased)",
+      "quality": "reported"
+    }
+  ],
+  "quota_windows": []
+}
