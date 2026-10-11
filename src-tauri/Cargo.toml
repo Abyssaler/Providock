@@ -26,6 +26,7 @@ reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"
 notify = "8" # 源目录文件监视
 thiserror = "2.0.21"
 time = { version = "0.3.45", features = ["formatting", "parsing"] }
+zstd = "0.14.2"
 
 [profile.release]
 lto = true

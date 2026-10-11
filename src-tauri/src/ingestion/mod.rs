@@ -11,6 +11,8 @@
 use crate::domain::UsageEvent;
 use crate::storage::{token_to_sql, Database, StorageError};
 
+pub mod scanner;
+
 #[derive(Debug, thiserror::Error)]
 pub enum IngestionError {
     #[error(transparent)]
@@ -320,6 +322,32 @@ pub fn retire_events_with_tombstones(
     tx.execute(
         "DELETE FROM usage_events WHERE source_id = ?1",
         rusqlite::params![source_id],
+    )?;
+    tx.commit()?;
+    Ok(n as u64)
+}
+
+/// 文件截断/重写换代：退休该文件旧代数的事件（墓碑保留身份），
+/// 新一代的重新解析从 0 开始，身份含代数不会与旧事件冲突。
+pub fn retire_file_generations(
+    db: &mut Database,
+    source_id: &str,
+    file_identity: &str,
+    from_generation: u64,
+) -> Result<u64> {
+    let tx = db.transaction()?;
+    let n = tx.execute(
+        "INSERT OR IGNORE INTO event_identity_tombstones (event_id, reason)
+         SELECT DISTINCT event_id, 'file_regeneration' FROM usage_observations
+         WHERE source_id = ?1 AND file_identity = ?2 AND generation < ?3",
+        rusqlite::params![source_id, file_identity, token_to_sql(from_generation)?],
+    )?;
+    tx.execute(
+        "DELETE FROM usage_events WHERE event_id IN (
+            SELECT DISTINCT event_id FROM usage_observations
+            WHERE source_id = ?1 AND file_identity = ?2 AND generation < ?3
+        )",
+        rusqlite::params![source_id, file_identity, token_to_sql(from_generation)?],
     )?;
     tx.commit()?;
     Ok(n as u64)

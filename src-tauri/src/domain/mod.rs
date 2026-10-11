@@ -8,6 +8,8 @@
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt;
 
+pub mod decimal;
+
 pub mod serde_u64_str {
     use super::*;
 

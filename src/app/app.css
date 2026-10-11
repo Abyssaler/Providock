@@ -105,3 +105,152 @@ main {
     justify-content: center;
   }
 }
+
+.actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+button.primary {
+  background: var(--primary);
+  color: var(--primary-contrast);
+  border-color: var(--primary);
+}
+
+.badge {
+  font-size: 11px;
+  padding: 3px 8px;
+  background: var(--soft);
+  color: var(--primary);
+  border-radius: 5px;
+  white-space: nowrap;
+}
+
+.hero {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--card);
+  padding: 24px;
+  box-shadow: var(--shadow);
+  margin-top: 18px;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: 1.3fr repeat(4, 1fr);
+  gap: 22px;
+}
+
+.stat {
+  border-right: 1px solid var(--line);
+  padding-right: 16px;
+}
+
+.stat:last-child {
+  border: 0;
+}
+
+.num {
+  font-size: 29px;
+  font-weight: 650;
+  letter-spacing: -1px;
+  font-variant-numeric: tabular-nums;
+  margin: 5px 0;
+}
+
+.num.big {
+  font-size: 36px;
+  color: var(--primary);
+}
+
+.lower {
+  display: grid;
+  grid-template-columns: 1.8fr 1fr;
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.cardhead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.cardhead h2 {
+  font-size: 15px;
+  margin: 0;
+}
+
+.chart {
+  min-height: 180px;
+  display: flex;
+  align-items: flex-end;
+  gap: 17px;
+  padding-top: 15px;
+  border-bottom: 1px solid var(--line);
+  margin: 10px 0 6px;
+}
+
+.barcol {
+  flex: 1;
+  height: 100%;
+  min-height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-direction: column;
+}
+
+.bar {
+  width: 100%;
+  max-width: 62px;
+  min-height: 4px;
+  background: linear-gradient(#7caafa, #347be6);
+  border-radius: 5px 5px 0 0;
+}
+
+.barcol small {
+  color: var(--muted);
+  font-size: 11px;
+  margin: 3px 0;
+}
+
+.rankline {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: baseline;
+  padding: 6px 0;
+}
+
+.report-list {
+  margin: 0;
+  padding-left: 18px;
+}
+
+@media (max-width: 1050px) {
+  .stats {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .stat:nth-child(3) {
+    border: 0;
+  }
+
+  .lower {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .stats {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .stat {
+    border: 0;
+  }
+}
