@@ -1,0 +1,5 @@
+{"type":"metadata","protocol_version":"1.0","created_at":1750000000000}
+{"type":"turn.prompt","agentId":"main","turnId":"t1","time":1750000001000}
+{"type":"context.append_message","agentId":"main","role":"user","time":1750000002000}
+{"type":"turn.ended","agentId":"main","turnId":"t1","time":1750000003000}
+{"type":"token_counting.measured","agentId":"main","tokens":8192,"time":1750000004000}

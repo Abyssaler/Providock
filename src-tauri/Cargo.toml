@@ -25,6 +25,7 @@ keyring = { version = "3", features = ["apple-native", "windows-native"] } # 系
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] } # 账户 HTTP
 notify = "8" # 源目录文件监视
 thiserror = "2.0.21"
+time = { version = "0.3.45", features = ["formatting", "parsing"] }
 
 [profile.release]
 lto = true

@@ -1,0 +1,17 @@
+{
+  "config": { "forked_from_present": false, "parent_available": false },
+  "compatibility": "ok",
+  "events": 1,
+  "totals": {
+    "input_fresh": null,
+    "input_cache_read": null,
+    "input_cache_write": null,
+    "input_total": null,
+    "output_total": null,
+    "total": null,
+    "request_count": "1"
+  },
+  "completeness": "partial",
+  "consumed": "all",
+  "diagnostics_include": []
+}

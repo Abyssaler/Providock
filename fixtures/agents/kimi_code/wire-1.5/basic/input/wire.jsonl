@@ -1,0 +1,9 @@
+{"type":"metadata","protocol_version":"1.5","created_at":1760000000000}
+{"type":"turn.prompt","agentId":"main","turnId":"t1","time":1759999999000}
+{"type":"usage.record","agentId":"main","model":"kimi-k2","usage":{"inputOther":100,"output":30,"inputCacheRead":40,"inputCacheCreation":5},"usageScope":"turn","time":1760000000000}
+{"type":"token_counting.measured","agentId":"main","tokens":4096,"time":1760000001000}
+{"type":"usage.record","agentId":"main","model":"kimi-k2","usage":{"inputOther":200,"output":50,"inputCacheRead":0,"inputCacheCreation":0},"usageScope":"turn","time":1760000002000}
+{"type":"agent.switched","agentId":"main","branch":"b1","reason":"undo","base":{"branch":"main","line":2},"turns":["t1"],"legacyUndoLine":6,"time":1760000003000}
+{"type":"context.undo","agentId":"main","count":1,"time":1760000003001}
+{"type":"context.undone","agentId":"main","turns":["t1"],"fromTurnId":"t1","time":1760000003002}
+{"type":"usage.record","agentId":"main","model":"kimi-k2","usage":{"inputOther":1000,"output":100,"inputCacheRead":400,"inputCacheCreation":0},"usageScope":"session","time":1760000004000}

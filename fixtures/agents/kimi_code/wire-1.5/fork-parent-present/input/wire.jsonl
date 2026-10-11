@@ -1,0 +1,5 @@
+{"type":"metadata","protocol_version":"1.5","created_at":1760000000000}
+{"type":"usage.record","agentId":"main","model":"kimi-k2","usage":{"inputOther":10,"output":5,"inputCacheRead":0,"inputCacheCreation":0},"usageScope":"turn","time":1759999000000}
+{"type":"usage.record","agentId":"main","model":"kimi-k2","usage":{"inputOther":20,"output":5,"inputCacheRead":0,"inputCacheCreation":0},"usageScope":"turn","time":1759999100000}
+{"type":"forked","agentId":"main","time":1759999500000}
+{"type":"usage.record","agentId":"main","model":"kimi-k2","usage":{"inputOther":7,"output":2,"inputCacheRead":3,"inputCacheCreation":0},"usageScope":"turn","time":1760000100000}

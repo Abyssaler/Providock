@@ -1,0 +1,16 @@
+{
+  "config": { "forked_from_present": true, "parent_available": false },
+  "compatibility": "ok",
+  "events": 3,
+  "totals": {
+    "input_fresh": "37",
+    "input_cache_read": "3",
+    "input_cache_write": "0",
+    "input_total": "40",
+    "output_total": "12",
+    "total": "52",
+    "request_count": "3"
+  },
+  "consumed": "all",
+  "diagnostics_include": ["fork_parent_missing"]
+}

@@ -1,0 +1,4 @@
+{"type":"metadata","protocol_version":"1.5","created_at":1760000000000}
+{"type":"usage.record","agentId":"main","model":"kimi-k2","usage":{"inputOther":64,"output":8,"inputCacheRead":16,"inputCacheCreation":0},"usageScope":"turn","time":1760000001000}
+{"type":"usage.record","agentId":"main","model":"kimi-k2","usage":{"inputOther":128,"output":32,"inputCacheRead":0,"inputCacheCreation":4},"usageScope":"turn","time":1760000002000}
+INCOMPLETE-LINE{"type":"usage.record","agentId":"main","model":"kimi-k2","usage":{"inputOther":999,"output":1,"inputCacheRead":0,"inputCacheCreation":0},"usageScope":"turn","time":1760000003000}

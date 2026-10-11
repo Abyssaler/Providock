@@ -1,0 +1,7 @@
+{
+  "config": { "forked_from_present": false, "parent_available": false },
+  "compatibility": "unsupported_protocol:1.9",
+  "events": 0,
+  "consumed": "first_line_only",
+  "diagnostics_include": ["wire_compatibility"]
+}

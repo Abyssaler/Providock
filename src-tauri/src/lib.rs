@@ -1,6 +1,7 @@
 // 提供 Tauri 命令壳；业务模块逐步落地：
 // domain（契约类型）、storage（自有 DB）、ingestion（事务游标与去重）为 T02。
 
+pub mod adapters;
 pub mod domain;
 pub mod ingestion;
 pub mod storage;
