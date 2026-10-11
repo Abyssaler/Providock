@@ -6,3 +6,4 @@ pub mod cleanup;
 pub mod export;
 pub mod pricing;
 pub mod redact;
+pub mod session_queries;

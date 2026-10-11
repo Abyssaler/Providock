@@ -1,0 +1,279 @@
+/* 会话页与详情抽屉（UI_UX 第 3 节变量、第 6 节交互、第 9 节无障碍）。
+   全部颜色取自 src/index.css 的 CSS 变量，浅色/深色自动适配。 */
+
+.sess-filters {
+  display: flex;
+  gap: 16px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.sess-filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.sess-filters input[type="search"],
+.sess-filters select {
+  min-height: 32px;
+  min-width: 190px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--text);
+  padding: 6px 10px;
+}
+
+.sess-filters input[type="search"] {
+  min-width: 280px;
+}
+
+.sess-list {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sess-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 18px;
+  text-align: left;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: transparent;
+}
+
+.sess-row:hover {
+  border-color: var(--line);
+  background: var(--soft);
+}
+
+.sess-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.sess-tags {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sess-row-metrics {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  white-space: nowrap;
+}
+
+.sess-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 22, 36, 0.45);
+  display: flex;
+  justify-content: flex-end;
+  z-index: 40;
+}
+
+.sess-drawer {
+  width: min(720px, 100%);
+  height: 100%;
+  background: var(--bg);
+  border-left: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sess-drawer:focus-visible {
+  outline: 3px solid var(--primary);
+  outline-offset: -3px;
+}
+
+.sess-drawer-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 20px 24px;
+  background: var(--card);
+  border-bottom: 1px solid var(--line);
+}
+
+.sess-drawer-head h2 {
+  margin: 0 0 4px;
+  font-size: 19px;
+  line-height: 1.35;
+}
+
+.sess-drawer-body {
+  padding: 20px 24px 40px;
+  overflow-y: auto;
+}
+
+.sess-drawer-body h3 {
+  font-size: 14px;
+  margin: 22px 0 8px;
+}
+
+.sess-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 16px 18px;
+}
+
+.sess-stats .num {
+  font-size: 22px;
+}
+
+.sess-meta {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.sess-meta code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: var(--soft);
+  color: var(--text);
+  border-radius: 5px;
+  padding: 1px 6px;
+  word-break: break-all;
+}
+
+.sess-content-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sess-notice {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.sess-notice p {
+  margin: 0;
+}
+
+.sess-blocks {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sess-block {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  padding: 12px 14px;
+}
+
+.sess-role {
+  display: block;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--primary);
+  margin-bottom: 5px;
+}
+
+.sess-block p {
+  margin: 0 0 4px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.sess-block span {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.sess-tool summary {
+  cursor: pointer;
+  min-height: 24px;
+}
+
+.sess-tool summary:focus-visible {
+  outline: 3px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.sess-code {
+  margin: 6px 0;
+  padding: 10px 12px;
+  background: var(--soft);
+  color: var(--text);
+  border-radius: 8px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px;
+}
+
+/* 外部链接只展示目标域名：不可点击、不自动加载。 */
+.sess-link {
+  display: inline-block;
+  margin: 0 2px;
+  padding: 0 6px;
+  border: 1px dashed var(--line);
+  border-radius: 5px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.sess-warn {
+  color: var(--warn);
+}
+
+@media (max-width: 760px) {
+  .sess-filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .sess-row {
+    flex-direction: column;
+  }
+
+  .sess-row-metrics {
+    align-items: flex-start;
+  }
+
+  .sess-stats {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sess-row,
+  .sess-code {
+    transition: none;
+  }
+}

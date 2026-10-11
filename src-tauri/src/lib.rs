@@ -430,6 +430,131 @@ async fn account_delete(
     .map_err(|e| e.to_string())?
 }
 
+// ---------------------------------------------------------------------------
+// 会话 IPC（T13）：列表只查索引元数据；正文默认关闭，开启后按源文件按需读取
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionsFilterDto {
+    pub agent: Option<String>,
+    pub from: Option<String>,
+    pub to: Option<String>,
+    /// 只匹配索引元数据（session_id / 标题），不扫正文。
+    pub query: Option<String>,
+}
+
+#[tauri::command]
+async fn sessions_page(
+    state: tauri::State<'_, AppState>,
+    filter: SessionsFilterDto,
+    cursor: Option<String>,
+    limit: Option<u32>,
+) -> Result<services::session_queries::SessionsPage, String> {
+    let db = Arc::clone(&state.db);
+    tauri::async_runtime::spawn_blocking(move || {
+        let db = db.lock().map_err(|e| e.to_string())?;
+        let filter = services::session_queries::SessionFilter {
+            agent: filter.agent,
+            from: filter.from,
+            to: filter.to,
+            query: filter.query,
+        };
+        let limit = limit
+            .map(|l| l as usize)
+            .unwrap_or(services::session_queries::DEFAULT_SESSION_PAGE_LIMIT);
+        services::session_queries::sessions_page(&db, &filter, cursor.as_deref(), limit)
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// `session_ref` 只含索引身份（源 + 会话 + 可选 actor），不含任何系统路径。
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionRefDto {
+    pub source_id: String,
+    pub session_id: String,
+    #[serde(default)]
+    pub actor_id: Option<String>,
+}
+
+/// 正文失败的稳定错误码 + 面向用户的中文说明。
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ContentErrorDto {
+    pub code: String,
+    pub message: String,
+}
+
+impl From<services::session_queries::ContentError> for ContentErrorDto {
+    fn from(err: services::session_queries::ContentError) -> Self {
+        Self {
+            code: err.code().to_string(),
+            message: err.message(),
+        }
+    }
+}
+
+#[tauri::command]
+async fn session_content_page(
+    state: tauri::State<'_, AppState>,
+    session_ref: SessionRefDto,
+    cursor: Option<u64>,
+    limit: Option<u32>,
+) -> Result<services::session_queries::ContentPage, ContentErrorDto> {
+    let db = Arc::clone(&state.db);
+    tauri::async_runtime::spawn_blocking(move || {
+        let db = db.lock().map_err(|e| {
+            ContentErrorDto::from(services::session_queries::ContentError::Internal(
+                e.to_string(),
+            ))
+        })?;
+        let session_ref = services::session_queries::SessionRef {
+            source_id: session_ref.source_id,
+            session_id: session_ref.session_id,
+            actor_id: session_ref.actor_id,
+        };
+        let limit = limit
+            .map(|l| l as usize)
+            .unwrap_or(services::session_queries::DEFAULT_CONTENT_PAGE_LIMIT);
+        services::session_queries::session_content_page(&db, &session_ref, cursor, limit)
+            .map_err(ContentErrorDto::from)
+    })
+    .await
+    .map_err(|e| {
+        ContentErrorDto::from(services::session_queries::ContentError::Internal(
+            e.to_string(),
+        ))
+    })?
+}
+
+#[tauri::command]
+async fn content_view_status(state: tauri::State<'_, AppState>) -> Result<bool, String> {
+    let db = Arc::clone(&state.db);
+    tauri::async_runtime::spawn_blocking(move || {
+        let db = db.lock().map_err(|e| e.to_string())?;
+        services::session_queries::content_view_enabled(&db).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn content_view_set(
+    state: tauri::State<'_, AppState>,
+    enabled: bool,
+) -> Result<bool, String> {
+    let db = Arc::clone(&state.db);
+    tauri::async_runtime::spawn_blocking(move || {
+        let db = db.lock().map_err(|e| e.to_string())?;
+        services::session_queries::content_view_set(&db, enabled).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -475,6 +600,10 @@ pub fn run() {
             account_rotate_credential,
             account_refresh,
             account_delete,
+            sessions_page,
+            session_content_page,
+            content_view_status,
+            content_view_set,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
