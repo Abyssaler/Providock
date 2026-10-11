@@ -1,0 +1,16 @@
+{
+  "config": { "is_subagent": false, "subagent_actor_id": null },
+  "events": 3,
+  "totals": {
+    "input_fresh": "195",
+    "input_cache_read": "1800",
+    "input_cache_write": "300",
+    "input_total": "2295",
+    "output_total": "73",
+    "total": "2368",
+    "request_count": "3"
+  },
+  "identity": { "session_id": "sess-A", "parent_session_id": null, "actor_id": null },
+  "consumed": "all",
+  "diagnostics_include": ["malformed_line_at_offset"]
+}

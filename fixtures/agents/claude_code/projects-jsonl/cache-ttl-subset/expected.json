@@ -1,0 +1,16 @@
+{
+  "config": { "is_subagent": false, "subagent_actor_id": null },
+  "events": 2,
+  "totals": {
+    "input_fresh": "120",
+    "input_cache_read": "30",
+    "input_cache_write": "1000",
+    "input_total": "1150",
+    "output_total": "55",
+    "total": "1205",
+    "request_count": "2"
+  },
+  "identity": { "session_id": "sess-C", "parent_session_id": null, "actor_id": null },
+  "consumed": "all",
+  "diagnostics_include": []
+}
