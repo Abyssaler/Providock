@@ -1,0 +1,30 @@
+[package]
+name = "providock"
+version = "0.1.0"
+description = "本地优先的 Agent 用量监测与 AI 账户额度管理"
+license = "MIT"
+edition = "2021"
+rust-version = "1.85"
+
+[lib]
+name = "providock_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# 以下依赖为架构设计的本地采集/账户能力做双平台编译验证（T01 要求），
+# 具体模块在 T02+ 逐步实现：
+rusqlite = { version = "0.37", features = ["bundled"] } # SQLite，不依赖系统库
+keyring = { version = "3", features = ["apple-native", "windows-native"] } # 系统凭据库
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] } # 账户 HTTP
+notify = "8" # 源目录文件监视
+
+[profile.release]
+lto = true
+codegen-units = 1

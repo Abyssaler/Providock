@@ -1,0 +1,9 @@
+node_modules/
+dist/
+src-tauri/
+pnpm-lock.yaml
+docs/
+fixtures/
+LICENSE
+THIRD_PARTY_NOTICES.md
+CHANGELOG.md

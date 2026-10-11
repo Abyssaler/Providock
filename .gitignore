@@ -1,0 +1,18 @@
+# 依赖与构建产物
+node_modules/
+dist/
+src-tauri/target/
+
+# Tauri 生成的 schema 体积大且可再生
+src-tauri/gen/schemas/
+
+# 系统与编辑器
+.DS_Store
+Thumbs.db
+*.local
+
+# 秘密一律不进仓库
+.env
+.env.*
+*.pem
+*.key

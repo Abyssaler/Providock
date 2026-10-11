@@ -1,0 +1,90 @@
+/* 设计变量见 docs/specs/UI_UX.md 第 3 节 */
+:root {
+  color-scheme: light;
+  --bg: #f7f8fb;
+  --card: #ffffff;
+  --text: #172033;
+  --muted: #687387;
+  --line: #e4e8ef;
+  --primary: #2775e8;
+  --primary-contrast: #ffffff;
+  --soft: #edf4ff;
+  --warn: #955509;
+  --warn-bg: #fff6e8;
+  --danger: #c23434;
+  --ok: #247553;
+  --shadow: 0 3px 12px rgba(22, 47, 91, 0.04);
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #15171c;
+  --card: #20232b;
+  --text: #edf2ff;
+  --muted: #a8b4c9;
+  --line: #343a46;
+  --primary: #85b5ff;
+  --primary-contrast: #10141c;
+  --soft: #263751;
+  --warn: #f6c77d;
+  --warn-bg: #403321;
+  --danger: #ff8f8f;
+  --ok: #83d7b1;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font:
+    14px/1.6 -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    "Microsoft YaHei",
+    sans-serif;
+}
+
+button,
+select {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  border: 1px solid var(--line);
+  background: var(--card);
+  border-radius: 8px;
+  padding: 7px 12px;
+  min-height: 32px;
+}
+
+button:hover {
+  border-color: var(--primary);
+}
+
+button:focus-visible,
+select:focus-visible,
+a:focus-visible {
+  outline: 3px solid var(--primary);
+  outline-offset: 2px;
+}
+
+button.active {
+  background: var(--soft);
+  color: var(--primary);
+  border-color: transparent;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.small {
+  font-size: 12px;
+}

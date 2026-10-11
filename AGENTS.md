@@ -2,7 +2,7 @@
 
 ## 开始工作
 
-先读 README、docs/DEVELOPMENT_HANDBOOK.md、docs/PRODUCT_REQUIREMENTS.md，再读任务相关规范与 docs/ROADMAP_AND_ACCEPTANCE.md。这里当前只有设计文档，不能假定应用、依赖、测试或构建命令已存在。以文件系统为准。
+先读 README、docs/DEVELOPMENT_HANDBOOK.md、docs/PRODUCT_REQUIREMENTS.md，再读任务相关规范与 docs/ROADMAP_AND_ACCEPTANCE.md。工程骨架已存在（T01）：开发命令见 README 与开发手册第 6 节，依赖与锁文件已固定；采集、账户、网关业务逻辑尚未实现。以文件系统为准。
 
 用户已确认的产品选择写在产品需求中。普通实现选择由开发者自行决定，不要重复询问。产品边界发生实质变化时先解释影响，并更新决策记录；不得为了方便把要求的 Agent 支持范围缩小为 Claude/Codex/Kimi 三个。
 
