@@ -1,0 +1,18 @@
+{
+  "config": { "after_id": 2, "overlap": 0 },
+  "status": "ok",
+  "events": 2,
+  "max_id": "4",
+  "event_ids": ["mcode:3", "mcode:4"],
+  "totals": {
+    "input_fresh": "700",
+    "input_cache_read": "0",
+    "input_cache_write": "0",
+    "input_total": "700",
+    "output_total": "70",
+    "output_reasoning": "0",
+    "total": "770",
+    "request_count": "2"
+  },
+  "diagnostics_include": []
+}

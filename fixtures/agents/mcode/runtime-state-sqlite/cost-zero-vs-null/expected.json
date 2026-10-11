@@ -1,0 +1,23 @@
+{
+  "config": { "after_id": null, "overlap": 8 },
+  "status": "ok",
+  "events": 3,
+  "max_id": "3",
+  "event_ids": ["mcode:1", "mcode:2", "mcode:3"],
+  "costs": [
+    { "amount": "0", "currency": "USD" },
+    null,
+    { "amount": "0.0000125", "currency": "USD" }
+  ],
+  "totals": {
+    "input_fresh": "30",
+    "input_cache_read": "0",
+    "input_cache_write": "0",
+    "input_total": "30",
+    "output_total": "3",
+    "output_reasoning": "0",
+    "total": "33",
+    "request_count": "3"
+  },
+  "diagnostics_include": []
+}

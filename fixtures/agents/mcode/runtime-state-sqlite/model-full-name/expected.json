@@ -1,0 +1,19 @@
+{
+  "config": { "after_id": null, "overlap": 8 },
+  "status": "ok",
+  "events": 2,
+  "max_id": "2",
+  "event_ids": ["mcode:1", "mcode:2"],
+  "models": ["custom_provider:router/vendor/model", "MiniMax-M2.1"],
+  "totals": {
+    "input_fresh": "2",
+    "input_cache_read": "0",
+    "input_cache_write": "0",
+    "input_total": "2",
+    "output_total": "2",
+    "output_reasoning": "0",
+    "total": "4",
+    "request_count": "2"
+  },
+  "diagnostics_include": []
+}

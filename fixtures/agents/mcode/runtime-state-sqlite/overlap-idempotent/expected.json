@@ -1,0 +1,26 @@
+{
+  "config": { "after_id": 4, "overlap": 8 },
+  "status": "ok",
+  "events": 6,
+  "max_id": "6",
+  "event_ids": ["mcode:1", "mcode:2", "mcode:3", "mcode:4", "mcode:5", "mcode:6"],
+  "new_event_ids": ["mcode:5", "mcode:6"],
+  "totals": {
+    "input_fresh": "210",
+    "input_cache_read": "0",
+    "input_cache_write": "0",
+    "input_total": "210",
+    "output_total": "21",
+    "output_reasoning": "0",
+    "total": "231",
+    "request_count": "6"
+  },
+  "new_totals": {
+    "input_fresh": "110",
+    "input_total": "110",
+    "output_total": "11",
+    "total": "121",
+    "request_count": "2"
+  },
+  "diagnostics_include": []
+}

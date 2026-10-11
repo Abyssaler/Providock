@@ -1,0 +1,25 @@
+{
+  "config": { "after_id": null, "overlap": 8 },
+  "status": "ok",
+  "events": 3,
+  "max_id": "3",
+  "event_ids": ["mcode:1", "mcode:2", "mcode:3"],
+  "models": ["MiniMax-M2", "MiniMax-M2", "abab6.5s-chat"],
+  "occurred_at": ["2026-10-11T08:00:00Z", "2026-10-11T08:00:01Z", "2026-10-11T08:00:02Z"],
+  "costs": [
+    { "amount": "0.0125", "currency": "USD" },
+    { "amount": "0", "currency": "USD" },
+    null
+  ],
+  "totals": {
+    "input_fresh": "1500",
+    "input_cache_read": "300",
+    "input_cache_write": "100",
+    "input_total": "1900",
+    "output_total": "280",
+    "output_reasoning": "50",
+    "total": "2180",
+    "request_count": "3"
+  },
+  "diagnostics_include": []
+}
