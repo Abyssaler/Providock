@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","method":"_x.ai/session/update","params":{"sessionId":"0199aaaa-0000-7000-8000-000000000006","update":{"sessionUpdate":"turn_completed","prompt_id":"019a0000-0000-7000-8000-000000000001","usage":{"inputTokens":100,"outputTokens":200,"cachedReadTokens":0,"reasoningTokens":150,"modelCalls":1}}},"timestamp":1791626400}

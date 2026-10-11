@@ -1,0 +1,20 @@
+{
+  "config": { "archived": false },
+  "events": 2,
+  "totals": {
+    "input_fresh": "13794",
+    "input_cache_read": "13696",
+    "input_cache_write": null,
+    "input_total": "27490",
+    "output_total": "22",
+    "output_reasoning": "7",
+    "total": "27512",
+    "request_count": "2"
+  },
+  "event_expect": [
+    { "turn_id": "0199dddd-0000-7000-8000-000000000001", "model_raw": null, "occurred_at": "2026-10-10T10:00:00Z", "granularity": "turn_aggregate", "completeness": "complete", "cost": { "amount": "0.033888", "currency": "USD", "quality": "reported", "completeness": "complete" } },
+    { "turn_id": "0199dddd-0000-7000-8000-000000000002", "model_raw": null, "occurred_at": "2026-10-10T10:01:00Z", "granularity": "turn_aggregate", "completeness": "complete", "cost": { "amount": "0.0000000001", "currency": "USD", "quality": "reported", "completeness": "complete" } }
+  ],
+  "consumed": "all",
+  "diagnostics_include": []
+}

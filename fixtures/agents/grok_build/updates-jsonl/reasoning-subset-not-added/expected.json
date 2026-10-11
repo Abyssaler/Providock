@@ -1,0 +1,19 @@
+{
+  "config": { "archived": false },
+  "events": 1,
+  "totals": {
+    "input_fresh": "100",
+    "input_cache_read": "0",
+    "input_cache_write": null,
+    "input_total": "100",
+    "output_total": "200",
+    "output_reasoning": "150",
+    "total": "300",
+    "request_count": "1"
+  },
+  "event_expect": [
+    { "turn_id": "019a0000-0000-7000-8000-000000000001", "model_raw": null, "occurred_at": "2026-10-10T10:00:00Z", "granularity": "turn_aggregate", "completeness": "complete", "cost": null }
+  ],
+  "consumed": "all",
+  "diagnostics_include": []
+}

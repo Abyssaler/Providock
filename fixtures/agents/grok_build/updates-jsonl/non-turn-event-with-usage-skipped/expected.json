@@ -1,0 +1,20 @@
+{
+  "config": { "archived": false },
+  "events": 1,
+  "totals": {
+    "input_fresh": "1000",
+    "input_cache_read": "0",
+    "input_cache_write": null,
+    "input_total": "1000",
+    "output_total": "100",
+    "output_reasoning": "0",
+    "total": "1100",
+    "request_count": "1"
+  },
+  "event_expect": [
+    { "turn_id": "019a3333-0000-7000-8000-000000000004", "model_raw": null, "occurred_at": "2026-10-10T10:02:00Z", "granularity": "turn_aggregate", "completeness": "complete", "cost": null }
+  ],
+  "consumed": "all",
+  "diagnostics_include": ["turn_in_progress", "_x.ai/session/usage:none", "turn_completed_without_numeric_timestamp"],
+  "diagnostics_count": { "usage_bearing_non_turn_event_skipped": 2 }
+}

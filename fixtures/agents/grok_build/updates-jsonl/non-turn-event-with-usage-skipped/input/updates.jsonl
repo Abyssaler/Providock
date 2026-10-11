@@ -1,0 +1,4 @@
+{"jsonrpc":"2.0","method":"_x.ai/session/update","params":{"sessionId":"0199aaaa-0000-7000-8000-000000000009","update":{"sessionUpdate":"turn_in_progress","usage":{"inputTokens":9}}},"timestamp":1791626400}
+{"jsonrpc":"2.0","method":"_x.ai/session/usage","params":{"update":{"usage":{"inputTokens":8}}},"timestamp":1791626460}
+{"jsonrpc":"2.0","method":"_x.ai/session/update","params":{"sessionId":"0199aaaa-0000-7000-8000-000000000009","update":{"sessionUpdate":"turn_completed","prompt_id":"019a3333-0000-7000-8000-000000000003","usage":{"inputTokens":7,"outputTokens":1,"cachedReadTokens":0,"reasoningTokens":0,"modelCalls":1}}}}
+{"jsonrpc":"2.0","method":"_x.ai/session/update","params":{"sessionId":"0199aaaa-0000-7000-8000-000000000009","update":{"sessionUpdate":"turn_completed","prompt_id":"019a3333-0000-7000-8000-000000000004","usage":{"inputTokens":1000,"outputTokens":100,"cachedReadTokens":0,"reasoningTokens":0,"modelCalls":1}}},"timestamp":1791626520}

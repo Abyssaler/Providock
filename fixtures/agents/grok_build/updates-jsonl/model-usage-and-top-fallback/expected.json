@@ -1,0 +1,20 @@
+{
+  "config": { "archived": false },
+  "events": 2,
+  "totals": {
+    "input_fresh": "1300",
+    "input_cache_read": "500",
+    "input_cache_write": null,
+    "input_total": "1800",
+    "output_total": "230",
+    "output_reasoning": "50",
+    "total": "2030",
+    "request_count": "3"
+  },
+  "event_expect": [
+    { "turn_id": "0199cccc-0000-7000-8000-000000000001", "model_raw": "grok-4.5-build", "occurred_at": "2026-10-10T10:00:00Z", "granularity": "turn_aggregate", "completeness": "complete", "cost": null },
+    { "turn_id": "0199cccc-0000-7000-8000-000000000002", "model_raw": null, "occurred_at": "2026-10-10T10:01:00Z", "granularity": "turn_aggregate", "completeness": "complete", "cost": null }
+  ],
+  "consumed": "all",
+  "diagnostics_include": []
+}
