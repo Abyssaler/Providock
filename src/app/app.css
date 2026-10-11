@@ -254,3 +254,28 @@ button.primary {
     border: 0;
   }
 }
+
+.tablewrap {
+  overflow: auto;
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  text-align: left;
+}
+
+.tablewrap th {
+  color: var(--muted);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.tablewrap th,
+.tablewrap td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.tablewrap td.number,
+.tablewrap th.number {
+  text-align: right;
+}
