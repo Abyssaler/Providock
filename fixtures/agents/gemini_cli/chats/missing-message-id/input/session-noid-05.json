@@ -1,0 +1,32 @@
+{
+  "sessionId": "sess-noid-05",
+  "messages": [
+    {
+      "id": "n1",
+      "type": "gemini",
+      "timestamp": "2026-10-11T05:00:00.000Z",
+      "model": "gemini-2.5-pro",
+      "tokens": { "input": 100, "output": 10, "cached": 0, "thoughts": 0, "tool": 0, "total": 110 }
+    },
+    {
+      "type": "gemini",
+      "timestamp": "2026-10-11T05:00:10.000Z",
+      "model": "gemini-2.5-pro",
+      "tokens": { "input": 999, "output": 99, "cached": 0, "thoughts": 0, "tool": 0, "total": 1098 }
+    },
+    {
+      "id": "",
+      "type": "gemini",
+      "timestamp": "2026-10-11T05:00:20.000Z",
+      "model": "gemini-2.5-pro",
+      "tokens": { "input": 888, "output": 88, "cached": 0, "thoughts": 0, "tool": 0, "total": 976 }
+    },
+    {
+      "id": "n2",
+      "type": "gemini",
+      "timestamp": "2026-10-11T05:00:30.000Z",
+      "model": "gemini-2.5-flash",
+      "tokens": { "input": 200, "output": 20, "cached": 50, "thoughts": 5, "tool": 0, "total": 225 }
+    }
+  ]
+}

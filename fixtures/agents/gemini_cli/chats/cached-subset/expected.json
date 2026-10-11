@@ -1,0 +1,21 @@
+{
+  "form": "json",
+  "session_id": "sess-cached-04",
+  "events": 1,
+  "event_ids": ["gemini_cli:sess-cached-04:c1"],
+  "occurred_at": ["2026-10-11T04:00:00.000Z"],
+  "replace_existing": [true],
+  "totals": {
+    "input_fresh": "600",
+    "input_cache_read": "400",
+    "input_cache_write": null,
+    "input_total": "1000",
+    "output_total": "0",
+    "output_reasoning": "0",
+    "total": "1000",
+    "request_count": "1"
+  },
+  "consumed": "all",
+  "diagnostics_include": [],
+  "note": "DATA_CONTRACTS 第 3 节场景：输入 1000 含 cached 400 → fresh 600，input_total 不能是 1400"
+}

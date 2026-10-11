@@ -1,0 +1,21 @@
+{
+  "form": "json",
+  "session_id": "sess-notokens-07",
+  "events": 1,
+  "event_ids": ["gemini_cli:sess-notokens-07:e4"],
+  "occurred_at": ["2026-10-11T07:00:30.000Z"],
+  "replace_existing": [true],
+  "totals": {
+    "input_fresh": "100",
+    "input_cache_read": "20",
+    "input_cache_write": null,
+    "input_total": "120",
+    "output_total": "15",
+    "output_reasoning": "3",
+    "total": "135",
+    "request_count": "1"
+  },
+  "consumed": "all",
+  "diagnostics_include": ["missing_tokens", "all_zero_tokens"],
+  "note": "无 tokens 字段、tokens:null、四项全 0 都不产生事件（不制造零消耗）"
+}

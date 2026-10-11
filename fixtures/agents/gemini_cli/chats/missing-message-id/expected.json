@@ -1,0 +1,21 @@
+{
+  "form": "json",
+  "session_id": "sess-noid-05",
+  "events": 2,
+  "event_ids": ["gemini_cli:sess-noid-05:n1", "gemini_cli:sess-noid-05:n2"],
+  "occurred_at": ["2026-10-11T05:00:00.000Z", "2026-10-11T05:00:30.000Z"],
+  "replace_existing": [true, true],
+  "totals": {
+    "input_fresh": "250",
+    "input_cache_read": "50",
+    "input_cache_write": null,
+    "input_total": "300",
+    "output_total": "35",
+    "output_reasoning": "5",
+    "total": "335",
+    "request_count": "2"
+  },
+  "consumed": "all",
+  "diagnostics_include": ["missing_message_id"],
+  "note": "丢 id 与空 id 的两条消息跳过（input 999/888 不进入任何合计），不兜 \"unknown\" 撞主键"
+}

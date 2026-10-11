@@ -1,0 +1,12 @@
+{
+  "sessionId": "sess-thoughts-03",
+  "messages": [
+    {
+      "id": "t1",
+      "type": "gemini",
+      "timestamp": "2026-10-11T03:00:00.000Z",
+      "model": "gemini-2.5-pro",
+      "tokens": { "input": 8522, "output": 29, "cached": 3138, "thoughts": 405, "tool": 0, "total": 8956 }
+    }
+  ]
+}

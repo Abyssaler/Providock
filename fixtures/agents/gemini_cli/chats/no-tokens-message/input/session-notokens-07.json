@@ -1,0 +1,33 @@
+{
+  "sessionId": "sess-notokens-07",
+  "messages": [
+    {
+      "id": "e1",
+      "type": "gemini",
+      "timestamp": "2026-10-11T07:00:00.000Z",
+      "model": "gemini-2.5-pro",
+      "content": "synthetic-aborted-response"
+    },
+    {
+      "id": "e2",
+      "type": "gemini",
+      "timestamp": "2026-10-11T07:00:10.000Z",
+      "model": "gemini-2.5-pro",
+      "tokens": null
+    },
+    {
+      "id": "e3",
+      "type": "gemini",
+      "timestamp": "2026-10-11T07:00:20.000Z",
+      "model": "gemini-2.5-pro",
+      "tokens": { "input": 0, "output": 0, "thoughts": 0, "cached": 0, "tool": 0, "total": 0 }
+    },
+    {
+      "id": "e4",
+      "type": "gemini",
+      "timestamp": "2026-10-11T07:00:30.000Z",
+      "model": "gemini-2.5-flash",
+      "tokens": { "input": 120, "output": 12, "thoughts": 3, "cached": 20, "tool": 0, "total": 135 }
+    }
+  ]
+}

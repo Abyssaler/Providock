@@ -1,0 +1,33 @@
+{
+  "sessionId": "sess-full-01",
+  "projectHash": "deadbeef",
+  "messages": [
+    {
+      "id": "m1",
+      "type": "user",
+      "timestamp": "2026-10-11T01:00:00.000Z",
+      "content": "synthetic-prompt"
+    },
+    {
+      "id": "m2",
+      "type": "gemini",
+      "timestamp": "2026-10-11T01:00:05.000Z",
+      "model": "gemini-2.5-pro",
+      "tokens": { "input": 1000, "output": 50, "thoughts": 20, "cached": 300, "tool": 0, "total": 1070 }
+    },
+    {
+      "id": "m3",
+      "type": "gemini",
+      "timestamp": "2026-10-11T01:00:20.000Z",
+      "model": "gemini-2.5-pro",
+      "tokens": { "input": 200, "output": 10, "thoughts": 0, "cached": 0, "tool": 0, "total": 210 }
+    },
+    {
+      "id": "m4",
+      "type": "gemini",
+      "timestamp": "2026-10-11T01:00:35.000Z",
+      "model": "gemini-2.5-flash",
+      "tokens": { "input": 500, "output": 30, "thoughts": 40, "cached": 100, "tool": 12, "total": 570 }
+    }
+  ]
+}

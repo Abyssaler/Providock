@@ -1,0 +1,21 @@
+{
+  "form": "json",
+  "session_id": "sess-thoughts-03",
+  "events": 1,
+  "event_ids": ["gemini_cli:sess-thoughts-03:t1"],
+  "occurred_at": ["2026-10-11T03:00:00.000Z"],
+  "replace_existing": [true],
+  "totals": {
+    "input_fresh": "5384",
+    "input_cache_read": "3138",
+    "input_cache_write": null,
+    "input_total": "8522",
+    "output_total": "434",
+    "output_reasoning": "405",
+    "total": "8956",
+    "request_count": "1"
+  },
+  "consumed": "all",
+  "diagnostics_include": [],
+  "note": "与上游 A03 测试夹具同数字：8522+29+405=8956，说明 cached 是 input 子集、thoughts 属输出侧"
+}

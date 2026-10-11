@@ -1,0 +1,4 @@
+{"sessionId":"sess-trunc-06"}
+{"id":"m1","type":"gemini","timestamp":"2026-10-11T06:00:10.000Z","model":"gemini-2.5-pro","tokens":{"input":64,"output":8,"thoughts":0,"cached":16,"tool":0,"total":72}}
+{"id":"m2","type":"gemini","timestamp":"2026-10-11T06:01:10.000Z","model":"gemini-2.5-pro","tokens":{"input":128,"output":32,"thoughts":4,"cached":0,"tool":0,"total":164}}
+INCOMPLETE-TAIL{"id":"m3","type":"gemini","timestamp":"2026-10-11T06:02:10.000Z","model":"gemini-2.5-pro","tokens":{"input":900,"output":90,"thoughts":0,"cached":0,"tool":0,"total":990}}

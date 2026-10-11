@@ -1,0 +1,21 @@
+{
+  "form": "json",
+  "session_id": "sess-anom-09",
+  "events": 1,
+  "event_ids": ["gemini_cli:sess-anom-09:a1"],
+  "occurred_at": ["2026-10-11T09:00:00.000Z"],
+  "replace_existing": [true],
+  "totals": {
+    "input_fresh": "0",
+    "input_cache_read": "100",
+    "input_cache_write": null,
+    "input_total": "100",
+    "output_total": "15",
+    "output_reasoning": "5",
+    "total": "115",
+    "request_count": "1"
+  },
+  "consumed": "all",
+  "diagnostics_include": ["cached_exceeds_input"],
+  "note": "异常行 cached>input：读缓存钳制为 input（fresh=0），记诊断，保证互斥分量和不越界"
+}

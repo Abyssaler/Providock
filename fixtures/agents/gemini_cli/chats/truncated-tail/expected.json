@@ -1,0 +1,21 @@
+{
+  "form": "jsonl",
+  "session_id": "sess-trunc-06",
+  "events": 2,
+  "event_ids": ["gemini_cli:sess-trunc-06:m1", "gemini_cli:sess-trunc-06:m2"],
+  "occurred_at": ["2026-10-11T06:00:10.000Z", "2026-10-11T06:01:10.000Z"],
+  "replace_existing": [false, false],
+  "totals": {
+    "input_fresh": "176",
+    "input_cache_read": "16",
+    "input_cache_write": null,
+    "input_total": "192",
+    "output_total": "44",
+    "output_reasoning": "4",
+    "total": "236",
+    "request_count": "2"
+  },
+  "consumed": "before_marker:INCOMPLETE-TAIL",
+  "diagnostics_include": [],
+  "note": "尾行未以换行结尾视为未写完：不消费、不产生事件（m3 的 900 不进入合计）"
+}

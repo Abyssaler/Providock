@@ -1,0 +1,24 @@
+{
+  "form": "jsonl",
+  "session_id": "sess-replace-10",
+  "events": 2,
+  "event_ids": [
+    "gemini_cli:sess-replace-10:r2",
+    "gemini_cli:sess-replace-10:r3"
+  ],
+  "occurred_at": ["2026-10-11T10:00:12.000Z", "2026-10-11T10:00:30.000Z"],
+  "replace_existing": [true, false],
+  "totals": {
+    "input_fresh": "240",
+    "input_cache_read": "70",
+    "input_cache_write": null,
+    "input_total": "310",
+    "output_total": "37",
+    "output_reasoning": "6",
+    "total": "347",
+    "request_count": "2"
+  },
+  "consumed": "all",
+  "diagnostics_include": ["set_messages_replaced:kept:1:dropped:1"],
+  "note": "$set.messages 整体替换当前集合：r1 离开当前集合（其历史事件是否保留由账本层决定），r2 取替换后的版本"
+}

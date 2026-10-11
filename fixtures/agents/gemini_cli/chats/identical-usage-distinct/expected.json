@@ -1,0 +1,29 @@
+{
+  "form": "json",
+  "session_id": "sess-same-08",
+  "events": 3,
+  "event_ids": [
+    "gemini_cli:sess-same-08:s1",
+    "gemini_cli:sess-same-08:s2",
+    "gemini_cli:sess-same-08:s3"
+  ],
+  "occurred_at": [
+    "2026-10-11T08:00:00.000Z",
+    "2026-10-11T08:00:10.000Z",
+    "2026-10-11T08:00:20.000Z"
+  ],
+  "replace_existing": [true, true, true],
+  "totals": {
+    "input_fresh": "3000",
+    "input_cache_read": "0",
+    "input_cache_write": null,
+    "input_total": "3000",
+    "output_total": "300",
+    "output_reasoning": "0",
+    "total": "3300",
+    "request_count": "3"
+  },
+  "consumed": "all",
+  "diagnostics_include": [],
+  "note": "三条消息数字完全相同但 id 不同：分别计入，禁止按数字判重"
+}

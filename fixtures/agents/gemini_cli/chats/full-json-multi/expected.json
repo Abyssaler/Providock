@@ -1,0 +1,28 @@
+{
+  "form": "json",
+  "session_id": "sess-full-01",
+  "events": 3,
+  "event_ids": [
+    "gemini_cli:sess-full-01:m2",
+    "gemini_cli:sess-full-01:m3",
+    "gemini_cli:sess-full-01:m4"
+  ],
+  "occurred_at": [
+    "2026-10-11T01:00:05.000Z",
+    "2026-10-11T01:00:20.000Z",
+    "2026-10-11T01:00:35.000Z"
+  ],
+  "replace_existing": [true, true, true],
+  "totals": {
+    "input_fresh": "1300",
+    "input_cache_read": "400",
+    "input_cache_write": null,
+    "input_total": "1700",
+    "output_total": "150",
+    "output_reasoning": "60",
+    "total": "1850",
+    "request_count": "3"
+  },
+  "consumed": "all",
+  "diagnostics_include": []
+}

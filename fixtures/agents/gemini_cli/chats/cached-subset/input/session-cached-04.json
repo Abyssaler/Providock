@@ -1,0 +1,12 @@
+{
+  "sessionId": "sess-cached-04",
+  "messages": [
+    {
+      "id": "c1",
+      "type": "gemini",
+      "timestamp": "2026-10-11T04:00:00.000Z",
+      "model": "gemini-2.5-pro",
+      "tokens": { "input": 1000, "output": 0, "cached": 400, "thoughts": 0, "tool": 0, "total": 1000 }
+    }
+  ]
+}
