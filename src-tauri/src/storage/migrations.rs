@@ -207,7 +207,7 @@ CREATE TABLE balances (
 );
 
 CREATE TABLE quota_windows (
-    window_id    TEXT PRIMARY KEY,         -- 平台+计划+scope+资源组+窗口标识
+    window_id    TEXT NOT NULL,            -- 平台+计划+scope+资源组+窗口标识
     snapshot_id  INTEGER NOT NULL REFERENCES account_snapshots(snapshot_id) ON DELETE CASCADE,
     label        TEXT,
     resource     TEXT,
@@ -225,7 +225,8 @@ CREATE TABLE quota_windows (
     raw_ratio       TEXT,
     over_limit   INTEGER,
     quality      TEXT NOT NULL DEFAULT 'reported',
-    evidence_ref TEXT
+    evidence_ref TEXT,
+    PRIMARY KEY (window_id, snapshot_id)  -- 同一窗口的每次快照各存一行，保留历史
 );
 CREATE INDEX idx_quota_snapshot ON quota_windows(snapshot_id);
 
