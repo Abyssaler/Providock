@@ -1,0 +1,472 @@
+/*
+ * 账户页样式（仅本页使用）。设计变量见 docs/specs/UI_UX.md 第 3 节，
+ * 复用 src/index.css 与 src/app/app.css 的变量与基础类，不修改它们。
+ * 自定义变量使用 --acct- 前缀，避免影响其他页面。
+ */
+
+:root {
+  --acct-danger-bg: #fdeceb;
+  --acct-danger-line: #f3c9c7;
+}
+
+[data-theme="dark"] {
+  --acct-danger-bg: #40242a;
+  --acct-danger-line: #6b3a3a;
+}
+
+/* ------------------------------------------------------------------ 筛选 */
+
+.acct-filters {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+
+.acct-segmented {
+  display: flex;
+  gap: 6px;
+}
+
+.acct-status-filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+/* ------------------------------------------------------------ 空态与提示 */
+
+.acct-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.acct-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  background: var(--card);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 10px 18px;
+  font-size: 13px;
+  max-width: min(560px, 90vw);
+}
+
+/* -------------------------------------------------------------- 账户卡片 */
+
+/* 用 `.card.acct-card` 保证覆盖 app.css 的 `.card`（打包顺序不保证本文件在后）。 */
+.card.acct-card {
+  display: grid;
+  grid-template-columns: 44px minmax(180px, 1fr) minmax(260px, 1.6fr) 140px 36px;
+  gap: 18px;
+  align-items: center;
+  padding: 20px;
+}
+
+.acct-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: var(--soft);
+  color: var(--primary);
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.acct-identity {
+  min-width: 0;
+}
+
+.acct-identity p {
+  margin: 2px 0;
+  overflow-wrap: anywhere;
+}
+
+.acct-name {
+  font-size: 15px;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.acct-metric-slot {
+  min-width: 0;
+}
+
+.acct-updated {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  text-align: right;
+}
+
+.acct-more {
+  position: relative;
+  justify-self: end;
+}
+
+.acct-menu {
+  position: absolute;
+  right: 0;
+  top: 38px;
+  z-index: 6;
+  min-width: 156px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+}
+
+.acct-menu button {
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.acct-menu-danger {
+  color: var(--danger);
+}
+
+/* ---------------------------------------------------------------- 指标区 */
+
+.acct-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.acct-unsupported p {
+  margin: 2px 0;
+}
+
+.acct-alert {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--acct-danger-line);
+  background: var(--acct-danger-bg);
+  border-radius: 10px;
+}
+
+.acct-alert p {
+  margin: 2px 0;
+}
+
+.acct-stale {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  flex-wrap: wrap;
+}
+
+.badge.acct-badge-warn {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
+.badge.acct-badge-danger {
+  background: var(--acct-danger-bg);
+  color: var(--danger);
+}
+
+.acct-balances {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.acct-balance-main {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.acct-balance-value {
+  font-size: 26px;
+  font-weight: 650;
+  letter-spacing: -0.6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.acct-currency {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--muted);
+  margin-left: 4px;
+}
+
+.acct-breakdown summary {
+  cursor: pointer;
+  min-height: 24px;
+}
+
+.acct-breakdown ul {
+  list-style: none;
+  margin: 6px 0;
+  padding: 0;
+}
+
+.acct-breakdown li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 0;
+}
+
+.acct-windows {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 16px;
+}
+
+.acct-window-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.acct-window p {
+  margin: 0;
+}
+
+.acct-progress {
+  height: 6px;
+  margin: 7px 0 5px;
+  background: var(--line);
+  border-radius: 9px;
+  overflow: hidden;
+}
+
+.acct-progress span {
+  display: block;
+  height: 100%;
+  border-radius: 9px;
+  background: var(--primary);
+}
+
+.acct-progress.danger span {
+  background: var(--danger);
+}
+
+.acct-extra-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+/* ------------------------------------------------------ 抽屉与对话框 */
+
+.acct-drawer,
+.acct-dialog {
+  background: var(--card);
+  color: var(--text);
+  border: 1px solid var(--line);
+  padding: 24px;
+}
+
+.acct-drawer {
+  margin: 0 0 0 auto;
+  width: min(560px, 100vw);
+  max-width: 100vw;
+  height: 100vh;
+  max-height: 100vh;
+  border-radius: 0;
+  border-right: 0;
+  border-top: 0;
+  border-bottom: 0;
+  overflow: auto;
+}
+
+.acct-dialog {
+  width: min(560px, 92vw);
+  max-height: 85vh;
+  border-radius: 14px;
+  overflow: auto;
+}
+
+.acct-drawer::backdrop,
+.acct-dialog::backdrop {
+  background: rgba(16, 26, 44, 0.45);
+}
+
+.acct-drawer-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.acct-drawer-head h2 {
+  font-size: 18px;
+  margin: 0;
+}
+
+.acct-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.acct-form fieldset {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.acct-form legend {
+  padding: 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.acct-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.acct-form input,
+.acct-form select {
+  font: inherit;
+  color: inherit;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 10px;
+  min-height: 32px;
+}
+
+.acct-form input:focus-visible,
+.acct-form select:focus-visible {
+  outline: 3px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.acct-radios {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.acct-form label.acct-radio,
+.acct-form label.acct-check {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+}
+
+.acct-radio input,
+.acct-check input {
+  min-height: 0;
+  width: 16px;
+  height: 16px;
+}
+
+.acct-permission {
+  border: 1px dashed var(--line);
+  border-radius: 9px;
+  padding: 8px 10px;
+}
+
+.acct-permission p {
+  margin: 3px 0 0;
+}
+
+.acct-scope {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.acct-scope li {
+  margin: 4px 0;
+}
+
+.acct-saved {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: var(--soft);
+}
+
+.acct-saved p {
+  margin: 3px 0;
+}
+
+.acct-error {
+  color: var(--danger);
+  margin: 0;
+}
+
+.acct-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* --------------------------------------------------------------- 窄窗口 */
+
+@media (max-width: 1050px) {
+  .card.acct-card {
+    grid-template-columns: 44px minmax(160px, 1fr) minmax(240px, 1.6fr) 36px;
+  }
+
+  .acct-updated {
+    grid-column: 2 / 4;
+    align-items: flex-start;
+    text-align: left;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .acct-more {
+    grid-column: 4;
+    grid-row: 1;
+  }
+}
+
+@media (max-width: 760px) {
+  .card.acct-card {
+    grid-template-columns: 42px 1fr 36px;
+    align-items: start;
+  }
+
+  .acct-metric-slot {
+    grid-column: 2 / 4;
+  }
+
+  .acct-updated {
+    grid-column: 2 / 4;
+  }
+
+  .acct-status-filter {
+    margin-left: 0;
+  }
+}
