@@ -18,7 +18,9 @@
 //!   是 4 个独立窗口；`extraUsage`（可为 null）是按量付费钱包，金额单位为 **cents**。
 //!
 //! 纯函数：不触网、不读文件、不接触凭据；`RequestSpec` 不装载任何秘密。
+//! 请求规格与十进制/比例工具统一取自 [`crate::adapters::accounts::common`]。
 
+use crate::adapters::accounts::common::{self, AuthPlacement, RequestSpec};
 use crate::domain::Quality;
 use crate::services::accounts::{
     BalanceEntry, BalanceKind, FailureSignal, PeriodKind, QuotaUnit, QuotaWindow, SnapshotStatus,
@@ -56,23 +58,6 @@ impl KimiEndpoint {
     }
 }
 
-/// Server 只接受 Bearer。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AuthScheme {
-    Bearer,
-}
-
-/// 请求规格：**不含秘密**。`Authorization` 由服务层按 `auth` 注入。
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RequestSpec {
-    pub method: &'static str,
-    pub url: String,
-    pub auth: AuthScheme,
-    /// 非秘密请求头。
-    pub headers: Vec<(String, String)>,
-    pub endpoint: KimiEndpoint,
-}
-
 // ---------------------------------------------------------------------------
 // 错误
 // ---------------------------------------------------------------------------
@@ -88,7 +73,10 @@ pub enum KimiError {
     #[error("business error {code}: {message}")]
     Business { code: String, message: String },
     #[error("upstream usage error: {message}")]
-    UpstreamError { message: String, status: Option<u16> },
+    UpstreamError {
+        message: String,
+        status: Option<u16>,
+    },
     #[error("schema changed: {0}")]
     SchemaChanged(String),
     #[error("unsupported: {0}")]
@@ -139,17 +127,17 @@ impl KimiError {
 
 /// 只接受显式 loopback base（`127.0.0.1` / `::1` / `localhost` / `127.x`，http）。
 pub fn build_request(base_url: &str, endpoint: KimiEndpoint) -> Result<RequestSpec, KimiError> {
-    let base = normalize_loopback_base(base_url)?;
-    Ok(RequestSpec {
-        method: "GET",
-        url: format!("{base}{}", endpoint.path()),
-        auth: AuthScheme::Bearer,
-        headers: vec![("Accept".to_owned(), "application/json".to_owned())],
-        endpoint,
-    })
+    let authority = normalize_loopback_authority(base_url)?;
+    let mut spec = RequestSpec::https(authority, endpoint.path())
+        .with_headers(vec![("Accept".to_owned(), "application/json".to_owned())]);
+    // 本机 Server 固定 http（loopback）；服务层的「仅 HTTPS 外网 + loopback http 例外」据此放行。
+    spec.scheme = "http".into();
+    spec.auth = Some(AuthPlacement::bearer());
+    Ok(spec)
 }
 
-fn normalize_loopback_base(raw: &str) -> Result<String, KimiError> {
+/// `scheme://host[:port]` → 规范化 `host[:port]`（IPv6 字面量带方括号）；拒绝非 loopback / 非 http。
+fn normalize_loopback_authority(raw: &str) -> Result<String, KimiError> {
     let raw = raw.trim().trim_end_matches('/');
     let (scheme, rest) = raw
         .split_once("://")
@@ -164,7 +152,7 @@ fn normalize_loopback_base(raw: &str) -> Result<String, KimiError> {
         return Err(KimiError::InvalidBase(raw.to_owned()));
     }
     let (host, port) =
-        split_host_port(authority).ok_or_else(|| KimiError::InvalidBase(raw.to_owned()))?;
+        common::split_host_port(authority).ok_or_else(|| KimiError::InvalidBase(raw.to_owned()))?;
     if !is_loopback(&host) {
         return Err(KimiError::NonLoopbackHost(host));
     }
@@ -174,29 +162,9 @@ fn normalize_loopback_base(raw: &str) -> Result<String, KimiError> {
     } else {
         host
     };
-    let mut base = format!("http://{host}");
-    if let Some(port) = port {
-        base.push_str(&format!(":{port}"));
-    }
-    Ok(base)
-}
-
-fn split_host_port(authority: &str) -> Option<(String, Option<u16>)> {
-    if let Some(rest) = authority.strip_prefix('[') {
-        let (host, tail) = rest.split_once(']')?;
-        let port = match tail.strip_prefix(':') {
-            Some(p) if !p.is_empty() => Some(p.parse::<u16>().ok()?),
-            Some(_) => return None,
-            None => None,
-        };
-        return Some((host.to_owned(), port));
-    }
-    match authority.rsplit_once(':') {
-        Some((host, p)) if !p.is_empty() && p.chars().all(|c| c.is_ascii_digit()) => {
-            Some((host.to_owned(), Some(p.parse::<u16>().ok()?)))
-        }
-        Some(_) => None,
-        None => Some((authority.to_owned(), None)),
+    match port {
+        Some(port) => Ok(format!("{host}:{port}")),
+        None => Ok(host),
     }
 }
 
@@ -229,10 +197,9 @@ fn parse_envelope(status: u16, body: &[u8]) -> Result<Envelope, KimiError> {
     let obj = root
         .as_object()
         .ok_or_else(|| KimiError::SchemaChanged("envelope is not an object".into()))?;
-    let code = obj
-        .get("code")
-        .and_then(json_int)
-        .ok_or_else(|| KimiError::SchemaChanged("envelope.code missing or not an integer".into()))?;
+    let code = obj.get("code").and_then(common::json_int).ok_or_else(|| {
+        KimiError::SchemaChanged("envelope.code missing or not an integer".into())
+    })?;
     let msg = obj.get("msg").and_then(Value::as_str).map(str::to_owned);
     let request_id = obj
         .get("request_id")
@@ -276,8 +243,14 @@ pub fn parse_meta(status: u16, body: &[u8]) -> Result<KimiMeta, KimiError> {
         .get("server_version")
         .and_then(Value::as_str)
         .map(str::to_owned);
-    let server_id = data.get("server_id").and_then(Value::as_str).map(str::to_owned);
-    let backend = data.get("backend").and_then(Value::as_str).map(str::to_owned);
+    let server_id = data
+        .get("server_id")
+        .and_then(Value::as_str)
+        .map(str::to_owned);
+    let backend = data
+        .get("backend")
+        .and_then(Value::as_str)
+        .map(str::to_owned);
     let capabilities = data
         .get("capabilities")
         .and_then(Value::as_object)
@@ -323,8 +296,20 @@ pub struct KimiUsageReport {
 
 /// `usages` 的窗口顺序固定：5h、7d、月总额、月代码。
 const WINDOWS: [(&str, &str, &str, PeriodKind, Option<u64>); 4] = [
-    ("limit5h", "5h", "5-hour rolling", PeriodKind::Rolling, Some(18_000)),
-    ("limit7d", "7d", "7-day rolling", PeriodKind::Rolling, Some(604_800)),
+    (
+        "limit5h",
+        "5h",
+        "5-hour rolling",
+        PeriodKind::Rolling,
+        Some(18_000),
+    ),
+    (
+        "limit7d",
+        "7d",
+        "7-day rolling",
+        PeriodKind::Rolling,
+        Some(604_800),
+    ),
     (
         "monthTotal",
         "month_total",
@@ -362,7 +347,7 @@ pub fn parse_oauth_usage(status: u16, body: &[u8]) -> Result<KimiUsageReport, Ki
                 .to_owned();
             let upstream_status = data
                 .get("status")
-                .and_then(json_int)
+                .and_then(common::json_int)
                 .and_then(|value| u16::try_from(value).ok());
             return Err(KimiError::UpstreamError {
                 message,
@@ -396,11 +381,13 @@ pub fn parse_oauth_usage(status: u16, body: &[u8]) -> Result<KimiUsageReport, Ki
         };
         let used_ratio = obj
             .get("usedRatio")
-            .and_then(json_decimal)
+            .and_then(common::json_decimal)
             .ok_or_else(|| KimiError::SchemaChanged(format!("{field}.usedRatio missing")))?;
-        let (used, remaining, raw, over) = normalize_ratio(&used_ratio);
-        let mut window =
-            QuotaWindow::new(format!("kimi:coding_plan:account:{key}"), QuotaUnit::Percent);
+        let (used, remaining, raw, over) = common::normalize_ratio(&used_ratio);
+        let mut window = QuotaWindow::new(
+            format!("kimi:coding_plan:account:{key}"),
+            QuotaUnit::Percent,
+        );
         window.label = Some(label.to_owned());
         window.resource = Some(field.to_owned());
         window.scope = Some("account".to_owned());
@@ -428,7 +415,7 @@ pub fn parse_oauth_usage(status: u16, body: &[u8]) -> Result<KimiUsageReport, Ki
             .and_then(Value::as_str)
             .unwrap_or("USD")
             .to_owned();
-        if let Some(cents) = extra.get("balanceCents").and_then(json_int) {
+        if let Some(cents) = extra.get("balanceCents").and_then(common::json_int) {
             let amount = cents_to_decimal(cents)
                 .ok_or_else(|| KimiError::SchemaChanged("balanceCents out of range".into()))?;
             let mut balance = BalanceEntry::new(BalanceKind::Available, amount, currency.clone())
@@ -437,7 +424,7 @@ pub fn parse_oauth_usage(status: u16, body: &[u8]) -> Result<KimiUsageReport, Ki
             balance.wallet_scope = Some("extra_usage".to_owned());
             balances.push(balance);
         }
-        if let Some(cents) = extra.get("totalCents").and_then(json_int) {
+        if let Some(cents) = extra.get("totalCents").and_then(common::json_int) {
             let amount = cents_to_decimal(cents)
                 .ok_or_else(|| KimiError::SchemaChanged("totalCents out of range".into()))?;
             let mut balance = BalanceEntry::new(BalanceKind::Credit, amount, currency)
@@ -456,135 +443,7 @@ pub fn parse_oauth_usage(status: u16, body: &[u8]) -> Result<KimiUsageReport, Ki
     })
 }
 
-// ---------------------------------------------------------------------------
-// 小工具
-// ---------------------------------------------------------------------------
-
 /// cents → 元，精确除 100（`1234 → "12.34"`）。
 fn cents_to_decimal(cents: i64) -> Option<String> {
-    shift_decimal_left(&cents.to_string(), 2)
-}
-
-fn normalize_ratio(ratio: &str) -> (String, Option<String>, Option<String>, Option<bool>) {
-    if is_gt_one(ratio) {
-        (
-            "1".to_owned(),
-            Some("0".to_owned()),
-            Some(ratio.to_owned()),
-            Some(true),
-        )
-    } else {
-        (ratio.to_owned(), one_minus(ratio), None, None)
-    }
-}
-
-fn one_minus(ratio: &str) -> Option<String> {
-    use crate::domain::decimal::decimal_add;
-    let negated = match ratio.strip_prefix('-') {
-        Some(rest) => rest.to_owned(),
-        None => format!("-{ratio}"),
-    };
-    decimal_add("1", &negated)
-}
-
-fn is_gt_one(value: &str) -> bool {
-    let body = value.strip_prefix('-').unwrap_or(value);
-    let mut parts = body.splitn(2, '.');
-    let int = parts.next().unwrap_or("0");
-    let frac = parts.next().unwrap_or("");
-    match int.trim_start_matches('0') {
-        "" => false,
-        "1" => frac.chars().any(|c| c != '0'),
-        _ => true,
-    }
-}
-
-fn shift_decimal_left(value: &str, places: usize) -> Option<String> {
-    let (neg, body) = match value.strip_prefix('-') {
-        Some(rest) => (true, rest),
-        None => (false, value),
-    };
-    if body.is_empty() {
-        return None;
-    }
-    let mut parts = body.splitn(2, '.');
-    let int_part = parts.next().unwrap_or("");
-    let frac_part = parts.next().unwrap_or("");
-    if int_part.is_empty() && frac_part.is_empty() {
-        return None;
-    }
-    if !int_part.chars().all(|c| c.is_ascii_digit())
-        || !frac_part.chars().all(|c| c.is_ascii_digit())
-    {
-        return None;
-    }
-    let all = format!("{int_part}{frac_part}");
-    let point = int_part.len() as isize - places as isize;
-    let (int_digits, frac_digits) = if point <= 0 {
-        (
-            "0".to_owned(),
-            format!("{}{all}", "0".repeat((-point) as usize)),
-        )
-    } else {
-        let point = point as usize;
-        if point >= all.len() {
-            (
-                format!("{all}{}", "0".repeat(point - all.len())),
-                String::new(),
-            )
-        } else {
-            (all[..point].to_owned(), all[point..].to_owned())
-        }
-    };
-    let int_norm = match int_digits.trim_start_matches('0') {
-        "" => "0",
-        rest => rest,
-    };
-    let frac_norm = frac_digits.trim_end_matches('0');
-    let mut out = if frac_norm.is_empty() {
-        int_norm.to_owned()
-    } else {
-        format!("{int_norm}.{frac_norm}")
-    };
-    if out == "0" {
-        return Some(out);
-    }
-    if neg {
-        out.insert(0, '-');
-    }
-    Some(out)
-}
-
-fn json_int(value: &Value) -> Option<i64> {
-    match value {
-        Value::Number(number) => number.as_i64(),
-        Value::String(text) => text.trim().parse().ok(),
-        _ => None,
-    }
-}
-
-fn json_decimal(value: &Value) -> Option<String> {
-    match value {
-        Value::Number(number) => Some(number.to_string()),
-        Value::String(text) => {
-            let text = text.trim();
-            if is_decimal(text) {
-                Some(text.to_owned())
-            } else {
-                None
-            }
-        }
-        _ => None,
-    }
-}
-
-fn is_decimal(text: &str) -> bool {
-    let body = text.strip_prefix('-').unwrap_or(text);
-    let mut parts = body.splitn(2, '.');
-    let int = parts.next().unwrap_or("");
-    let frac = parts.next().unwrap_or("");
-    if int.is_empty() && frac.is_empty() {
-        return false;
-    }
-    int.chars().all(|c| c.is_ascii_digit()) && frac.chars().all(|c| c.is_ascii_digit())
+    common::shift_decimal_by(&cents.to_string(), -2)
 }

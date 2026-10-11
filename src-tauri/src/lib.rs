@@ -16,9 +16,13 @@ use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 use storage::Database;
 use tauri::Manager;
+use vault::Vault;
 
 pub struct AppState {
     db: Arc<Mutex<Database>>,
+    vault: Arc<dyn Vault>,
+    /// 账户查询调度器句柄：Drop/`shutdown` 时取消后台任务。
+    scheduler: Mutex<Option<services::account_scheduler::SchedulerHandle>>,
 }
 
 #[derive(Serialize)]
@@ -165,6 +169,267 @@ async fn usage_series(
     .map_err(|e| e.to_string())?
 }
 
+// ---------------------------------------------------------------------------
+// 账户 IPC（T10）：只收/返 DTO；秘密只在提交瞬间进入后端，响应绝不回显
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CredentialDto {
+    pub credential_id: String,
+    pub credential_type: String,
+    pub mask: String,
+    pub fingerprint: String,
+    pub capabilities: Option<serde_json::Value>,
+    pub created_at: String,
+    pub retired_at: Option<String>,
+}
+
+impl From<services::accounts::CredentialRef> for CredentialDto {
+    fn from(credential: services::accounts::CredentialRef) -> Self {
+        Self {
+            credential_id: credential.credential_id,
+            credential_type: credential.credential_type.as_str().to_owned(),
+            mask: credential.mask,
+            fingerprint: credential.fingerprint,
+            capabilities: credential.capabilities,
+            created_at: credential.created_at,
+            retired_at: credential.retired_at,
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountSummaryDto {
+    pub account_id: String,
+    pub platform: String,
+    pub region: Option<String>,
+    pub display_name: String,
+    pub config_kind: String,
+    pub created_at: String,
+    pub credentials: Vec<CredentialDto>,
+    /// 最近成功快照（含余额、窗口、用量指标）；没有成功查询为 null。
+    pub snapshot: Option<services::accounts::Snapshot>,
+    /// 展示用：最近成功快照已过期（其后有失败查询）。
+    pub stale: bool,
+    /// 最近一行查询的状态（含失败），无任何查询为 null。
+    pub latest_status: Option<services::accounts::SnapshotStatus>,
+}
+
+fn build_account_summary(db: &Database, account_id: &str) -> Result<AccountSummaryDto, String> {
+    use services::accounts as acc;
+    let account = acc::account_get(db, account_id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("account not found: {account_id}"))?;
+    let credentials = acc::credentials_list(db, account_id, true)
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .map(CredentialDto::from)
+        .collect();
+    let (snapshot, stale) = match acc::snapshot_latest(db, account_id).map_err(|e| e.to_string())? {
+        Some((snapshot, stale)) => (Some(snapshot), stale),
+        None => (None, false),
+    };
+    let latest_status = acc::snapshot_latest_status(db, account_id).map_err(|e| e.to_string())?;
+    Ok(AccountSummaryDto {
+        account_id: account.account_id,
+        platform: account.platform,
+        region: account.region,
+        display_name: account.display_name,
+        config_kind: account.config_kind.as_str().to_owned(),
+        created_at: account.created_at,
+        credentials,
+        snapshot,
+        stale,
+        latest_status,
+    })
+}
+
+#[tauri::command]
+async fn accounts_list(
+    state: tauri::State<'_, AppState>,
+) -> Result<Vec<AccountSummaryDto>, String> {
+    let db = Arc::clone(&state.db);
+    tauri::async_runtime::spawn_blocking(move || {
+        let db = db.lock().map_err(|e| e.to_string())?;
+        let accounts = services::accounts::accounts_list(&db, false).map_err(|e| e.to_string())?;
+        accounts
+            .into_iter()
+            .map(|account| build_account_summary(&db, &account.account_id))
+            .collect()
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountSaveInput {
+    /// `None` = 新建账户；`Some` = 更新既有账户。
+    pub account_id: Option<String>,
+    pub platform: String,
+    pub region: Option<String>,
+    pub display_name: String,
+    pub scope: Option<String>,
+    pub config_kind: String,
+    pub credential_type: Option<String>,
+    /// 前端仅在提交表单瞬间传入；后端立即写入系统凭据库，响应不回显。
+    pub secret: Option<String>,
+    pub capabilities: Option<serde_json::Value>,
+}
+
+#[tauri::command]
+async fn account_save(
+    state: tauri::State<'_, AppState>,
+    input: AccountSaveInput,
+) -> Result<AccountSummaryDto, String> {
+    let db = Arc::clone(&state.db);
+    let vault = Arc::clone(&state.vault);
+    tauri::async_runtime::spawn_blocking(move || {
+        use services::accounts as acc;
+        let db = db.lock().map_err(|e| e.to_string())?;
+        let config_kind = acc::ConfigKind::parse(&input.config_kind)
+            .ok_or_else(|| format!("unknown config_kind: {}", input.config_kind))?;
+
+        let account_id = match input.account_id.clone() {
+            Some(account_id) => {
+                acc::account_update(
+                    &db,
+                    &account_id,
+                    &acc::AccountPatch {
+                        region: input.region.clone(),
+                        display_name: Some(input.display_name.clone()),
+                        scope: input.scope.clone(),
+                        config_kind: Some(config_kind),
+                        ..Default::default()
+                    },
+                )
+                .map_err(|e| e.to_string())?;
+                account_id
+            }
+            None => {
+                let draft = acc::NewAccount {
+                    platform: input.platform.clone(),
+                    region: input.region.clone(),
+                    display_name: input.display_name.clone(),
+                    vendor_user_id: None,
+                    scope: input.scope.clone(),
+                    config_kind,
+                };
+                acc::account_create(&db, &draft)
+                    .map_err(|e| e.to_string())?
+                    .account_id
+            }
+        };
+
+        // 只有前端明确提交秘密时才写入凭据库；秘密在此作用域内即被清零释放。
+        if let Some(secret) = input.secret.as_deref() {
+            let credential_type = input
+                .credential_type
+                .as_deref()
+                .and_then(acc::CredentialType::parse)
+                .ok_or_else(|| "credential_type is required when saving a secret".to_owned())?;
+            let secret = vault::SecretString::new(secret);
+            acc::credential_save(
+                &db,
+                vault.as_ref(),
+                &account_id,
+                credential_type,
+                input.capabilities.clone(),
+                &secret,
+            )
+            .map_err(|e| e.to_string())?;
+        }
+
+        build_account_summary(&db, &account_id)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountRotateInput {
+    pub credential_id: String,
+    pub secret: String,
+    pub capabilities: Option<serde_json::Value>,
+}
+
+#[tauri::command]
+async fn account_rotate_credential(
+    state: tauri::State<'_, AppState>,
+    input: AccountRotateInput,
+) -> Result<CredentialDto, String> {
+    let db = Arc::clone(&state.db);
+    let vault = Arc::clone(&state.vault);
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut db = db.lock().map_err(|e| e.to_string())?;
+        let secret = vault::SecretString::new(input.secret);
+        let rotated = services::accounts::credential_rotate(
+            &mut db,
+            vault.as_ref(),
+            &input.credential_id,
+            input.capabilities,
+            &secret,
+        )
+        .map_err(|e| e.to_string())?;
+        Ok::<_, String>(CredentialDto::from(rotated))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn account_refresh(
+    state: tauri::State<'_, AppState>,
+    account_id: String,
+) -> Result<services::account_query::SnapshotOutcome, String> {
+    let db = Arc::clone(&state.db);
+    let vault = Arc::clone(&state.vault);
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut db = db.lock().map_err(|e| e.to_string())?;
+        services::account_query::query_account(&mut db, vault.as_ref(), &account_id)
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountDeleteInput {
+    pub account_id: String,
+    /// 默认保留历史快照；`false` 时连同快照一并删除。
+    #[serde(default = "default_keep_history")]
+    pub keep_history: bool,
+}
+
+fn default_keep_history() -> bool {
+    true
+}
+
+#[tauri::command]
+async fn account_delete(
+    state: tauri::State<'_, AppState>,
+    input: AccountDeleteInput,
+) -> Result<services::cleanup::AccountDeleteResult, String> {
+    let db = Arc::clone(&state.db);
+    let vault = Arc::clone(&state.vault);
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut db = db.lock().map_err(|e| e.to_string())?;
+        services::cleanup::delete_account_fully(
+            &mut db,
+            vault.as_ref(),
+            &input.account_id,
+            input.keep_history,
+        )
+        .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -176,10 +441,28 @@ pub fn run() {
             std::fs::create_dir_all(&data_dir)?;
             let db = Database::open(&data_dir.join("providock.db"))
                 .map_err(|e| std::io::Error::other(e.to_string()))?;
+            let db = Arc::new(Mutex::new(db));
+            let vault: Arc<dyn Vault> = Arc::new(vault::KeyringVault::new());
+            // 默认开启的后台调度；失败静默降级（查询层记 stale/unavailable）。
+            let scheduler = services::account_scheduler::spawn(Arc::clone(&db), Arc::clone(&vault));
             app.manage(AppState {
-                db: Arc::new(Mutex::new(db)),
+                db,
+                vault,
+                scheduler: Mutex::new(Some(scheduler)),
             });
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            // 关窗口即取消后台调度（ACCOUNT_ADAPTERS 第 5 节：关窗口后台策略可取消）。
+            if let tauri::WindowEvent::CloseRequested { .. } = event {
+                if let Some(state) = window.app_handle().try_state::<AppState>() {
+                    if let Ok(mut guard) = state.scheduler.lock() {
+                        if let Some(handle) = guard.as_mut() {
+                            handle.shutdown();
+                        }
+                    }
+                }
+            }
         })
         .invoke_handler(tauri::generate_handler![
             app_info,
@@ -187,6 +470,11 @@ pub fn run() {
             sources_list,
             usage_summary,
             usage_series,
+            accounts_list,
+            account_save,
+            account_rotate_credential,
+            account_refresh,
+            account_delete,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

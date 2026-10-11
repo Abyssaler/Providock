@@ -2,6 +2,7 @@
 //! HTTP 与凭据注入在服务层（ARCHITECTURE 第 4 节）。
 
 pub mod codex_appserver;
+pub mod common;
 pub mod deepseek;
 pub mod glm_plan;
 pub mod kimi_server;

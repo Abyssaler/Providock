@@ -38,12 +38,12 @@ pub fn list_messages(bytes: &[u8], cursor: Option<u64>, limit: usize) -> Message
             diags.push(format!("message_field_missing_at_offset:{offset}"));
             return Vec::new();
         };
-        let role_str = message
-            .get("role")
-            .and_then(|r| r.as_str())
-            .unwrap_or(ty);
+        let role_str = message.get("role").and_then(|r| r.as_str()).unwrap_or(ty);
         let role = claude_role(role_str);
-        let time = v.get("timestamp").and_then(|t| t.as_str()).map(str::to_string);
+        let time = v
+            .get("timestamp")
+            .and_then(|t| t.as_str())
+            .map(str::to_string);
         let Some(content) = message.get("content") else {
             diags.push(format!("content_missing_at_offset:{offset}"));
             return Vec::new();
@@ -52,9 +52,8 @@ pub fn list_messages(bytes: &[u8], cursor: Option<u64>, limit: usize) -> Message
     });
 
     if cursor.is_none() && recognized == 0 {
-        page.diagnostics.push(
-            "no_conversation_records: 没有 type=user/assistant 的消息行".into(),
-        );
+        page.diagnostics
+            .push("no_conversation_records: 没有 type=user/assistant 的消息行".into());
     }
     page
 }

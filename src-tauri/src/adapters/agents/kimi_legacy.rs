@@ -215,40 +215,47 @@ pub fn parse_wire(bytes: &[u8], cfg: &WireParseConfig) -> WireParseOutcome {
             continue;
         };
         let Some(msg_type) = message.get("type").and_then(|t| t.as_str()) else {
-            diagnostics.push(format!("malformed_record_at_offset:{offset}: 缺 message.type"));
+            diagnostics.push(format!(
+                "malformed_record_at_offset:{offset}: 缺 message.type"
+            ));
             continue;
         };
         let empty = serde_json::Value::Null;
         let payload = message.get("payload").unwrap_or(&empty);
 
         match msg_type {
-            "StatusUpdate" => {
-                match status_usage(payload) {
-                    StatusUsage::Absent => status_without_usage += 1,
-                    StatusUsage::Zero => zero_usage_skipped += 1,
-                    StatusUsage::Usage(u) => {
-                        if cfg.mirrored_in_parent {
-                            own_skipped_mirrored += 1;
-                        } else {
-                            push_event(
-                                &mut events,
-                                &mut diagnostics,
-                                offset,
-                                u,
-                                cfg,
-                                cfg.agent_id.as_str(),
-                                v.get("timestamp").and_then(|t| t.as_f64()),
-                            );
-                        }
+            "StatusUpdate" => match status_usage(payload) {
+                StatusUsage::Absent => status_without_usage += 1,
+                StatusUsage::Zero => zero_usage_skipped += 1,
+                StatusUsage::Usage(u) => {
+                    if cfg.mirrored_in_parent {
+                        own_skipped_mirrored += 1;
+                    } else {
+                        push_event(
+                            &mut events,
+                            &mut diagnostics,
+                            offset,
+                            u,
+                            cfg,
+                            cfg.agent_id.as_str(),
+                            v.get("timestamp").and_then(|t| t.as_f64()),
+                        );
                     }
-                    StatusUsage::Invalid(msg) => diagnostics
-                        .push(format!("token_usage_invalid_at_offset:{offset}: {msg}")),
                 }
-            }
+                StatusUsage::Invalid(msg) => {
+                    diagnostics.push(format!("token_usage_invalid_at_offset:{offset}: {msg}"))
+                }
+            },
             "SubagentEvent" => {
                 if cfg.count_mirrored_subagent_usage {
                     let mut found = Vec::new();
-                    collect_mirrored(payload, cfg.agent_id.as_str(), 0, &mut found, &mut diagnostics);
+                    collect_mirrored(
+                        payload,
+                        cfg.agent_id.as_str(),
+                        0,
+                        &mut found,
+                        &mut diagnostics,
+                    );
                     for (actor, inner_payload) in found {
                         match status_usage(inner_payload) {
                             StatusUsage::Absent => status_without_usage += 1,
@@ -383,7 +390,10 @@ fn status_usage(payload: &serde_json::Value) -> StatusUsage {
         Err(e) => return StatusUsage::Invalid(e),
     };
     drop(cache_field);
-    if [input_fresh, input_cache_read, input_cache_write, output].iter().all(|v| *v == 0) {
+    if [input_fresh, input_cache_read, input_cache_write, output]
+        .iter()
+        .all(|v| *v == 0)
+    {
         return StatusUsage::Zero;
     }
 
@@ -566,9 +576,7 @@ fn parse_metadata(line: &[u8]) -> Option<String> {
 fn version_supported(v: &str) -> bool {
     let mut parts = v.split('.');
     match (parts.next(), parts.next()) {
-        (Some(major), Some(minor)) => {
-            major == "1" && minor.parse::<u32>().is_ok_and(|m| m <= 10)
-        }
+        (Some(major), Some(minor)) => major == "1" && minor.parse::<u32>().is_ok_and(|m| m <= 10),
         _ => false,
     }
 }

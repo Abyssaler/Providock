@@ -22,8 +22,9 @@
 //! `over_limit`，`used_ratio` 封顶为 1。
 //!
 //! 纯函数：不触网、不读文件、不接触凭据；`RequestSpec` 不装载任何秘密。
+//! 请求规格与十进制/比例工具统一取自 [`crate::adapters::accounts::common`]。
 
-use crate::domain::decimal::decimal_add;
+use crate::adapters::accounts::common::{self, AuthPlacement, RequestSpec};
 use crate::domain::Quality;
 use crate::services::accounts::{FailureSignal, QuotaUnit, QuotaWindow, SnapshotStatus};
 use serde_json::Value;
@@ -83,24 +84,6 @@ impl GlmEndpoint {
             Self::ToolUsage => "/api/monitor/usage/tool-usage",
         }
     }
-}
-
-/// 服务层如何把凭据附到请求上。GLM 是原 token，**不加 Bearer**。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AuthScheme {
-    RawToken,
-}
-
-/// 请求规格：**不含秘密**。`Authorization` 由服务层按 `auth` 注入。
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RequestSpec {
-    pub method: &'static str,
-    pub url: String,
-    pub auth: AuthScheme,
-    /// 非秘密请求头。
-    pub headers: Vec<(String, String)>,
-    pub region: GlmRegion,
-    pub endpoint: GlmEndpoint,
 }
 
 /// `model-usage` / `tool-usage` 的查询时间窗（epoch 毫秒，闭区间）。
@@ -192,33 +175,13 @@ fn parse_origin(raw: &str) -> Result<Origin, GlmError> {
     if authority.is_empty() || authority.contains('@') {
         return Err(GlmError::InvalidBaseUrl(raw.to_owned()));
     }
-    let (host, port) = split_host_port(authority)
+    let (host, port) = common::split_host_port(authority)
         .ok_or_else(|| GlmError::InvalidBaseUrl(raw.to_owned()))?;
     Ok(Origin {
         scheme,
         host: host.to_ascii_lowercase(),
         port,
     })
-}
-
-/// `host[:port]`，支持 `[::1]:port` 形态。
-fn split_host_port(authority: &str) -> Option<(String, Option<u16>)> {
-    if let Some(rest) = authority.strip_prefix('[') {
-        let (host, tail) = rest.split_once(']')?;
-        let port = match tail.strip_prefix(':') {
-            Some(p) if !p.is_empty() => Some(p.parse::<u16>().ok()?),
-            Some(_) => return None,
-            None => None,
-        };
-        return Some((host.to_owned(), port));
-    }
-    match authority.rsplit_once(':') {
-        Some((host, p)) if !p.is_empty() && p.chars().all(|c| c.is_ascii_digit()) => {
-            Some((host.to_owned(), Some(p.parse::<u16>().ok()?)))
-        }
-        Some(_) => None,
-        None => Some((authority.to_owned(), None)),
-    }
 }
 
 /// 由 `ANTHROPIC_BASE_URL` 判定区域（host 精确匹配）。
@@ -242,16 +205,15 @@ pub fn build_request(
     window: Option<TimeWindow>,
 ) -> Result<RequestSpec, GlmError> {
     let origin = parse_origin(base_url)?;
-    let region = match origin.host.as_str() {
-        "api.z.ai" => GlmRegion::Global,
-        "open.bigmodel.cn" | "dev.bigmodel.cn" => GlmRegion::China,
+    match origin.host.as_str() {
+        "api.z.ai" | "open.bigmodel.cn" | "dev.bigmodel.cn" => {}
         other => return Err(GlmError::UnrecognizedHost(other.to_owned())),
-    };
+    }
     let mut authority = origin.host.clone();
     if let Some(port) = origin.port {
         authority.push_str(&format!(":{port}"));
     }
-    let mut url = format!("{}://{}{}", origin.scheme, authority, endpoint.path());
+    let mut path = endpoint.path().to_owned();
     match endpoint {
         GlmEndpoint::QuotaLimit => {
             if window.is_some() {
@@ -270,24 +232,22 @@ pub fn build_request(
             let end = format_query_time(window.end_ms).ok_or_else(|| {
                 GlmError::InvalidBaseUrl(format!("time out of range: {}", window.end_ms))
             })?;
-            url.push_str(&format!(
+            path.push_str(&format!(
                 "?startTime={}&endTime={}",
                 percent_encode(&start),
                 percent_encode(&end)
             ));
         }
     }
-    Ok(RequestSpec {
-        method: "GET",
-        url,
-        auth: AuthScheme::RawToken,
-        headers: vec![
-            ("Accept-Language".to_owned(), "en-US,en".to_owned()),
-            ("Content-Type".to_owned(), "application/json".to_owned()),
-        ],
-        region,
-        endpoint,
-    })
+    let mut spec = RequestSpec::https(authority, path).with_headers(vec![
+        ("Accept-Language".to_owned(), "en-US,en".to_owned()),
+        ("Content-Type".to_owned(), "application/json".to_owned()),
+    ]);
+    // GLM 用配置 base 的 scheme（规范 host 都是 https；仅当用户显式配 http 才跟随）。
+    spec.scheme = origin.scheme;
+    // 原 token，不加 Bearer（服务层按此注入）。
+    spec.auth = Some(AuthPlacement::raw_token());
+    Ok(spec)
 }
 
 /// epoch 毫秒 → 插件使用的 `yyyy-MM-dd HH:mm:ss`（本适配器按 UTC；服务层决定本地偏移）。
@@ -349,7 +309,10 @@ pub fn parse_response(
         GlmEndpoint::ModelUsage | GlmEndpoint::ToolUsage => Ok(GlmReport {
             windows: Vec::new(),
             plan_level: None,
-            diagnostics: vec![format!("{}:detail_stats_parse_not_in_scope", endpoint.as_str())],
+            diagnostics: vec![format!(
+                "{}:detail_stats_parse_not_in_scope",
+                endpoint.as_str()
+            )],
             evidence: EVIDENCE.to_owned(),
         }),
     }
@@ -372,7 +335,7 @@ fn check_business(root: &Value) -> Result<(), GlmError> {
             message: message.to_owned(),
         });
     }
-    if let Some(code) = obj.get("code").and_then(json_decimal) {
+    if let Some(code) = obj.get("code").and_then(common::json_decimal) {
         if code != "0" && code != "200" {
             let message = obj
                 .get("msg")
@@ -394,11 +357,14 @@ fn parse_quota_limit(root: &Value) -> Result<GlmReport, GlmError> {
     let limits = data
         .get("limits")
         .and_then(Value::as_array)
-        .ok_or_else(|| GlmError::SchemaChanged("quota data.limits missing or not an array".into()))?;
+        .ok_or_else(|| {
+            GlmError::SchemaChanged("quota data.limits missing or not an array".into())
+        })?;
 
     let mut windows = Vec::new();
     let mut diagnostics = Vec::new();
-    let mut occurrences: std::collections::BTreeMap<&'static str, u32> = std::collections::BTreeMap::new();
+    let mut occurrences: std::collections::BTreeMap<&'static str, u32> =
+        std::collections::BTreeMap::new();
     for item in limits {
         let Some(obj) = item.as_object() else {
             diagnostics.push("limit_item_not_object".to_owned());
@@ -415,13 +381,13 @@ fn parse_quota_limit(root: &Value) -> Result<GlmReport, GlmError> {
         };
         let percentage = obj
             .get("percentage")
-            .and_then(json_decimal)
+            .and_then(common::json_decimal)
             .ok_or_else(|| GlmError::SchemaChanged(format!("{raw_type}.percentage missing")))?;
-        let ratio = shift_decimal_left(&percentage, 2).ok_or_else(|| {
+        let ratio = common::shift_decimal_by(&percentage, -2).ok_or_else(|| {
             GlmError::SchemaChanged(format!("{raw_type}.percentage not a decimal: {percentage}"))
         })?;
 
-        let (used_ratio, remaining_ratio, raw_ratio, over_limit) = normalize_ratio(&ratio);
+        let (used_ratio, remaining_ratio, raw_ratio, over_limit) = common::normalize_ratio(&ratio);
         let count = occurrences.entry(key).or_insert(0);
         *count += 1;
         let mut window_id = format!("glm:coding_plan:account:{key}:{resource}");
@@ -447,117 +413,4 @@ fn parse_quota_limit(root: &Value) -> Result<GlmReport, GlmError> {
         diagnostics,
         evidence: EVIDENCE.to_owned(),
     })
-}
-
-/// 比例归一：>1 时 `used_ratio` 封顶 1、`remaining_ratio` 0，原值进 `raw_ratio`。
-fn normalize_ratio(
-    ratio: &str,
-) -> (String, Option<String>, Option<String>, Option<bool>) {
-    if is_gt_one(ratio) {
-        ("1".to_owned(), Some("0".to_owned()), Some(ratio.to_owned()), Some(true))
-    } else {
-        (ratio.to_owned(), one_minus(ratio), None, None)
-    }
-}
-
-/// `1 - ratio`（比例之间可换算；绝对量不可）。
-fn one_minus(ratio: &str) -> Option<String> {
-    let negated = match ratio.strip_prefix('-') {
-        Some(rest) => rest.to_owned(),
-        None => format!("-{ratio}"),
-    };
-    decimal_add("1", &negated)
-}
-
-/// 十进制字符串是否 > 1。
-fn is_gt_one(value: &str) -> bool {
-    let body = value.strip_prefix('-').unwrap_or(value);
-    let mut parts = body.splitn(2, '.');
-    let int = parts.next().unwrap_or("0");
-    let frac = parts.next().unwrap_or("");
-    match int.trim_start_matches('0') {
-        "" => false,
-        "1" => frac.chars().any(|c| c != '0'),
-        _ => true,
-    }
-}
-
-/// 十进制字符串左移 `places` 位（除 10^places），精确、去尾零。
-///
-/// `"43.5" → "0.435"`；`"120" → "1.2"`；`"1234" → "12.34"`（cents → 元）。
-fn shift_decimal_left(value: &str, places: usize) -> Option<String> {
-    let (neg, body) = match value.strip_prefix('-') {
-        Some(rest) => (true, rest),
-        None => (false, value),
-    };
-    if body.is_empty() {
-        return None;
-    }
-    let mut parts = body.splitn(2, '.');
-    let int_part = parts.next().unwrap_or("");
-    let frac_part = parts.next().unwrap_or("");
-    if int_part.is_empty() && frac_part.is_empty() {
-        return None;
-    }
-    if !int_part.chars().all(|c| c.is_ascii_digit())
-        || !frac_part.chars().all(|c| c.is_ascii_digit())
-    {
-        return None;
-    }
-    let all = format!("{int_part}{frac_part}");
-    let point = int_part.len() as isize - places as isize;
-    let (int_digits, frac_digits) = if point <= 0 {
-        ("0".to_owned(), format!("{}{all}", "0".repeat((-point) as usize)))
-    } else {
-        let point = point as usize;
-        if point >= all.len() {
-            (format!("{all}{}", "0".repeat(point - all.len())), String::new())
-        } else {
-            (all[..point].to_owned(), all[point..].to_owned())
-        }
-    };
-    let int_norm = match int_digits.trim_start_matches('0') {
-        "" => "0",
-        rest => rest,
-    };
-    let frac_norm = frac_digits.trim_end_matches('0');
-    let mut out = if frac_norm.is_empty() {
-        int_norm.to_owned()
-    } else {
-        format!("{int_norm}.{frac_norm}")
-    };
-    if out == "0" {
-        return Some(out);
-    }
-    if neg {
-        out.insert(0, '-');
-    }
-    Some(out)
-}
-
-/// JSON 数字或十进制字符串 → 十进制字符串（保留源形态，不做浮点运算）。
-fn json_decimal(value: &Value) -> Option<String> {
-    match value {
-        Value::Number(number) => Some(number.to_string()),
-        Value::String(text) => {
-            let text = text.trim();
-            if is_decimal(text) {
-                Some(text.to_owned())
-            } else {
-                None
-            }
-        }
-        _ => None,
-    }
-}
-
-fn is_decimal(text: &str) -> bool {
-    let body = text.strip_prefix('-').unwrap_or(text);
-    let mut parts = body.splitn(2, '.');
-    let int = parts.next().unwrap_or("");
-    let frac = parts.next().unwrap_or("");
-    if int.is_empty() && frac.is_empty() {
-        return false;
-    }
-    int.chars().all(|c| c.is_ascii_digit()) && frac.chars().all(|c| c.is_ascii_digit())
 }

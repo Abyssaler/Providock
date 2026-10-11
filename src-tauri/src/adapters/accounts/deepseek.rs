@@ -9,11 +9,13 @@
 //! 因此 available 行注明公式，UI 端不得再把 grant / paid 相加。金额按币种分开，绝不跨币种合计。
 //! `is_available=false` 是“账户当前无可用余额”的正常应答，不是查询失败。
 //!
-//! 本模块自包含请求/响应类型（openrouter / novita 各自独立），便于并行开发时互不影响。
+//! 请求/响应类型与十进制工具统一取自 [`crate::adapters::accounts::common`]。
 
-use crate::domain::decimal::decimal_add;
+use crate::adapters::accounts::common::{self, RequestSpec};
+// 公共类型在本模块的再导出：适配器不再各自定义，旧的引用路径保持不变。
+pub use crate::adapters::accounts::common::{AuthPlacement, ParsedAccountResponse, RequestConfig};
 use crate::services::accounts::{
-    BalanceEntry, BalanceKind, CredentialType, FailureSignal, QuotaWindow, SnapshotStatus,
+    BalanceEntry, BalanceKind, CredentialType, FailureSignal, SnapshotStatus,
 };
 use serde_json::Value;
 
@@ -24,70 +26,7 @@ pub const REQUEST_PATH: &str = "/user/balance";
 /// 该接口接受的凭据类型（Bearer API Key）。
 pub const CREDENTIAL_TYPE: CredentialType = CredentialType::ApiKey;
 /// 余额接口超时提示（秒）；服务层可覆盖。
-pub const TIMEOUT_HINT_SECONDS: u64 = 15;
-
-/// 认证头位置：只描述“头名 + 方案前缀”。秘密值由服务层注入，绝不进入本结构。
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AuthPlacement {
-    pub header: String,
-    pub scheme: String,
-}
-
-impl AuthPlacement {
-    fn bearer() -> Self {
-        Self {
-            header: "Authorization".into(),
-            scheme: "Bearer ".into(),
-        }
-    }
-
-    /// 供 UI / 日志展示的占位（不含任何秘密）。
-    pub fn placeholder(&self) -> String {
-        format!("{}<secret-injected-by-service>", self.scheme)
-    }
-}
-
-/// 请求描述。`headers` 只含非秘密静态头；秘密位置由 `auth` 描述。
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RequestSpec {
-    pub method: String,
-    pub host: String,
-    pub path: String,
-    pub headers: Vec<(String, String)>,
-    pub auth: Option<AuthPlacement>,
-    pub timeout_hint_seconds: u64,
-}
-
-impl RequestSpec {
-    pub fn url(&self) -> String {
-        format!("https://{}{}", self.host, self.path)
-    }
-
-    /// `"Authorization: Bearer <secret-injected-by-service>"`；仅为形状说明，不含秘密。
-    pub fn auth_header_placeholder(&self) -> Option<String> {
-        self.auth
-            .as_ref()
-            .map(|auth| format!("{}: {}", auth.header, auth.placeholder()))
-    }
-}
-
-/// 请求配置：账户侧配置的 host（可为裸域名或 URL）。
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RequestConfig {
-    pub host: String,
-}
-
-impl RequestConfig {
-    pub fn canonical() -> Self {
-        Self {
-            host: CANONICAL_HOST.into(),
-        }
-    }
-
-    pub fn new(host: impl Into<String>) -> Self {
-        Self { host: host.into() }
-    }
-}
+pub const TIMEOUT_HINT_SECONDS: u64 = common::DEFAULT_TIMEOUT_SECONDS;
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum RequestBuildError {
@@ -97,31 +36,13 @@ pub enum RequestBuildError {
 
 /// 构造请求。配置 host 解析出的域名必须**精确等于** [`CANONICAL_HOST`]。
 pub fn build_request(cfg: &RequestConfig) -> Result<RequestSpec, RequestBuildError> {
-    if extract_host(&cfg.host) != Some(CANONICAL_HOST) {
+    if common::extract_host(&cfg.host) != Some(CANONICAL_HOST) {
         return Err(RequestBuildError::HostNotAllowed {
             expected: CANONICAL_HOST,
             got: cfg.host.clone(),
         });
     }
-    Ok(RequestSpec {
-        method: "GET".into(),
-        host: CANONICAL_HOST.into(),
-        path: REQUEST_PATH.into(),
-        headers: Vec::new(),
-        auth: Some(AuthPlacement::bearer()),
-        timeout_hint_seconds: TIMEOUT_HINT_SECONDS,
-    })
-}
-
-/// 解析结果：成功返回标准化余额/窗口 + 平台数据时间；失败返回 [`FailureSignal`] 语义。
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ParsedAccountResponse {
-    Success {
-        balances: Vec<BalanceEntry>,
-        quota_windows: Vec<QuotaWindow>,
-        provider_as_of: Option<String>,
-    },
-    Failure(FailureSignal),
+    Ok(RequestSpec::https(CANONICAL_HOST, REQUEST_PATH).with_auth(AuthPlacement::bearer()))
 }
 
 /// 解析响应。非 200 交给 [`FailureSignal`] 默认映射（401/403→auth_required、
@@ -160,9 +81,9 @@ fn build_balances(infos: &[Value]) -> Option<Vec<BalanceEntry>> {
         if currency.is_empty() {
             return None;
         }
-        let total = decimal_field(info.get("total_balance")?)?;
-        let granted = decimal_field(info.get("granted_balance")?)?;
-        let topped_up = decimal_field(info.get("topped_up_balance")?)?;
+        let total = common::decimal_field(info.get("total_balance")?)?;
+        let granted = common::decimal_field(info.get("granted_balance")?)?;
+        let topped_up = common::decimal_field(info.get("topped_up_balance")?)?;
         out.push(
             BalanceEntry::new(BalanceKind::Available, total, currency)
                 .ok()?
@@ -189,7 +110,7 @@ fn incompatible() -> FailureSignal {
 }
 
 fn business_failure(error: &Value) -> FailureSignal {
-    let code = business_code_of(error).unwrap_or_else(|| "business_error".into());
+    let code = common::business_code_of(error).unwrap_or_else(|| "business_error".into());
     FailureSignal {
         http_status: Some(200),
         business_code: Some(code),
@@ -198,61 +119,13 @@ fn business_failure(error: &Value) -> FailureSignal {
     }
 }
 
-/// 金额字段：官方为字符串小数，同时兼容 JSON 数字（整数精确、浮点避免科学计数）。
-fn decimal_field(value: &Value) -> Option<String> {
-    match value {
-        Value::String(s) => valid_decimal(s),
-        Value::Number(n) => {
-            if let Some(i) = n.as_i64() {
-                valid_decimal(&i.to_string())
-            } else if let Some(u) = n.as_u64() {
-                valid_decimal(&u.to_string())
-            } else {
-                let f = n.as_f64()?;
-                if !f.is_finite() {
-                    return None;
-                }
-                valid_decimal(&format!("{f}"))
-            }
-        }
-        _ => None,
-    }
-}
-
-fn valid_decimal(value: &str) -> Option<String> {
-    decimal_add(value, "0").map(|_| value.to_string())
-}
-
-fn business_code_of(error: &Value) -> Option<String> {
-    error
-        .get("code")
-        .and_then(value_code)
-        .or_else(|| error.get("type").and_then(value_code))
-}
-
-fn value_code(value: &Value) -> Option<String> {
-    match value {
-        Value::String(s) if !s.is_empty() => Some(s.clone()),
-        Value::Number(n) => Some(n.to_string()),
-        _ => None,
-    }
-}
-
-/// 从裸域名或 URL 中取出 host 段，供**精确**比较（不是子串匹配）。
-fn extract_host(input: &str) -> Option<&str> {
-    let after_scheme = input.split_once("://").map(|(_, rest)| rest).unwrap_or(input);
-    let authority = after_scheme.split(['/', '?', '#']).next()?;
-    let host = authority.rsplit_once('@').map(|(_, h)| h).unwrap_or(authority);
-    (!host.is_empty()).then_some(host)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn request_is_exact_and_secret_free() {
-        let spec = build_request(&RequestConfig::canonical()).unwrap();
+        let spec = build_request(&RequestConfig::canonical(CANONICAL_HOST)).unwrap();
         assert_eq!(spec.method, "GET");
         assert_eq!(spec.host, CANONICAL_HOST);
         assert_eq!(spec.path, REQUEST_PATH);
@@ -320,9 +193,18 @@ mod tests {
 
     #[test]
     fn status_mapping() {
-        assert_eq!(status_of(parse_response(401, "{}")), SnapshotStatus::AuthRequired);
-        assert_eq!(status_of(parse_response(429, "{}")), SnapshotStatus::RateLimited);
-        assert_eq!(status_of(parse_response(500, "{}")), SnapshotStatus::Unavailable);
+        assert_eq!(
+            status_of(parse_response(401, "{}")),
+            SnapshotStatus::AuthRequired
+        );
+        assert_eq!(
+            status_of(parse_response(429, "{}")),
+            SnapshotStatus::RateLimited
+        );
+        assert_eq!(
+            status_of(parse_response(500, "{}")),
+            SnapshotStatus::Unavailable
+        );
     }
 
     fn status_of(parsed: ParsedAccountResponse) -> SnapshotStatus {

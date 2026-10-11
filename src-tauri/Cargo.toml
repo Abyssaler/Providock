@@ -22,11 +22,12 @@ serde_json = "1"
 # 具体模块在 T02+ 逐步实现：
 rusqlite = { version = "0.37", features = ["bundled"] } # SQLite，不依赖系统库
 keyring = { version = "3", features = ["apple-native", "windows-native"] } # 系统凭据库
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] } # 账户 HTTP
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "blocking"] } # 账户 HTTP（rustls + 阻塞客户端）
 notify = "8" # 源目录文件监视
 thiserror = "2.0.21"
 time = { version = "0.3.45", features = ["formatting", "parsing"] }
 zstd = "0.14.2"
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "time", "sync", "macros"] } # 账户调度后台任务
 
 # T03：凭据抽象、掩码指纹与诊断脱敏（仅新增这四个）
 hmac = "0.12"

@@ -108,34 +108,174 @@ struct Column {
 /// 导出列清单（顺序即 CSV 列顺序）。契约第 9 节：普通表不得有凭据/正文字段，
 /// 这里也据表结构生成，结构上不含 `credential_*` / `prompt_body` / `response_body`。
 const COLUMNS: &[Column] = &[
-    Column { name: "event_id", kind: ColKind::Text, unit: "id", quality: "identity" },
-    Column { name: "agent", kind: ColKind::Text, unit: "agent", quality: "reported" },
-    Column { name: "source_id", kind: ColKind::Text, unit: "id", quality: "identity" },
-    Column { name: "stream_domain", kind: ColKind::Text, unit: "domain", quality: "reported" },
-    Column { name: "session_id", kind: ColKind::Text, unit: "id", quality: "reported" },
-    Column { name: "actor_id", kind: ColKind::Text, unit: "id", quality: "reported" },
-    Column { name: "granularity", kind: ColKind::Text, unit: "granularity", quality: "reported" },
-    Column { name: "occurred_at", kind: ColKind::Text, unit: "timestamp", quality: "source_time_or_null" },
-    Column { name: "observed_at", kind: ColKind::Text, unit: "timestamp", quality: "local_scan_time" },
-    Column { name: "project_ref", kind: ColKind::Text, unit: "path", quality: "anonymized_label" },
-    Column { name: "model_raw", kind: ColKind::Text, unit: "model", quality: "reported" },
-    Column { name: "model_normalized", kind: ColKind::Text, unit: "model", quality: "derived" },
-    Column { name: "request_count", kind: ColKind::Decimal, unit: "count", quality: "reported_or_null" },
-    Column { name: "input_fresh", kind: ColKind::Decimal, unit: "tokens", quality: "per_event" },
-    Column { name: "input_cache_read", kind: ColKind::Decimal, unit: "tokens", quality: "per_event" },
-    Column { name: "input_cache_write", kind: ColKind::Decimal, unit: "tokens", quality: "per_event" },
-    Column { name: "input_total", kind: ColKind::Decimal, unit: "tokens", quality: "per_event" },
-    Column { name: "output_total", kind: ColKind::Decimal, unit: "tokens", quality: "per_event" },
-    Column { name: "output_reasoning", kind: ColKind::Decimal, unit: "tokens", quality: "per_event" },
-    Column { name: "total", kind: ColKind::Decimal, unit: "tokens", quality: "per_event" },
-    Column { name: "tokens_quality", kind: ColKind::Text, unit: "quality", quality: "reported_derived_estimated_unknown" },
-    Column { name: "completeness", kind: ColKind::Text, unit: "completeness", quality: "complete_partial_unknown" },
-    Column { name: "cost_reported_amount", kind: ColKind::Decimal, unit: "currency", quality: "reported" },
-    Column { name: "cost_reported_currency", kind: ColKind::Text, unit: "currency", quality: "reported" },
-    Column { name: "cost_estimated_amount", kind: ColKind::Decimal, unit: "currency", quality: "estimated" },
-    Column { name: "cost_estimated_currency", kind: ColKind::Text, unit: "currency", quality: "reported" },
-    Column { name: "cost_estimated_price_version", kind: ColKind::Text, unit: "price_version", quality: "estimated" },
-    Column { name: "account_link", kind: ColKind::Text, unit: "json", quality: "confirmed_explicit_or_unknown" },
+    Column {
+        name: "event_id",
+        kind: ColKind::Text,
+        unit: "id",
+        quality: "identity",
+    },
+    Column {
+        name: "agent",
+        kind: ColKind::Text,
+        unit: "agent",
+        quality: "reported",
+    },
+    Column {
+        name: "source_id",
+        kind: ColKind::Text,
+        unit: "id",
+        quality: "identity",
+    },
+    Column {
+        name: "stream_domain",
+        kind: ColKind::Text,
+        unit: "domain",
+        quality: "reported",
+    },
+    Column {
+        name: "session_id",
+        kind: ColKind::Text,
+        unit: "id",
+        quality: "reported",
+    },
+    Column {
+        name: "actor_id",
+        kind: ColKind::Text,
+        unit: "id",
+        quality: "reported",
+    },
+    Column {
+        name: "granularity",
+        kind: ColKind::Text,
+        unit: "granularity",
+        quality: "reported",
+    },
+    Column {
+        name: "occurred_at",
+        kind: ColKind::Text,
+        unit: "timestamp",
+        quality: "source_time_or_null",
+    },
+    Column {
+        name: "observed_at",
+        kind: ColKind::Text,
+        unit: "timestamp",
+        quality: "local_scan_time",
+    },
+    Column {
+        name: "project_ref",
+        kind: ColKind::Text,
+        unit: "path",
+        quality: "anonymized_label",
+    },
+    Column {
+        name: "model_raw",
+        kind: ColKind::Text,
+        unit: "model",
+        quality: "reported",
+    },
+    Column {
+        name: "model_normalized",
+        kind: ColKind::Text,
+        unit: "model",
+        quality: "derived",
+    },
+    Column {
+        name: "request_count",
+        kind: ColKind::Decimal,
+        unit: "count",
+        quality: "reported_or_null",
+    },
+    Column {
+        name: "input_fresh",
+        kind: ColKind::Decimal,
+        unit: "tokens",
+        quality: "per_event",
+    },
+    Column {
+        name: "input_cache_read",
+        kind: ColKind::Decimal,
+        unit: "tokens",
+        quality: "per_event",
+    },
+    Column {
+        name: "input_cache_write",
+        kind: ColKind::Decimal,
+        unit: "tokens",
+        quality: "per_event",
+    },
+    Column {
+        name: "input_total",
+        kind: ColKind::Decimal,
+        unit: "tokens",
+        quality: "per_event",
+    },
+    Column {
+        name: "output_total",
+        kind: ColKind::Decimal,
+        unit: "tokens",
+        quality: "per_event",
+    },
+    Column {
+        name: "output_reasoning",
+        kind: ColKind::Decimal,
+        unit: "tokens",
+        quality: "per_event",
+    },
+    Column {
+        name: "total",
+        kind: ColKind::Decimal,
+        unit: "tokens",
+        quality: "per_event",
+    },
+    Column {
+        name: "tokens_quality",
+        kind: ColKind::Text,
+        unit: "quality",
+        quality: "reported_derived_estimated_unknown",
+    },
+    Column {
+        name: "completeness",
+        kind: ColKind::Text,
+        unit: "completeness",
+        quality: "complete_partial_unknown",
+    },
+    Column {
+        name: "cost_reported_amount",
+        kind: ColKind::Decimal,
+        unit: "currency",
+        quality: "reported",
+    },
+    Column {
+        name: "cost_reported_currency",
+        kind: ColKind::Text,
+        unit: "currency",
+        quality: "reported",
+    },
+    Column {
+        name: "cost_estimated_amount",
+        kind: ColKind::Decimal,
+        unit: "currency",
+        quality: "estimated",
+    },
+    Column {
+        name: "cost_estimated_currency",
+        kind: ColKind::Text,
+        unit: "currency",
+        quality: "reported",
+    },
+    Column {
+        name: "cost_estimated_price_version",
+        kind: ColKind::Text,
+        unit: "price_version",
+        quality: "estimated",
+    },
+    Column {
+        name: "account_link",
+        kind: ColKind::Text,
+        unit: "json",
+        quality: "confirmed_explicit_or_unknown",
+    },
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -491,7 +631,10 @@ fn field_list() -> Vec<ExportField> {
         .collect()
 }
 
-fn redaction_notes(format: ExportFormat, keep_project_paths: bool) -> (Vec<String>, Vec<&'static str>) {
+fn redaction_notes(
+    format: ExportFormat,
+    keep_project_paths: bool,
+) -> (Vec<String>, Vec<&'static str>) {
     let mut notes = Vec::new();
     let mut keys = Vec::new();
     if keep_project_paths {
@@ -667,7 +810,12 @@ mod tests {
         db
     }
 
-    fn insert_event(db: &Database, event_id: &str, project_ref: Option<&str>, model_raw: Option<&str>) {
+    fn insert_event(
+        db: &Database,
+        event_id: &str,
+        project_ref: Option<&str>,
+        model_raw: Option<&str>,
+    ) {
         db.conn()
             .execute(
                 "INSERT INTO usage_events (
@@ -744,7 +892,12 @@ mod tests {
     #[test]
     fn preview_reports_scope_fields_and_cost() {
         let db = setup_db();
-        insert_event(&db, "e1", Some("/Users/alice/SecretProject"), Some("kimi-k2"));
+        insert_event(
+            &db,
+            "e1",
+            Some("/Users/alice/SecretProject"),
+            Some("kimi-k2"),
+        );
         let policy = ExportPathPolicy::new("/tmp/out.csv");
         let preview =
             export_statistics(&db, &UsageFilter::default(), ExportFormat::Csv, &policy).unwrap();
@@ -752,7 +905,10 @@ mod tests {
         assert!(preview.contains_cost);
         assert_eq!(preview.currencies, vec!["USD".to_string()]);
         assert_eq!(preview.scope.stream_domain, "local_log");
-        assert!(preview.fields.iter().any(|f| f.name == "total" && f.unit == "tokens"));
+        assert!(preview
+            .fields
+            .iter()
+            .any(|f| f.name == "total" && f.unit == "tokens"));
         assert!(preview
             .note_keys
             .contains(&"export.redaction.project_paths_anonymized"));
@@ -761,7 +917,12 @@ mod tests {
     #[test]
     fn project_path_is_anonymized_by_default_and_kept_on_request() {
         let db = setup_db();
-        insert_event(&db, "e1", Some("/Users/alice/SecretProject"), Some("kimi-k2"));
+        insert_event(
+            &db,
+            "e1",
+            Some("/Users/alice/SecretProject"),
+            Some("kimi-k2"),
+        );
 
         // 默认：匿名标签，不含明文
         let out = std::env::temp_dir().join(format!("providock-exp-{}.csv", std::process::id()));
@@ -798,7 +959,12 @@ mod tests {
     #[test]
     fn json_has_contract_quality_currency_scope_coverage() {
         let db = setup_db();
-        insert_event(&db, "e1", Some("/Users/alice/SecretProject"), Some("kimi-k2"));
+        insert_event(
+            &db,
+            "e1",
+            Some("/Users/alice/SecretProject"),
+            Some("kimi-k2"),
+        );
         let out = std::env::temp_dir().join(format!("providock-exp-{}.json", std::process::id()));
         let policy = ExportPathPolicy::new(&out);
         write_export(&db, &UsageFilter::default(), ExportFormat::Json, &policy).unwrap();

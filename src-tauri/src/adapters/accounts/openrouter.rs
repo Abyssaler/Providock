@@ -10,9 +10,9 @@
 //!   `total_usage`，可用额按官方语义 `available = total_credits - total_usage`（精确十进制相减）。
 //!   普通推理 Key 会 403 → auth_required。
 //!
-//! 本模块自包含请求/响应类型（deepseek / novita 各自独立），便于并行开发时互不影响。
+//! 请求/响应类型与十进制工具统一取自 [`crate::adapters::accounts::common`]。
 
-use crate::domain::decimal::decimal_add;
+use crate::adapters::accounts::common::{self, AuthPlacement, RequestSpec};
 use crate::domain::Quality;
 use crate::services::accounts::{
     BalanceEntry, BalanceKind, CredentialType, FailureSignal, PeriodKind, QuotaUnit, QuotaWindow,
@@ -20,10 +20,13 @@ use crate::services::accounts::{
 };
 use serde_json::{Map, Value};
 
+// 公共类型在本模块的再导出：适配器不再各自定义，旧的引用路径保持不变。
+pub use crate::adapters::accounts::common::ParsedAccountResponse;
+
 /// 官方文档规定的精确 host（比较必须精确，禁止“包含该串”的域名）。
 pub const CANONICAL_HOST: &str = "openrouter.ai";
 /// 余额接口超时提示（秒）；服务层可覆盖。
-pub const TIMEOUT_HINT_SECONDS: u64 = 15;
+pub const TIMEOUT_HINT_SECONDS: u64 = common::DEFAULT_TIMEOUT_SECONDS;
 
 /// 同一 host 下的两个端点。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -51,51 +54,9 @@ impl Endpoint {
     }
 }
 
-/// 认证头位置：只描述“头名 + 方案前缀”。秘密值由服务层注入，绝不进入本结构。
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AuthPlacement {
-    pub header: String,
-    pub scheme: String,
-}
-
-impl AuthPlacement {
-    fn bearer() -> Self {
-        Self {
-            header: "Authorization".into(),
-            scheme: "Bearer ".into(),
-        }
-    }
-
-    /// 供 UI / 日志展示的占位（不含任何秘密）。
-    pub fn placeholder(&self) -> String {
-        format!("{}<secret-injected-by-service>", self.scheme)
-    }
-}
-
-/// 请求描述。`headers` 只含非秘密静态头；秘密位置由 `auth` 描述。
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RequestSpec {
-    pub method: String,
-    pub host: String,
-    pub path: String,
-    pub headers: Vec<(String, String)>,
-    pub auth: Option<AuthPlacement>,
-    pub timeout_hint_seconds: u64,
-}
-
-impl RequestSpec {
-    pub fn url(&self) -> String {
-        format!("https://{}{}", self.host, self.path)
-    }
-
-    pub fn auth_header_placeholder(&self) -> Option<String> {
-        self.auth
-            .as_ref()
-            .map(|auth| format!("{}: {}", auth.header, auth.placeholder()))
-    }
-}
-
 /// 请求配置：账户侧配置的 host（可为裸域名或 URL）+ 端点选择。
+///
+/// host 语义与 [`common::RequestConfig`] 一致，这里额外携带 OpenRouter 的两个端点之一。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RequestConfig {
     pub host: String,
@@ -126,31 +87,13 @@ pub enum RequestBuildError {
 
 /// 构造请求。配置 host 解析出的域名必须**精确等于** [`CANONICAL_HOST`]。
 pub fn build_request(cfg: &RequestConfig) -> Result<RequestSpec, RequestBuildError> {
-    if extract_host(&cfg.host) != Some(CANONICAL_HOST) {
+    if common::extract_host(&cfg.host) != Some(CANONICAL_HOST) {
         return Err(RequestBuildError::HostNotAllowed {
             expected: CANONICAL_HOST,
             got: cfg.host.clone(),
         });
     }
-    Ok(RequestSpec {
-        method: "GET".into(),
-        host: CANONICAL_HOST.into(),
-        path: cfg.endpoint.path().into(),
-        headers: Vec::new(),
-        auth: Some(AuthPlacement::bearer()),
-        timeout_hint_seconds: TIMEOUT_HINT_SECONDS,
-    })
-}
-
-/// 解析结果：成功返回标准化余额/窗口 + 平台数据时间；失败返回 [`FailureSignal`] 语义。
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ParsedAccountResponse {
-    Success {
-        balances: Vec<BalanceEntry>,
-        quota_windows: Vec<QuotaWindow>,
-        provider_as_of: Option<String>,
-    },
-    Failure(FailureSignal),
+    Ok(RequestSpec::https(CANONICAL_HOST, cfg.endpoint.path()).with_auth(AuthPlacement::bearer()))
 }
 
 /// 分发到对应端点的解析器。
@@ -203,15 +146,15 @@ pub fn parse_credits(status: u16, body: &str) -> ParsedAccountResponse {
     let Some(data) = value.get("data").and_then(Value::as_object) else {
         return ParsedAccountResponse::Failure(incompatible());
     };
-    let total = match opt_decimal(data, "total_credits") {
+    let total = match common::opt_decimal(data, "total_credits") {
         Ok(Some(value)) => value,
         _ => return ParsedAccountResponse::Failure(incompatible()),
     };
-    let usage = match opt_decimal(data, "total_usage") {
+    let usage = match common::opt_decimal(data, "total_usage") {
         Ok(Some(value)) => value,
         _ => return ParsedAccountResponse::Failure(incompatible()),
     };
-    let available = match decimal_add(&total, &negate(&usage)) {
+    let available = match crate::domain::decimal::decimal_add(&total, &negate(&usage)) {
         Some(value) => value,
         None => return ParsedAccountResponse::Failure(incompatible()),
     };
@@ -239,10 +182,10 @@ pub fn parse_credits(status: u16, body: &str) -> ParsedAccountResponse {
 fn build_key_windows(data: &Map<String, Value>) -> Result<Vec<QuotaWindow>, ()> {
     let mut windows = Vec::new();
 
-    let usage = opt_decimal(data, "usage")?;
-    let limit = opt_decimal(data, "limit")?;
-    let remaining = opt_decimal(data, "limit_remaining")?;
-    let reset = opt_string(data, "limit_reset")?;
+    let usage = common::opt_decimal(data, "usage")?;
+    let limit = common::opt_decimal(data, "limit")?;
+    let remaining = common::opt_decimal(data, "limit_remaining")?;
+    let reset = common::opt_string(data, "limit_reset")?;
     let (period, duration) = reset_period(reset.as_deref());
     if let Some(window) = window_if_any(
         "openrouter:key:spend_limit:usd",
@@ -290,7 +233,7 @@ fn build_key_windows(data: &Map<String, Value>) -> Result<Vec<QuotaWindow>, ()> 
             None,
         ),
     ] {
-        let used = opt_decimal(data, key)?;
+        let used = common::opt_decimal(data, key)?;
         if let Some(window) = window_if_any(
             id,
             QuotaUnit::Currency,
@@ -309,9 +252,9 @@ fn build_key_windows(data: &Map<String, Value>) -> Result<Vec<QuotaWindow>, ()> 
     match data.get("free_model_daily_requests") {
         None | Some(Value::Null) => {}
         Some(Value::Object(free)) => {
-            let used = opt_decimal(free, "used")?;
-            let limit = opt_decimal(free, "limit")?;
-            let remaining = opt_decimal(free, "remaining")?;
+            let used = common::opt_decimal(free, "used")?;
+            let limit = common::opt_decimal(free, "limit")?;
+            let remaining = common::opt_decimal(free, "remaining")?;
             if let Some(window) = window_if_any(
                 "openrouter:key:free_model_daily_requests:requests",
                 QuotaUnit::Requests,
@@ -332,6 +275,8 @@ fn build_key_windows(data: &Map<String, Value>) -> Result<Vec<QuotaWindow>, ()> 
 }
 
 /// 仅当 used / limit / remaining 至少一项已知时才产出窗口（不造全空窗口）。
+// 参数多于 7 个：每个字段都是独立的窗口属性，用结构体会让调用点更笨重。
+#[allow(clippy::too_many_arguments)]
 fn window_if_any(
     window_id: &str,
     unit: QuotaUnit,
@@ -382,7 +327,7 @@ fn incompatible() -> FailureSignal {
 
 /// HTTP 200 业务错误体（`{"error":{"code":401,...}}`）。
 fn business_failure(error: &Value) -> FailureSignal {
-    let code = business_code_of(error).unwrap_or_else(|| "business_error".into());
+    let code = common::business_code_of(error).unwrap_or_else(|| "business_error".into());
     let hint = match code.as_str() {
         "401" | "403" => SnapshotStatus::AuthRequired,
         "429" => SnapshotStatus::RateLimited,
@@ -396,74 +341,12 @@ fn business_failure(error: &Value) -> FailureSignal {
     }
 }
 
-fn opt_decimal(data: &Map<String, Value>, key: &str) -> Result<Option<String>, ()> {
-    match data.get(key) {
-        None | Some(Value::Null) => Ok(None),
-        Some(value) => decimal_field(value).ok_or(()).map(Some),
-    }
-}
-
-fn opt_string(data: &Map<String, Value>, key: &str) -> Result<Option<String>, ()> {
-    match data.get(key) {
-        None | Some(Value::Null) => Ok(None),
-        Some(Value::String(s)) => Ok(Some(s.clone())),
-        Some(_) => Err(()),
-    }
-}
-
-fn decimal_field(value: &Value) -> Option<String> {
-    match value {
-        Value::String(s) => valid_decimal(s),
-        Value::Number(n) => {
-            if let Some(i) = n.as_i64() {
-                valid_decimal(&i.to_string())
-            } else if let Some(u) = n.as_u64() {
-                valid_decimal(&u.to_string())
-            } else {
-                let f = n.as_f64()?;
-                if !f.is_finite() {
-                    return None;
-                }
-                valid_decimal(&format!("{f}"))
-            }
-        }
-        _ => None,
-    }
-}
-
-fn valid_decimal(value: &str) -> Option<String> {
-    decimal_add(value, "0").map(|_| value.to_string())
-}
-
-fn business_code_of(error: &Value) -> Option<String> {
-    error
-        .get("code")
-        .and_then(value_code)
-        .or_else(|| error.get("type").and_then(value_code))
-}
-
-fn value_code(value: &Value) -> Option<String> {
-    match value {
-        Value::String(s) if !s.is_empty() => Some(s.clone()),
-        Value::Number(n) => Some(n.to_string()),
-        _ => None,
-    }
-}
-
-/// 取相反数（保留十进制字符串形态，交给 [`decimal_add`] 精确相加）。
+/// 取相反数（保留十进制字符串形态，交给 `decimal_add` 精确相加）。
 fn negate(value: &str) -> String {
     match value.strip_prefix('-') {
         Some(rest) => rest.to_string(),
         None => format!("-{value}"),
     }
-}
-
-/// 从裸域名或 URL 中取出 host 段，供**精确**比较（不是子串匹配）。
-fn extract_host(input: &str) -> Option<&str> {
-    let after_scheme = input.split_once("://").map(|(_, rest)| rest).unwrap_or(input);
-    let authority = after_scheme.split(['/', '?', '#']).next()?;
-    let host = authority.rsplit_once('@').map(|(_, h)| h).unwrap_or(authority);
-    (!host.is_empty()).then_some(host)
 }
 
 #[cfg(test)]
@@ -476,7 +359,11 @@ mod tests {
         assert_eq!(key.url(), "https://openrouter.ai/api/v1/key");
         let credits = build_request(&RequestConfig::canonical(Endpoint::Credits)).unwrap();
         assert_eq!(credits.url(), "https://openrouter.ai/api/v1/credits");
-        assert!(build_request(&RequestConfig::new("openrouter.ai.evil.com", Endpoint::CurrentKey)).is_err());
+        assert!(build_request(&RequestConfig::new(
+            "openrouter.ai.evil.com",
+            Endpoint::CurrentKey
+        ))
+        .is_err());
     }
 
     #[test]
@@ -484,7 +371,11 @@ mod tests {
         let body = r#"{"data":{"limit":100,"limit_remaining":74.25,"limit_reset":"monthly",
             "usage":25.75,"usage_daily":1.5,"usage_weekly":9.5,"usage_monthly":25.75}}"#;
         match parse_current_key(200, body) {
-            ParsedAccountResponse::Success { balances, quota_windows, .. } => {
+            ParsedAccountResponse::Success {
+                balances,
+                quota_windows,
+                ..
+            } => {
                 assert!(balances.is_empty(), "Key 预算不是现金余额");
                 let ids: Vec<&str> = quota_windows.iter().map(|w| w.window_id.as_str()).collect();
                 assert!(ids.contains(&"openrouter:key:spend_limit:usd"));
@@ -508,7 +399,9 @@ mod tests {
         let body = r#"{"data":{"limit":null,"limit_remaining":null,"usage":3.5}}"#;
         match parse_current_key(200, body) {
             ParsedAccountResponse::Success { quota_windows, .. } => {
-                assert!(quota_windows.iter().any(|w| w.window_id == "openrouter:key:usage:total:usd"));
+                assert!(quota_windows
+                    .iter()
+                    .any(|w| w.window_id == "openrouter:key:usage:total:usd"));
             }
             other => panic!("expected success, got {other:?}"),
         }
@@ -542,7 +435,10 @@ mod tests {
 
     #[test]
     fn credits_forbidden_maps_to_auth_required() {
-        let parsed = parse_credits(403, r#"{"error":{"code":403,"message":"Only management keys"}}"#);
+        let parsed = parse_credits(
+            403,
+            r#"{"error":{"code":403,"message":"Only management keys"}}"#,
+        );
         match parsed {
             ParsedAccountResponse::Failure(signal) => {
                 assert_eq!(signal.status(), SnapshotStatus::AuthRequired);

@@ -60,7 +60,10 @@ fn fixture_cases() {
         })
         .collect();
     case_names.sort();
-    assert!(case_names.len() >= 4, "fixture cases missing: {case_names:?}");
+    assert!(
+        case_names.len() >= 4,
+        "fixture cases missing: {case_names:?}"
+    );
 
     for case in case_names {
         let dir = root.join(&case);
@@ -91,9 +94,7 @@ fn fixture_cases() {
             session_id: "11111111-aaaa-4bbb-8ccc-111111111111".into(),
             agent_id: cfgd["agent_id"].as_str().unwrap().to_string(),
             mirrored_in_parent: cfgd["mirrored_in_parent"].as_bool().unwrap(),
-            count_mirrored_subagent_usage: cfgd["count_mirrored_subagent_usage"]
-                .as_bool()
-                .unwrap(),
+            count_mirrored_subagent_usage: cfgd["count_mirrored_subagent_usage"].as_bool().unwrap(),
             fork,
             observed_at: "2026-10-11T08:00:00Z".into(),
         };
@@ -171,8 +172,7 @@ fn fixture_cases() {
                     spec["events"].as_u64().unwrap() as usize,
                     "{case}: actor {actor} event count"
                 );
-                let want_total: Option<u128> =
-                    spec["total"].as_str().map(|s| s.parse().unwrap());
+                let want_total: Option<u128> = spec["total"].as_str().map(|s| s.parse().unwrap());
                 let got_total: Option<u128> = {
                     let mut acc = None;
                     for e in &mine {

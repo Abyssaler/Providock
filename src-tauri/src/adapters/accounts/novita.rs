@@ -9,12 +9,16 @@
 //! `outstandingInvoices`，原值单位 **1/10000 USD**（文档：`10000 = $1.00`）。
 //! 换算必须**整数除以 10000**（十进制字符串移位），不使用二进制浮点；负余额保留真实值。
 //!
-//! 本模块自包含请求/响应类型（deepseek / openrouter 各自独立），便于并行开发时互不影响。
+//! 请求/响应类型统一取自 [`crate::adapters::accounts::common`]。
 
+use crate::adapters::accounts::common::{self, AuthPlacement, RequestSpec};
 use crate::services::accounts::{
-    BalanceEntry, BalanceKind, CredentialType, FailureSignal, QuotaWindow, SnapshotStatus,
+    BalanceEntry, BalanceKind, CredentialType, FailureSignal, SnapshotStatus,
 };
 use serde_json::{Map, Value};
+
+// 公共类型在本模块的再导出：适配器不再各自定义，旧的引用路径保持不变。
+pub use crate::adapters::accounts::common::{ParsedAccountResponse, RequestConfig};
 
 /// 官方文档规定的精确 host（比较必须精确，禁止“包含该串”的域名）。
 pub const CANONICAL_HOST: &str = "api.novita.ai";
@@ -23,71 +27,9 @@ pub const REQUEST_PATH: &str = "/openapi/v1/billing/balance/detail";
 /// 该接口接受的凭据类型（Bearer API Key）。
 pub const CREDENTIAL_TYPE: CredentialType = CredentialType::ApiKey;
 /// 余额接口超时提示（秒）；服务层可覆盖。
-pub const TIMEOUT_HINT_SECONDS: u64 = 15;
+pub const TIMEOUT_HINT_SECONDS: u64 = common::DEFAULT_TIMEOUT_SECONDS;
 /// 原值单位：1 USD = 10000 个计费单位。
 const UNITS_PER_USD: usize = 10_000;
-
-/// 认证头位置：只描述“头名 + 方案前缀”。秘密值由服务层注入，绝不进入本结构。
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AuthPlacement {
-    pub header: String,
-    pub scheme: String,
-}
-
-impl AuthPlacement {
-    fn bearer() -> Self {
-        Self {
-            header: "Authorization".into(),
-            scheme: "Bearer ".into(),
-        }
-    }
-
-    /// 供 UI / 日志展示的占位（不含任何秘密）。
-    pub fn placeholder(&self) -> String {
-        format!("{}<secret-injected-by-service>", self.scheme)
-    }
-}
-
-/// 请求描述。`headers` 只含非秘密静态头；秘密位置由 `auth` 描述。
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RequestSpec {
-    pub method: String,
-    pub host: String,
-    pub path: String,
-    pub headers: Vec<(String, String)>,
-    pub auth: Option<AuthPlacement>,
-    pub timeout_hint_seconds: u64,
-}
-
-impl RequestSpec {
-    pub fn url(&self) -> String {
-        format!("https://{}{}", self.host, self.path)
-    }
-
-    pub fn auth_header_placeholder(&self) -> Option<String> {
-        self.auth
-            .as_ref()
-            .map(|auth| format!("{}: {}", auth.header, auth.placeholder()))
-    }
-}
-
-/// 请求配置：账户侧配置的 host（可为裸域名或 URL）。
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RequestConfig {
-    pub host: String,
-}
-
-impl RequestConfig {
-    pub fn canonical() -> Self {
-        Self {
-            host: CANONICAL_HOST.into(),
-        }
-    }
-
-    pub fn new(host: impl Into<String>) -> Self {
-        Self { host: host.into() }
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum RequestBuildError {
@@ -97,32 +39,16 @@ pub enum RequestBuildError {
 
 /// 构造请求。配置 host 解析出的域名必须**精确等于** [`CANONICAL_HOST`]。
 pub fn build_request(cfg: &RequestConfig) -> Result<RequestSpec, RequestBuildError> {
-    if extract_host(&cfg.host) != Some(CANONICAL_HOST) {
+    if common::extract_host(&cfg.host) != Some(CANONICAL_HOST) {
         return Err(RequestBuildError::HostNotAllowed {
             expected: CANONICAL_HOST,
             got: cfg.host.clone(),
         });
     }
-    Ok(RequestSpec {
-        method: "GET".into(),
-        host: CANONICAL_HOST.into(),
-        path: REQUEST_PATH.into(),
+    Ok(RequestSpec::https(CANONICAL_HOST, REQUEST_PATH)
         // 文档标 required 的静态头（不含秘密）。
-        headers: vec![("Content-Type".into(), "application/json".into())],
-        auth: Some(AuthPlacement::bearer()),
-        timeout_hint_seconds: TIMEOUT_HINT_SECONDS,
-    })
-}
-
-/// 解析结果：成功返回标准化余额/窗口 + 平台数据时间；失败返回 [`FailureSignal`] 语义。
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ParsedAccountResponse {
-    Success {
-        balances: Vec<BalanceEntry>,
-        quota_windows: Vec<QuotaWindow>,
-        provider_as_of: Option<String>,
-    },
-    Failure(FailureSignal),
+        .with_headers(vec![("Content-Type".into(), "application/json".into())])
+        .with_auth(AuthPlacement::bearer()))
 }
 
 /// 解析响应。非 200 交给 [`FailureSignal`] 默认映射；HTTP 200 业务错误与 schema 变化按失败处理。
@@ -169,32 +95,43 @@ fn build_balances(obj: &Map<String, Value>) -> Option<Vec<BalanceEntry>> {
     let credit_limit = usd_field(obj, "creditLimit")?;
     let pending = usd_field(obj, "pendingCharges")?;
     let invoices = usd_field(obj, "outstandingInvoices")?;
-    let mut out = Vec::new();
-    out.push(
-        BalanceEntry::new(BalanceKind::Available, available, "USD")
-            .ok()?
-            .with_formula("USD = availableBalance / 10000 (1/10000 USD)"),
-    );
-    out.push(
-        BalanceEntry::new(BalanceKind::Paid, cash, "USD")
-            .ok()?
-            .with_formula("USD = cashBalance / 10000 (充值剩余, 1/10000 USD)"),
-    );
-    out.push(
-        BalanceEntry::new(BalanceKind::Credit, credit_limit, "USD")
-            .ok()?
-            .with_formula("USD = creditLimit / 10000 (授信上限, 非现金)"),
-    );
-    out.push(
-        BalanceEntry::new(BalanceKind::Credit, pending, "USD")
-            .ok()?
-            .with_formula("USD = pendingCharges / 10000 (待结算, 非现金)"),
-    );
-    out.push(
-        BalanceEntry::new(BalanceKind::Credit, invoices, "USD")
-            .ok()?
-            .with_formula("USD = outstandingInvoices / 10000 (欠款, 非现金)"),
-    );
+    // `creditLimit` / `pendingCharges` / `outstandingInvoices` 都不是现金可用额，
+    // 归入 `credit` 并用 formula 标注其“非现金”语义，UI 不得当作可用现金。
+    let rows = [
+        (
+            BalanceKind::Available,
+            available,
+            Some("USD = availableBalance / 10000 (1/10000 USD)"),
+        ),
+        (
+            BalanceKind::Paid,
+            cash,
+            Some("USD = cashBalance / 10000 (充值剩余, 1/10000 USD)"),
+        ),
+        (
+            BalanceKind::Credit,
+            credit_limit,
+            Some("USD = creditLimit / 10000 (授信上限, 非现金)"),
+        ),
+        (
+            BalanceKind::Credit,
+            pending,
+            Some("USD = pendingCharges / 10000 (待结算, 非现金)"),
+        ),
+        (
+            BalanceKind::Credit,
+            invoices,
+            Some("USD = outstandingInvoices / 10000 (欠款, 非现金)"),
+        ),
+    ];
+    let mut out = Vec::with_capacity(rows.len());
+    for (kind, amount, formula) in rows {
+        let entry = BalanceEntry::new(kind, amount, "USD").ok()?;
+        out.push(match formula {
+            Some(formula) => entry.with_formula(formula),
+            None => entry,
+        });
+    }
     Some(out)
 }
 
@@ -235,7 +172,7 @@ fn units_to_usd(raw: &str) -> Option<String> {
     };
     let frac = if frac_part.is_empty() {
         // 左侧补零到 scale 位
-        let mut padded = String::from("0".repeat(scale - rest.len()));
+        let mut padded = "0".repeat(scale - rest.len());
         padded.push_str(rest);
         padded
     } else {
@@ -243,7 +180,11 @@ fn units_to_usd(raw: &str) -> Option<String> {
     };
     let frac_trimmed = frac.trim_end_matches('0');
     let int_trimmed = int_part.trim_start_matches('0');
-    let int_out = if int_trimmed.is_empty() { "0" } else { int_trimmed };
+    let int_out = if int_trimmed.is_empty() {
+        "0"
+    } else {
+        int_trimmed
+    };
     let body = if frac_trimmed.is_empty() {
         int_out.to_string()
     } else {
@@ -278,16 +219,10 @@ fn business_code_of(obj: &Map<String, Value>) -> Option<String> {
             (value != 0).then(|| value.to_string())
         }
         Some(Value::String(s)) if !s.is_empty() => Some(s.clone()),
-        _ => obj.contains_key("error").then(|| "business_error".to_string()),
+        _ => obj
+            .contains_key("error")
+            .then(|| "business_error".to_string()),
     }
-}
-
-/// 从裸域名或 URL 中取出 host 段，供**精确**比较（不是子串匹配）。
-fn extract_host(input: &str) -> Option<&str> {
-    let after_scheme = input.split_once("://").map(|(_, rest)| rest).unwrap_or(input);
-    let authority = after_scheme.split(['/', '?', '#']).next()?;
-    let host = authority.rsplit_once('@').map(|(_, h)| h).unwrap_or(authority);
-    (!host.is_empty()).then_some(host)
 }
 
 #[cfg(test)]
@@ -296,8 +231,11 @@ mod tests {
 
     #[test]
     fn request_has_required_content_type() {
-        let spec = build_request(&RequestConfig::canonical()).unwrap();
-        assert_eq!(spec.url(), "https://api.novita.ai/openapi/v1/billing/balance/detail");
+        let spec = build_request(&RequestConfig::canonical(CANONICAL_HOST)).unwrap();
+        assert_eq!(
+            spec.url(),
+            "https://api.novita.ai/openapi/v1/billing/balance/detail"
+        );
         assert!(spec
             .headers
             .iter()

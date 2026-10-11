@@ -134,7 +134,10 @@ pub fn purge_statistics(db: &mut Database, source_id: &str) -> Result<PurgeResul
         "SELECT COUNT(*) FROM parse_runs WHERE source_id = ?1",
         source_id,
     )?;
-    let sessions_removed = count("SELECT COUNT(*) FROM sessions WHERE source_id = ?1", source_id)?;
+    let sessions_removed = count(
+        "SELECT COUNT(*) FROM sessions WHERE source_id = ?1",
+        source_id,
+    )?;
     let actors_removed: i64 = tx.query_row(
         "SELECT COUNT(*) FROM actors WHERE session_key IN
             (SELECT session_key FROM sessions WHERE source_id = ?1)",
@@ -185,15 +188,13 @@ pub struct SnapshotClearResult {
     pub snapshots_removed: u64,
     pub balances_removed: u64,
     pub quota_windows_removed: u64,
+    pub usage_metrics_removed: u64,
 }
 
-/// 删除某账户的全部历史快照（含余额与额度窗口），单事务。
+/// 删除某账户的全部历史快照（含余额、额度窗口与用量指标），单事务。
 ///
 /// **不触碰**账户行、凭据引用与任何用量账本表；统计清理与账户清理互不影响。
-pub fn clear_account_snapshots(
-    db: &mut Database,
-    account_id: &str,
-) -> Result<SnapshotClearResult> {
+pub fn clear_account_snapshots(db: &mut Database, account_id: &str) -> Result<SnapshotClearResult> {
     let tx = db.transaction()?;
     let snapshots_removed: i64 = tx.query_row(
         "SELECT COUNT(*) FROM account_snapshots WHERE account_id = ?1",
@@ -212,6 +213,12 @@ pub fn clear_account_snapshots(
         [account_id],
         |r| r.get(0),
     )?;
+    let usage_metrics_removed: i64 = tx.query_row(
+        "SELECT COUNT(*) FROM usage_metrics WHERE snapshot_id IN
+            (SELECT snapshot_id FROM account_snapshots WHERE account_id = ?1)",
+        [account_id],
+        |r| r.get(0),
+    )?;
     tx.execute(
         "DELETE FROM balances WHERE snapshot_id IN
             (SELECT snapshot_id FROM account_snapshots WHERE account_id = ?1)",
@@ -219,6 +226,11 @@ pub fn clear_account_snapshots(
     )?;
     tx.execute(
         "DELETE FROM quota_windows WHERE snapshot_id IN
+            (SELECT snapshot_id FROM account_snapshots WHERE account_id = ?1)",
+        [account_id],
+    )?;
+    tx.execute(
+        "DELETE FROM usage_metrics WHERE snapshot_id IN
             (SELECT snapshot_id FROM account_snapshots WHERE account_id = ?1)",
         [account_id],
     )?;
@@ -233,6 +245,7 @@ pub fn clear_account_snapshots(
         snapshots_removed: snapshots_removed.max(0) as u64,
         balances_removed: balances_removed.max(0) as u64,
         quota_windows_removed: quota_windows_removed.max(0) as u64,
+        usage_metrics_removed: usage_metrics_removed.max(0) as u64,
     })
 }
 

@@ -23,8 +23,11 @@
 //! 纯函数：不触网、不读文件、不接触凭据。App Server 自身持有认证，`RequestSpec`
 //! 不含任何秘密（`auth = ServerHeld`）。
 
+use crate::adapters::accounts::common::{self, AuthPlacement};
 use crate::domain::Quality;
-use crate::services::accounts::{FailureSignal, PeriodKind, QuotaUnit, QuotaWindow, SnapshotStatus};
+use crate::services::accounts::{
+    FailureSignal, PeriodKind, QuotaUnit, QuotaWindow, SnapshotStatus,
+};
 use serde_json::Value;
 
 pub const INITIALIZE_METHOD: &str = "initialize";
@@ -41,25 +44,15 @@ const INVALID_PARAMS: i64 = -32602;
 // 请求
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum Transport {
+    #[default]
     Stdio,
     WebSocket(String),
     Unix(String),
 }
 
-impl Default for Transport {
-    fn default() -> Self {
-        Self::Stdio
-    }
-}
-
-/// App Server 自己持有认证；适配器不注入凭据。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AuthScheme {
-    ServerHeld,
-}
-
+/// App Server 自己持有认证；适配器不注入凭据（[`AuthPlacement::server_held`]）。
 /// JSON-RPC 请求：**不含秘密**。
 #[derive(Debug, Clone, PartialEq)]
 pub struct RequestSpec {
@@ -67,7 +60,7 @@ pub struct RequestSpec {
     pub method: &'static str,
     pub request_id: i64,
     pub params: Value,
-    pub auth: AuthScheme,
+    pub auth: AuthPlacement,
 }
 
 impl RequestSpec {
@@ -104,7 +97,7 @@ pub fn initialize(
             "clientInfo": client_info,
             "capabilities": { "experimentalApi": experimental_api },
         }),
-        auth: AuthScheme::ServerHeld,
+        auth: AuthPlacement::server_held(),
     }
 }
 
@@ -126,7 +119,7 @@ pub fn rate_limits_read(
         method: RATE_LIMITS_METHOD,
         request_id,
         params: Value::Object(params),
-        auth: AuthScheme::ServerHeld,
+        auth: AuthPlacement::server_held(),
     }
 }
 
@@ -141,7 +134,7 @@ pub fn usage_read(request_id: i64, thread_id: Option<&str>) -> RequestSpec {
         method: USAGE_METHOD,
         request_id,
         params,
-        auth: AuthScheme::ServerHeld,
+        auth: AuthPlacement::server_held(),
     }
 }
 
@@ -221,7 +214,7 @@ pub fn parse_response(body: &[u8]) -> Result<RpcOutcome, CodexError> {
             .ok_or_else(|| CodexError::Protocol("JSON-RPC error is not an object".into()))?;
         let code = error
             .get("code")
-            .and_then(json_int)
+            .and_then(common::json_int)
             .ok_or_else(|| CodexError::Protocol("JSON-RPC error.code missing".into()))?;
         let message = error
             .get("message")
@@ -287,7 +280,10 @@ pub fn parse_initialize(body: &[u8]) -> Result<InitializeInfo, CodexError> {
     let obj = result
         .as_object()
         .ok_or_else(|| CodexError::Incompatible("initialize result is not an object".into()))?;
-    let user_agent = obj.get("userAgent").and_then(Value::as_str).map(str::to_owned);
+    let user_agent = obj
+        .get("userAgent")
+        .and_then(Value::as_str)
+        .map(str::to_owned);
     if user_agent.is_none() {
         return Err(CodexError::Incompatible(
             "initialize result.userAgent missing".into(),
@@ -376,7 +372,10 @@ pub fn parse_rate_limits(body: &[u8]) -> Result<CodexRateLimits, CodexError> {
             .get("planType")
             .and_then(Value::as_str)
             .map(str::to_owned),
-        account_id: obj.get("accountId").and_then(Value::as_str).map(str::to_owned),
+        account_id: obj
+            .get("accountId")
+            .and_then(Value::as_str)
+            .map(str::to_owned),
         ordinary_usage_allowed: obj.get("ordinaryUsageAllowed").and_then(Value::as_bool),
         evidence: EVIDENCE.to_owned(),
     })
@@ -394,23 +393,28 @@ fn push_snapshot_windows(
         };
         let used_percent = window
             .get("usedPercent")
-            .and_then(json_decimal)
+            .and_then(common::json_decimal)
             .ok_or_else(|| {
                 CodexError::Incompatible(format!("{limit_id}.{slot}.usedPercent missing"))
             })?;
-        let ratio = shift_decimal_by(&used_percent, -2).ok_or_else(|| {
+        let ratio = common::shift_decimal_by(&used_percent, -2).ok_or_else(|| {
             CodexError::Incompatible(format!("{limit_id}.{slot}.usedPercent not a decimal"))
         })?;
-        let (used_ratio, remaining_ratio, raw_ratio, over_limit) = normalize_ratio(&ratio);
+        let (used_ratio, remaining_ratio, raw_ratio, over_limit) = common::normalize_ratio(&ratio);
         let duration_seconds = window
             .get("windowDurationMins")
-            .and_then(json_int)
+            .and_then(common::json_int)
             .and_then(|minutes| u64::try_from(minutes).ok())
             .and_then(|minutes| minutes.checked_mul(60));
-        let resets_at = window.get("resetsAt").and_then(json_int).and_then(unix_to_rfc3339);
+        let resets_at = window
+            .get("resetsAt")
+            .and_then(common::json_int)
+            .and_then(unix_to_rfc3339);
 
-        let mut quota =
-            QuotaWindow::new(format!("codex:account:{limit_id}:{slot}"), QuotaUnit::Percent);
+        let mut quota = QuotaWindow::new(
+            format!("codex:account:{limit_id}:{slot}"),
+            QuotaUnit::Percent,
+        );
         quota.label = Some(match limit_name {
             Some(name) => format!("{name} ({slot})"),
             None => format!("{limit_id} ({slot})"),
@@ -434,9 +438,18 @@ fn push_snapshot_windows(
 fn parse_credits(value: Option<&Value>) -> Option<CreditsSnapshot> {
     let obj = value.and_then(Value::as_object)?;
     Some(CreditsSnapshot {
-        has_credits: obj.get("hasCredits").and_then(Value::as_bool).unwrap_or(false),
-        unlimited: obj.get("unlimited").and_then(Value::as_bool).unwrap_or(false),
-        balance: obj.get("balance").and_then(Value::as_str).map(str::to_owned),
+        has_credits: obj
+            .get("hasCredits")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+        unlimited: obj
+            .get("unlimited")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+        balance: obj
+            .get("balance")
+            .and_then(Value::as_str)
+            .map(str::to_owned),
     })
 }
 
@@ -531,7 +544,7 @@ pub fn parse_usage(body: &[u8]) -> Result<CodexUsage, CodexError> {
         ("currentStreakDays", "current_streak_days", MetricUnit::Days),
         ("longestStreakDays", "longest_streak_days", MetricUnit::Days),
     ] {
-        if let Some(value) = summary.get(wire).and_then(json_decimal) {
+        if let Some(value) = summary.get(wire).and_then(common::json_decimal) {
             metrics.push(UsageMetric { name, value, unit });
         }
     }
@@ -545,7 +558,7 @@ pub fn parse_usage(body: &[u8]) -> Result<CodexUsage, CodexError> {
                 .filter_map(|item| {
                     let item = item.as_object()?;
                     let start_date = item.get("startDate")?.as_str()?.to_owned();
-                    let tokens = json_decimal(item.get("tokens")?)?;
+                    let tokens = common::json_decimal(item.get("tokens")?)?;
                     Some(DailyBucket { start_date, tokens })
                 })
                 .collect()
@@ -579,20 +592,30 @@ fn parse_thread_usage(map: &serde_json::Map<String, Value>) -> Result<ThreadUsag
                 .iter()
                 .filter_map(|item| item.as_object())
                 .map(|group| ThreadUsageGroup {
-                    model: group.get("model").and_then(Value::as_str).map(str::to_owned),
+                    model: group
+                        .get("model")
+                        .and_then(Value::as_str)
+                        .map(str::to_owned),
                     reasoning_effort: group
                         .get("reasoningEffort")
                         .and_then(Value::as_str)
                         .map(str::to_owned),
-                    speed: group.get("speed").and_then(Value::as_str).map(str::to_owned),
+                    speed: group
+                        .get("speed")
+                        .and_then(Value::as_str)
+                        .map(str::to_owned),
                     estimated_usage_credits_micros: group
                         .get("estimatedUsageCreditsMicros")
-                        .and_then(json_decimal),
-                    net_new_input_tokens: group.get("netNewInputTokens").and_then(json_decimal),
-                    cached_input_tokens: group.get("cachedInputTokens").and_then(json_decimal),
-                    input_tokens: group.get("inputTokens").and_then(json_decimal),
-                    output_tokens: group.get("outputTokens").and_then(json_decimal),
-                    total_tokens: group.get("totalTokens").and_then(json_decimal),
+                        .and_then(common::json_decimal),
+                    net_new_input_tokens: group
+                        .get("netNewInputTokens")
+                        .and_then(common::json_decimal),
+                    cached_input_tokens: group
+                        .get("cachedInputTokens")
+                        .and_then(common::json_decimal),
+                    input_tokens: group.get("inputTokens").and_then(common::json_decimal),
+                    output_tokens: group.get("outputTokens").and_then(common::json_decimal),
+                    total_tokens: group.get("totalTokens").and_then(common::json_decimal),
                 })
                 .collect()
         })
@@ -601,8 +624,10 @@ fn parse_thread_usage(map: &serde_json::Map<String, Value>) -> Result<ThreadUsag
         thread_id,
         estimated_usage_credits_micros: map
             .get("estimatedUsageCreditsMicros")
-            .and_then(json_decimal),
-        estimated_usage_usd_micros: map.get("estimatedUsageUsdMicros").and_then(json_decimal),
+            .and_then(common::json_decimal),
+        estimated_usage_usd_micros: map
+            .get("estimatedUsageUsdMicros")
+            .and_then(common::json_decimal),
         groups,
     })
 }
@@ -616,131 +641,4 @@ fn unix_to_rfc3339(seconds: i64) -> Option<String> {
     let dt = time::OffsetDateTime::from_unix_timestamp(seconds).ok()?;
     dt.format(&time::format_description::well_known::Rfc3339)
         .ok()
-}
-
-/// 十进制字符串乘以 10^places（`places>0`）或除以 10^places（`places<0`），精确。
-///
-/// `"25"` 乘 -2 → `"0.25"`；`"1234"` 乘 -2 → `"12.34"`。
-fn shift_decimal_by(value: &str, places: i32) -> Option<String> {
-    let (neg, body) = match value.strip_prefix('-') {
-        Some(rest) => (true, rest),
-        None => (false, value),
-    };
-    if body.is_empty() {
-        return None;
-    }
-    let mut parts = body.splitn(2, '.');
-    let int_part = parts.next().unwrap_or("");
-    let frac_part = parts.next().unwrap_or("");
-    if int_part.is_empty() && frac_part.is_empty() {
-        return None;
-    }
-    if !int_part.chars().all(|c| c.is_ascii_digit())
-        || !frac_part.chars().all(|c| c.is_ascii_digit())
-    {
-        return None;
-    }
-    let all = format!("{int_part}{frac_part}");
-    let point = int_part.len() as i64 + places as i64;
-    let (int_digits, frac_digits) = if point <= 0 {
-        (
-            "0".to_owned(),
-            format!("{}{all}", "0".repeat((-point) as usize)),
-        )
-    } else {
-        let point = point as usize;
-        if point >= all.len() {
-            (
-                format!("{all}{}", "0".repeat(point - all.len())),
-                String::new(),
-            )
-        } else {
-            (all[..point].to_owned(), all[point..].to_owned())
-        }
-    };
-    let int_norm = match int_digits.trim_start_matches('0') {
-        "" => "0",
-        rest => rest,
-    };
-    let frac_norm = frac_digits.trim_end_matches('0');
-    let mut out = if frac_norm.is_empty() {
-        int_norm.to_owned()
-    } else {
-        format!("{int_norm}.{frac_norm}")
-    };
-    if out == "0" {
-        return Some(out);
-    }
-    if neg {
-        out.insert(0, '-');
-    }
-    Some(out)
-}
-
-fn normalize_ratio(ratio: &str) -> (String, Option<String>, Option<String>, Option<bool>) {
-    if is_gt_one(ratio) {
-        (
-            "1".to_owned(),
-            Some("0".to_owned()),
-            Some(ratio.to_owned()),
-            Some(true),
-        )
-    } else {
-        (ratio.to_owned(), one_minus(ratio), None, None)
-    }
-}
-
-fn one_minus(ratio: &str) -> Option<String> {
-    use crate::domain::decimal::decimal_add;
-    let negated = match ratio.strip_prefix('-') {
-        Some(rest) => rest.to_owned(),
-        None => format!("-{ratio}"),
-    };
-    decimal_add("1", &negated)
-}
-
-fn is_gt_one(value: &str) -> bool {
-    let body = value.strip_prefix('-').unwrap_or(value);
-    let mut parts = body.splitn(2, '.');
-    let int = parts.next().unwrap_or("0");
-    let frac = parts.next().unwrap_or("");
-    match int.trim_start_matches('0') {
-        "" => false,
-        "1" => frac.chars().any(|c| c != '0'),
-        _ => true,
-    }
-}
-
-fn json_int(value: &Value) -> Option<i64> {
-    match value {
-        Value::Number(number) => number.as_i64(),
-        Value::String(text) => text.trim().parse().ok(),
-        _ => None,
-    }
-}
-
-fn json_decimal(value: &Value) -> Option<String> {
-    match value {
-        Value::Number(number) => Some(number.to_string()),
-        Value::String(text) => {
-            let text = text.trim();
-            if is_decimal(text) {
-                Some(text.to_owned())
-            } else {
-                None
-            }
-        }
-        _ => None,
-    }
-}
-
-fn is_decimal(text: &str) -> bool {
-    let body = text.strip_prefix('-').unwrap_or(text);
-    let mut parts = body.splitn(2, '.');
-    let int = parts.next().unwrap_or("");
-    let frac = parts.next().unwrap_or("");
-    if int.is_empty() && frac.is_empty() {
-        return false;
-    }
-    int.chars().all(|c| c.is_ascii_digit()) && frac.chars().all(|c| c.is_ascii_digit())
 }

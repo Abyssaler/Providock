@@ -230,6 +230,19 @@ CREATE TABLE quota_windows (
 );
 CREATE INDEX idx_quota_snapshot ON quota_windows(snapshot_id);
 
+-- 快照内的账户级用量指标（DATA_CONTRACTS 第 7 节 usage_metrics[]）。
+-- 值用十进制字符串，unit/quality 与余额、窗口同一套契约取值；scope 可空。
+CREATE TABLE usage_metrics (
+    snapshot_id INTEGER NOT NULL REFERENCES account_snapshots(snapshot_id) ON DELETE CASCADE,
+    name        TEXT NOT NULL,
+    value       TEXT NOT NULL,             -- 十进制字符串
+    unit        TEXT NOT NULL,             -- tokens / requests / credits / currency / percent / vendor_unit
+    scope       TEXT,                      -- account / organization / project / key / subscription
+    quality     TEXT NOT NULL DEFAULT 'reported',
+    PRIMARY KEY (snapshot_id, name, scope)
+);
+CREATE INDEX idx_usage_metrics_snapshot ON usage_metrics(snapshot_id);
+
 CREATE TABLE price_versions (
     price_version TEXT NOT NULL,
     provider      TEXT NOT NULL,

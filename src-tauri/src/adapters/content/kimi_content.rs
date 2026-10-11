@@ -22,7 +22,9 @@
 //!   其余记诊断。跨页时该「同组」判断会重置（每页独立调用），见 mod.rs 说明。
 //! - 其余记录（metadata / usage.record / token_counting.* / tools.* / llm.request 等）跳过。
 
-use super::{diag_token, json_text, ms_to_rfc3339, paginate, ContentBlock, ContentRole, MessagePage};
+use super::{
+    diag_token, json_text, ms_to_rfc3339, paginate, ContentBlock, ContentRole, MessagePage,
+};
 use serde_json::Value;
 
 /// 读取一页 Kimi wire 正文（纯函数，不读文件系统、不访问网络与凭据）。
@@ -166,7 +168,13 @@ fn message_block(v: &Value, offset: u64, diags: &mut Vec<String>) -> Vec<Content
     }
 
     let collapsible = matches!(role, ContentRole::ToolUse | ContentRole::ToolResult);
-    vec![ContentBlock::new(role, text, tool_name, collapsible, record_time(v))]
+    vec![ContentBlock::new(
+        role,
+        text,
+        tool_name,
+        collapsible,
+        record_time(v),
+    )]
 }
 
 fn first_text(v: &Value, keys: &[&str]) -> Option<String> {

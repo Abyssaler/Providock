@@ -76,7 +76,7 @@ Agent 适配器提供 `detect_roots`、`detect_format`、`scan_incremental`、`c
 
 ## 6. IPC 与前端状态
 
-计划命令：`usage_summary`、`usage_series`、`usage_events_page`、`sessions_page`、`session_content_page`、`sources_list`、`source_update`、`sync_start`、`sync_cancel`、`accounts_list`、`account_save`、`account_refresh`、`account_delete`、`export_statistics`、`gateway_status`、`gateway_start`、`gateway_stop`。
+计划命令：`usage_summary`、`usage_series`、`usage_events_page`、`sessions_page`、`session_content_page`、`sources_list`、`source_update`、`sync_start`、`sync_cancel`、`accounts_list`、`account_save`、`account_rotate_credential`、`account_refresh`、`account_delete`、`export_statistics`、`gateway_status`、`gateway_start`、`gateway_stop`。
 
 保存凭据命令只接受输入、不返回秘密；不提供“列出所有明文 Key”命令。状态事件为采集进度、账本版本变化、账户刷新完成和错误代码，消息中不含原始响应或正文。前端查询键包括筛选、时区、活跃账本版本，避免切换时显示旧范围数据。
 

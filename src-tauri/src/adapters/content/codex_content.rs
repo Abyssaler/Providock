@@ -52,9 +52,8 @@ pub fn list_messages(bytes: &[u8], cursor: Option<u64>, limit: usize) -> Message
     });
 
     if cursor.is_none() && recognized == 0 {
-        page.diagnostics.push(
-            "no_conversation_records: 没有 response_item 或用户输入记录".into(),
-        );
+        page.diagnostics
+            .push("no_conversation_records: 没有 response_item 或用户输入记录".into());
     }
     page
 }
@@ -70,7 +69,13 @@ fn response_item(
         "message" => {
             let role = codex_role(payload.get("role").and_then(|r| r.as_str()).unwrap_or(""));
             match payload.get("content").and_then(json_text) {
-                Some(text) => vec![ContentBlock::new(role, Some(text), None, false, time.clone())],
+                Some(text) => vec![ContentBlock::new(
+                    role,
+                    Some(text),
+                    None,
+                    false,
+                    time.clone(),
+                )],
                 None => {
                     diags.push(format!("message_without_content_at_offset:{offset}"));
                     Vec::new()
@@ -155,7 +160,13 @@ fn event_message(
                 .or_else(|| payload.get("text"))
                 .and_then(json_text)
             {
-                Some(text) => vec![ContentBlock::new(role, Some(text), None, false, time.clone())],
+                Some(text) => vec![ContentBlock::new(
+                    role,
+                    Some(text),
+                    None,
+                    false,
+                    time.clone(),
+                )],
                 None => {
                     diags.push(format!(
                         "event_message_without_text_at_offset:{offset}:{}",

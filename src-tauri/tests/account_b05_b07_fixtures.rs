@@ -7,7 +7,7 @@
 //! 预期值取自 `fixtures/accounts/**/expected.json`（人工按证据语义独立计算，见各 README），
 //! 断言用「子集比较」：只校验 expected 里出现的字段，避免与无关字段耦合并防止漂移。
 
-use providock_lib::adapters::accounts::{codex_appserver, glm_plan, kimi_server};
+use providock_lib::adapters::accounts::{codex_appserver, common, glm_plan, kimi_server};
 use providock_lib::services::accounts::SnapshotStatus;
 use serde_json::Value;
 use std::path::PathBuf;
@@ -58,11 +58,15 @@ fn assert_contains(actual: &Value, expected: &Value, path: &str) {
 
 #[test]
 fn glm_region_and_request_shape() {
-    use glm_plan::{build_request, AuthScheme, GlmEndpoint, GlmRegion, GlmError, TimeWindow};
+    use glm_plan::{build_request, GlmEndpoint, GlmError, GlmRegion, TimeWindow};
 
     // 三个 host 精确判定区域；URL 用配置 base 的实际 origin。
     for (base, region, host) in [
-        ("https://api.z.ai/api/anthropic", GlmRegion::Global, "api.z.ai"),
+        (
+            "https://api.z.ai/api/anthropic",
+            GlmRegion::Global,
+            "api.z.ai",
+        ),
         (
             "https://open.bigmodel.cn/api/anthropic",
             GlmRegion::China,
@@ -74,13 +78,15 @@ fn glm_region_and_request_shape() {
             "dev.bigmodel.cn",
         ),
     ] {
+        assert_eq!(glm_plan::region_for_base(base).unwrap(), region);
         let spec = build_request(base, GlmEndpoint::QuotaLimit, None).unwrap();
-        assert_eq!(spec.region, region);
-        assert_eq!(spec.endpoint, GlmEndpoint::QuotaLimit);
         assert_eq!(spec.method, "GET");
-        assert_eq!(spec.auth, AuthScheme::RawToken, "GLM 是原 token，不加 Bearer");
+        assert_eq!(spec.host, host);
+        assert_eq!(spec.path, "/api/monitor/usage/quota/limit");
+        // GLM 是原 token，不加 Bearer（认证位置统一为 common::AuthPlacement）。
+        assert_eq!(spec.auth, Some(common::AuthPlacement::raw_token()));
         assert_eq!(
-            spec.url,
+            spec.url(),
             format!("https://{host}/api/monitor/usage/quota/limit")
         );
         assert!(spec
@@ -132,7 +138,7 @@ fn glm_region_and_request_shape() {
     )
     .unwrap();
     assert_eq!(
-        spec.url,
+        spec.url(),
         "https://api.z.ai/api/monitor/usage/model-usage\
          ?startTime=2026-10-10%2009%3A00%3A00&endTime=2026-10-11%2008%3A59%3A59"
     );
@@ -190,7 +196,10 @@ fn glm_duplicate_window_and_over_limit_are_disambiguated() {
     ]}}"#;
     let report = parse_response(GlmEndpoint::QuotaLimit, 200, body).unwrap();
     assert_eq!(report.windows.len(), 2);
-    assert_eq!(report.windows[0].window_id, "glm:coding_plan:account:5h:tokens");
+    assert_eq!(
+        report.windows[0].window_id,
+        "glm:coding_plan:account:5h:tokens"
+    );
     assert_eq!(
         report.windows[1].window_id,
         "glm:coding_plan:account:5h:tokens:2"
@@ -279,12 +288,14 @@ fn glm_detail_endpoints_build_but_do_not_fabricate() {
 
 #[test]
 fn kimi_loopback_request_shape() {
-    use kimi_server::{build_request, AuthScheme, KimiEndpoint, KimiError, DEFAULT_BASE};
+    use kimi_server::{build_request, KimiEndpoint, KimiError, DEFAULT_BASE};
 
     let spec = build_request(DEFAULT_BASE, KimiEndpoint::OauthUsage).unwrap();
     assert_eq!(spec.method, "GET");
-    assert_eq!(spec.url, "http://127.0.0.1:58627/api/v1/oauth/usage");
-    assert_eq!(spec.auth, AuthScheme::Bearer);
+    assert_eq!(spec.scheme, "http");
+    assert_eq!(spec.host, "127.0.0.1:58627");
+    assert_eq!(spec.url(), "http://127.0.0.1:58627/api/v1/oauth/usage");
+    assert_eq!(spec.auth, Some(common::AuthPlacement::bearer()));
     // 不装秘密。
     assert!(spec
         .headers
@@ -296,7 +307,7 @@ fn kimi_loopback_request_shape() {
     assert_eq!(
         build_request("http://[::1]:58627", KimiEndpoint::Meta)
             .unwrap()
-            .url,
+            .url(),
         "http://[::1]:58627/api/v1/meta"
     );
     // 非 loopback host 拒绝（绝不把本机令牌发往别处）。
@@ -404,14 +415,14 @@ fn kimi_error_mapping() {
 #[test]
 fn codex_request_frames() {
     use codex_appserver::{
-        initialize, rate_limits_read, usage_read, AuthScheme, Transport, INITIALIZE_METHOD,
-        RATE_LIMITS_METHOD, USAGE_METHOD,
+        initialize, rate_limits_read, usage_read, Transport, INITIALIZE_METHOD, RATE_LIMITS_METHOD,
+        USAGE_METHOD,
     };
 
     let spec = initialize(1, "providock", Some("Providock"), "0.1.0", true);
     assert_eq!(spec.method, INITIALIZE_METHOD);
     assert_eq!(spec.transport, Transport::Stdio);
-    assert_eq!(spec.auth, AuthScheme::ServerHeld);
+    assert_eq!(spec.auth, common::AuthPlacement::server_held());
     let wire = spec.to_wire();
     assert_eq!(wire["id"], 1);
     assert_eq!(wire["method"], "initialize");
@@ -447,8 +458,10 @@ fn codex_request_frames() {
 fn codex_rate_limits_fixture() {
     use codex_appserver::parse_rate_limits;
 
-    let report =
-        parse_rate_limits(&read_bytes("codex_appserver/rate-limits/input/response.json")).unwrap();
+    let report = parse_rate_limits(&read_bytes(
+        "codex_appserver/rate-limits/input/response.json",
+    ))
+    .unwrap();
     assert_eq!(report.windows.len(), 2);
     assert_contains(
         &serde_json::to_value(&report).unwrap(),
@@ -470,8 +483,10 @@ fn codex_usage_fixtures() {
     );
 
     // summary 全 null：不产出指标（没有就省）；thread usage 透出。
-    let usage =
-        parse_usage(&read_bytes("codex_appserver/usage-thread/input/response.json")).unwrap();
+    let usage = parse_usage(&read_bytes(
+        "codex_appserver/usage-thread/input/response.json",
+    ))
+    .unwrap();
     assert!(usage.metrics.is_empty());
     assert!(usage.thread_usage.is_some());
     assert_contains(
@@ -485,8 +500,10 @@ fn codex_usage_fixtures() {
 fn codex_initialize_fixture() {
     use codex_appserver::parse_initialize;
 
-    let info = parse_initialize(&read_bytes("codex_appserver/initialize/input/response.json"))
-        .unwrap();
+    let info = parse_initialize(&read_bytes(
+        "codex_appserver/initialize/input/response.json",
+    ))
+    .unwrap();
     assert_contains(
         &serde_json::to_value(&info).unwrap(),
         &read_json("codex_appserver/initialize/expected.json"),
@@ -501,31 +518,35 @@ fn codex_error_mapping() {
     use codex_appserver::{parse_rate_limits, parse_usage, CodexError, RpcOutcome};
 
     // method not found → unsupported（能力缺失）。
-    let error =
-        parse_usage(&read_bytes("codex_appserver/error-method-not-found/input/response.json"))
-            .unwrap_err();
+    let error = parse_usage(&read_bytes(
+        "codex_appserver/error-method-not-found/input/response.json",
+    ))
+    .unwrap_err();
     assert!(matches!(error, CodexError::Unsupported(_)));
     assert_eq!(error.status(), SnapshotStatus::Unsupported);
     assert!(error.failure_signal().is_failure());
 
     // chatgpt 认证要求（API-key-only / Bedrock 不支持 usage）→ unsupported。
-    let error =
-        parse_rate_limits(&read_bytes("codex_appserver/error-chatgpt-required/input/response.json"))
-            .unwrap_err();
+    let error = parse_rate_limits(&read_bytes(
+        "codex_appserver/error-chatgpt-required/input/response.json",
+    ))
+    .unwrap_err();
     assert!(matches!(error, CodexError::Unsupported(_)));
     assert_eq!(error.status(), SnapshotStatus::Unsupported);
 
     // 完全未登录 → auth_required。
-    let error =
-        parse_rate_limits(&read_bytes("codex_appserver/error-auth-required/input/response.json"))
-            .unwrap_err();
+    let error = parse_rate_limits(&read_bytes(
+        "codex_appserver/error-auth-required/input/response.json",
+    ))
+    .unwrap_err();
     assert!(matches!(error, CodexError::AuthRequired(_)));
     assert_eq!(error.status(), SnapshotStatus::AuthRequired);
 
     // 解析器把信封拆成 Ok/Error，不误判。
-    let outcome =
-        codex_appserver::parse_response(&read_bytes("codex_appserver/error-auth-required/input/response.json"))
-            .unwrap();
+    let outcome = codex_appserver::parse_response(&read_bytes(
+        "codex_appserver/error-auth-required/input/response.json",
+    ))
+    .unwrap();
     assert!(matches!(outcome, RpcOutcome::Error(_)));
 
     // 非 JSON / 缺 result 与 error → 协议错误 → incompatible。
@@ -543,7 +564,10 @@ fn codex_error_mapping() {
 #[test]
 fn account_adapters_do_not_reference_http_clients() {
     for (name, source) in [
-        ("glm_plan", include_str!("../src/adapters/accounts/glm_plan.rs")),
+        (
+            "glm_plan",
+            include_str!("../src/adapters/accounts/glm_plan.rs"),
+        ),
         (
             "kimi_server",
             include_str!("../src/adapters/accounts/kimi_server.rs"),
@@ -566,17 +590,22 @@ fn request_specs_carry_no_credentials() {
     use glm_plan::{build_request as glm_build, GlmEndpoint};
     use kimi_server::{build_request as kimi_build, KimiEndpoint};
 
-    let glm = glm_build("https://api.z.ai/api/anthropic", GlmEndpoint::QuotaLimit, None).unwrap();
+    let glm = glm_build(
+        "https://api.z.ai/api/anthropic",
+        GlmEndpoint::QuotaLimit,
+        None,
+    )
+    .unwrap();
     assert!(glm
         .headers
         .iter()
         .all(|(k, _)| !k.eq_ignore_ascii_case("authorization")));
-    assert_eq!(glm.auth, glm_plan::AuthScheme::RawToken);
+    assert_eq!(glm.auth, Some(common::AuthPlacement::raw_token()));
 
     let kimi = kimi_build(kimi_server::DEFAULT_BASE, KimiEndpoint::Meta).unwrap();
     assert!(kimi
         .headers
         .iter()
         .all(|(k, _)| !k.eq_ignore_ascii_case("authorization")));
-    assert_eq!(kimi.auth, kimi_server::AuthScheme::Bearer);
+    assert_eq!(kimi.auth, Some(common::AuthPlacement::bearer()));
 }

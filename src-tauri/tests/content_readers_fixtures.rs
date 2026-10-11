@@ -35,13 +35,22 @@ fn single_input_file(case_dir: &Path) -> PathBuf {
         })
         .collect();
     files.sort();
-    assert_eq!(files.len(), 1, "case {} needs exactly one input file", case_dir.display());
+    assert_eq!(
+        files.len(),
+        1,
+        "case {} needs exactly one input file",
+        case_dir.display()
+    );
     files.pop().unwrap()
 }
 
 fn assert_page(case: &str, idx: usize, page: &MessagePage, spec: &Value, bytes: &[u8]) {
     let want_blocks = spec["blocks"].as_u64().unwrap() as usize;
-    assert_eq!(page.blocks.len(), want_blocks, "{case} page{idx} block count");
+    assert_eq!(
+        page.blocks.len(),
+        want_blocks,
+        "{case} page{idx} block count"
+    );
 
     if let Some(roles) = spec.get("roles").and_then(|r| r.as_array()) {
         let got: Vec<String> = page.blocks.iter().map(|b| b.role.label()).collect();
@@ -81,18 +90,26 @@ fn assert_page(case: &str, idx: usize, page: &MessagePage, spec: &Value, bytes: 
     let want_more = spec["has_more"].as_bool().unwrap();
     assert_eq!(page.has_more, want_more, "{case} page{idx} has_more");
 
-    match spec.get("next_cursor_before_marker").and_then(|m| m.as_str()) {
+    match spec
+        .get("next_cursor_before_marker")
+        .and_then(|m| m.as_str())
+    {
         Some(marker) => {
             let pos = bytes
                 .windows(marker.len())
                 .position(|w| w == marker.as_bytes())
-                .unwrap_or_else(|| panic!("{case}: marker not found: {marker:?}")) as u64;
+                .unwrap_or_else(|| panic!("{case}: marker not found: {marker:?}"))
+                as u64;
             assert_eq!(page.next_cursor, Some(pos), "{case} page{idx} next_cursor");
         }
         None => assert_eq!(page.next_cursor, None, "{case} page{idx} next_cursor"),
     }
 
-    for needle in spec["diagnostics_include"].as_array().cloned().unwrap_or_default() {
+    for needle in spec["diagnostics_include"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+    {
         let needle = needle.as_str().unwrap();
         assert!(
             page.diagnostics.iter().any(|d| d.contains(needle)),
@@ -151,7 +168,8 @@ fn content_readers_fixture_cases() {
         let reader = reader_for(&source);
         let bytes = std::fs::read(single_input_file(&case_dir)).unwrap();
         let expected: Value =
-            serde_json::from_slice(&std::fs::read(case_dir.join("expected.json")).unwrap()).unwrap();
+            serde_json::from_slice(&std::fs::read(case_dir.join("expected.json")).unwrap())
+                .unwrap();
         let limit = expected["limit"].as_u64().unwrap() as usize;
 
         let mut cursor: Option<u64> = None;

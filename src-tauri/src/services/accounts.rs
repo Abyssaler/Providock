@@ -62,6 +62,8 @@ pub enum AccountsError {
     MissingWindowId,
     #[error("quota window appears twice in one snapshot: {0}")]
     DuplicateWindowId(String),
+    #[error("usage metric appears twice in one snapshot: {0}")]
+    DuplicateUsageMetric(String),
     #[error("HTTP {status} without a business error code is not a failure")]
     NotAFailure { status: u16 },
     #[error("unknown {kind} value in database: {value}")]
@@ -747,6 +749,39 @@ pub fn credentials_list(
     Ok(out)
 }
 
+/// 服务层解封凭据所需的引用信息：**含 `vault_ref`，绝不出现在 DTO / IPC 响应里**。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ActiveCredential {
+    pub credential_id: String,
+    pub credential_type: CredentialType,
+    /// 系统凭据库条目名；仅供服务层短期解封。
+    pub vault_ref: String,
+}
+
+/// 账户当前（未退休）的凭据引用；没有有效凭据时返回 `None`。
+///
+/// 多个有效凭据时取最新创建的一条。`vault_ref` 只在服务层内部流转。
+pub fn active_credential_ref(db: &Database, account_id: &str) -> Result<Option<ActiveCredential>> {
+    let sql = format!(
+        "SELECT {CREDENTIAL_COLUMNS} FROM credential_refs
+         WHERE account_id = ?1 AND retired_at IS NULL
+         ORDER BY created_at DESC, credential_id DESC LIMIT 1"
+    );
+    let mut stmt = db.conn().prepare(&sql)?;
+    let mut rows = stmt.query(params![account_id])?;
+    match rows.next()? {
+        Some(row) => {
+            let stored = row_to_stored_credential(row)?;
+            Ok(Some(ActiveCredential {
+                credential_id: stored.credential.credential_id,
+                credential_type: stored.credential.credential_type,
+                vault_ref: stored.vault_ref,
+            }))
+        }
+        None => Ok(None),
+    }
+}
+
 fn ensure_credential_owned(db: &Database, credential_id: &str, account_id: &str) -> Result<()> {
     match load_stored_credential(db, credential_id)? {
         None => Err(AccountsError::CredentialNotFound(credential_id.to_owned())),
@@ -1007,6 +1042,60 @@ fn validate_window(window: &QuotaWindow) -> Result<()> {
 }
 
 // ---------------------------------------------------------------------------
+// 快照：账户级用量指标
+// ---------------------------------------------------------------------------
+
+/// 账户级用量指标（DATA_CONTRACTS 第 7 节 `AccountSnapshot.usage_metrics[]`）。
+///
+/// 与余额/窗口同属一次快照的标准化字段：`value` 是十进制字符串（不用二进制浮点），
+/// `unit` 复用契约单位枚举，`scope` 说明指标归属（account / key / …）。不是现金余额，
+/// 也不参与余额合计。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UsageMetric {
+    pub name: String,
+    pub value: String,
+    pub unit: QuotaUnit,
+    pub scope: Option<String>,
+    pub quality: Quality,
+}
+
+impl UsageMetric {
+    /// 平台明确返回的指标：质量默认 `reported`。
+    pub fn new(name: impl Into<String>, value: impl Into<String>, unit: QuotaUnit) -> Result<Self> {
+        let name = name.into();
+        let value = value.into();
+        if name.trim().is_empty() {
+            return Err(AccountsError::EmptyField("usage_metric.name"));
+        }
+        validate_decimal("usage_metric.value", &value)?;
+        Ok(Self {
+            name,
+            value,
+            unit,
+            scope: None,
+            quality: Quality::Reported,
+        })
+    }
+
+    pub fn with_scope(mut self, scope: impl Into<String>) -> Self {
+        self.scope = Some(scope.into());
+        self
+    }
+
+    pub fn with_quality(mut self, quality: Quality) -> Self {
+        self.quality = quality;
+        self
+    }
+}
+
+fn validate_metric(metric: &UsageMetric) -> Result<()> {
+    if metric.name.trim().is_empty() {
+        return Err(AccountsError::EmptyField("usage_metric.name"));
+    }
+    validate_decimal("usage_metric.value", &metric.value)
+}
+
+// ---------------------------------------------------------------------------
 // 快照：写入与查询
 // ---------------------------------------------------------------------------
 
@@ -1025,9 +1114,11 @@ pub struct NewSnapshot {
     pub expires_at: Option<String>,
     pub balances: Vec<BalanceEntry>,
     pub quota_windows: Vec<QuotaWindow>,
+    /// 账户级用量指标（契约第 7 节）；没有则为空，不造零值占位。
+    pub usage_metrics: Vec<UsageMetric>,
 }
 
-/// 已存快照（含余额与额度窗口）。
+/// 已存快照（含余额、额度窗口与账户级用量指标）。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Snapshot {
     pub snapshot_id: i64,
@@ -1041,6 +1132,7 @@ pub struct Snapshot {
     pub expires_at: Option<String>,
     pub balances: Vec<BalanceEntry>,
     pub quota_windows: Vec<QuotaWindow>,
+    pub usage_metrics: Vec<UsageMetric>,
 }
 
 impl Snapshot {
@@ -1057,6 +1149,15 @@ impl Snapshot {
 const INSERT_BALANCE: &str = "INSERT INTO balances
     (snapshot_id, kind, amount, currency, wallet_scope, expires_at, formula, quality)
     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)";
+
+/// 账户级用量指标：同一快照内 `(name, scope)` 唯一，UPSERT 幂等重试。
+const UPSERT_METRIC: &str = "INSERT INTO usage_metrics
+    (snapshot_id, name, value, unit, scope, quality)
+    VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+    ON CONFLICT(snapshot_id, name, scope) DO UPDATE SET
+        value = excluded.value,
+        unit = excluded.unit,
+        quality = excluded.quality";
 
 /// `quota_windows` 以 `(window_id, snapshot_id)` 为主键：同一快照内同窗口 UPSERT（幂等重试），
 /// 不同快照各存一行——窗口历史随快照时间线完整保留（契约第 7 节默认保留策略）。
@@ -1105,6 +1206,13 @@ pub fn snapshot_write(db: &mut Database, draft: &NewSnapshot) -> Result<i64> {
             return Err(AccountsError::DuplicateWindowId(window.window_id.clone()));
         }
         validate_window(window)?;
+    }
+    let mut seen_metrics = BTreeSet::new();
+    for metric in &draft.usage_metrics {
+        validate_metric(metric)?;
+        if !seen_metrics.insert((metric.name.as_str(), metric.scope.as_deref())) {
+            return Err(AccountsError::DuplicateUsageMetric(metric.name.clone()));
+        }
     }
 
     let tx = db.transaction()?;
@@ -1172,6 +1280,19 @@ pub fn snapshot_write(db: &mut Database, draft: &NewSnapshot) -> Result<i64> {
                 window.over_limit.map(i64::from),
                 window.quality.as_str(),
                 window.evidence_ref,
+            ],
+        )?;
+    }
+    for metric in &draft.usage_metrics {
+        tx.execute(
+            UPSERT_METRIC,
+            params![
+                snapshot_id,
+                metric.name,
+                metric.value,
+                metric.unit.as_str(),
+                metric.scope,
+                metric.quality.as_str(),
             ],
         )?;
     }
@@ -1247,6 +1368,7 @@ fn load_snapshot(db: &Database, snapshot_id: i64) -> Result<Snapshot> {
     };
     snapshot.balances = load_balances(db, snapshot_id)?;
     snapshot.quota_windows = load_quota_windows(db, snapshot_id)?;
+    snapshot.usage_metrics = load_usage_metrics(db, snapshot_id)?;
     Ok(snapshot)
 }
 
@@ -1264,6 +1386,7 @@ fn row_to_snapshot(row: &rusqlite::Row<'_>) -> Result<Snapshot> {
         expires_at: row.get(8)?,
         balances: Vec::new(),
         quota_windows: Vec::new(),
+        usage_metrics: Vec::new(),
     })
 }
 
@@ -1355,6 +1478,33 @@ fn load_quota_windows(db: &Database, snapshot_id: i64) -> Result<Vec<QuotaWindow
     Ok(out)
 }
 
+fn load_usage_metrics(db: &Database, snapshot_id: i64) -> Result<Vec<UsageMetric>> {
+    let mut stmt = db.conn().prepare(
+        "SELECT name, value, unit, scope, quality
+         FROM usage_metrics WHERE snapshot_id = ?1 ORDER BY name, scope",
+    )?;
+    let mut rows = stmt.query(params![snapshot_id])?;
+    let mut out = Vec::new();
+    while let Some(row) = rows.next()? {
+        let unit_raw: String = row.get(2)?;
+        let quality_raw: String = row.get(4)?;
+        out.push(UsageMetric {
+            name: row.get(0)?,
+            value: row.get(1)?,
+            unit: QuotaUnit::parse(&unit_raw).ok_or(AccountsError::CorruptRow {
+                kind: "usage_metric.unit",
+                value: unit_raw,
+            })?,
+            scope: row.get(3)?,
+            quality: Quality::parse(&quality_raw).ok_or(AccountsError::CorruptRow {
+                kind: "usage_metric.quality",
+                value: quality_raw,
+            })?,
+        });
+    }
+    Ok(out)
+}
+
 // ---------------------------------------------------------------------------
 // 失败模型
 // ---------------------------------------------------------------------------
@@ -1418,7 +1568,8 @@ impl FailureSignal {
         }
     }
 
-    fn error_code(&self) -> Option<String> {
+    /// 落库用的脱敏错误码（无秘密）：业务码优先，其次传输/schema/能力类别，最后 `http_<status>`。
+    pub fn error_code(&self) -> Option<String> {
         if let Some(code) = self
             .business_code
             .as_deref()
@@ -1918,6 +2069,7 @@ mod tests {
             "account_snapshots",
             "balances",
             "quota_windows",
+            "usage_metrics",
         ];
         for table in tables {
             let sql = format!("PRAGMA table_info({table})");
@@ -2024,6 +2176,14 @@ mod tests {
                 QuotaWindow::from_used_ratio("glm:plan:7d:requests", QuotaUnit::Requests, "0.5")
                     .unwrap(),
             ],
+            usage_metrics: vec![
+                UsageMetric::new("lifetime_tokens", "12345", QuotaUnit::Tokens)
+                    .unwrap()
+                    .with_scope("account"),
+                UsageMetric::new("streak_days", "7", QuotaUnit::VendorUnit)
+                    .unwrap()
+                    .with_quality(Quality::Derived),
+            ],
         };
         let snapshot_id = snapshot_write(&mut db, &draft).unwrap();
 
@@ -2040,6 +2200,60 @@ mod tests {
         assert_eq!(snapshot.expires_at.as_deref(), Some("2026-12-31T00:00:00Z"));
         assert_eq!(snapshot.balances, draft.balances);
         assert_eq!(snapshot.quota_windows, draft.quota_windows);
+        assert_eq!(snapshot.usage_metrics, draft.usage_metrics);
+    }
+
+    /// usage_metrics 与快照/余额/窗口同事务；写入失败整体回滚。
+    #[test]
+    fn usage_metrics_are_written_in_the_snapshot_transaction() {
+        let mut db = db();
+        let account = new_account(&db, "Codex");
+        let mut draft = ok_snapshot(&account.account_id, &ts(1), "1.00");
+        draft.usage_metrics = vec![UsageMetric::new("lifetime_tokens", "42", QuotaUnit::Tokens)
+            .unwrap()
+            .with_scope("account")];
+
+        db.conn()
+            .execute_batch(
+                "CREATE TEMP TRIGGER metric_fail BEFORE INSERT ON usage_metrics
+                 BEGIN SELECT RAISE(ABORT, 'boom'); END;",
+            )
+            .unwrap();
+        assert!(snapshot_write(&mut db, &draft).is_err());
+        db.conn().execute_batch("DROP TRIGGER metric_fail").unwrap();
+        let count: i64 = db
+            .conn()
+            .query_row("SELECT COUNT(*) FROM usage_metrics", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 0, "指标随快照一起回滚");
+
+        snapshot_write(&mut db, &draft).unwrap();
+        let (snapshot, _) = snapshot_latest(&db, &account.account_id).unwrap().unwrap();
+        assert_eq!(snapshot.usage_metrics, draft.usage_metrics);
+        // 指标不是余额，不进入余额合计
+        assert!(snapshot.balances.iter().all(|b| b.currency != "tokens"));
+    }
+
+    #[test]
+    fn usage_metric_rejects_bad_values_and_duplicates() {
+        let mut db = db();
+        let account = new_account(&db, "Codex");
+        assert!(matches!(
+            UsageMetric::new("lifetime_tokens", "1e5", QuotaUnit::Tokens),
+            Err(AccountsError::InvalidDecimal { .. })
+        ));
+        assert!(matches!(
+            UsageMetric::new("  ", "1", QuotaUnit::Tokens),
+            Err(AccountsError::EmptyField(_))
+        ));
+
+        let mut draft = ok_snapshot(&account.account_id, &ts(1), "1.00");
+        let metric = UsageMetric::new("m", "1", QuotaUnit::Tokens).unwrap();
+        draft.usage_metrics = vec![metric.clone(), metric];
+        assert!(matches!(
+            snapshot_write(&mut db, &draft),
+            Err(AccountsError::DuplicateUsageMetric(_))
+        ));
     }
 
     #[test]

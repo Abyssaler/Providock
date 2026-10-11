@@ -133,8 +133,14 @@ pub fn insert_price_version(db: &Database, price: &PriceVersion) -> Result<()> {
         ("output", price.rates.output.as_deref()),
         ("cache_read", price.rates.cache_read.as_deref()),
         ("cache_write", price.rates.cache_write.as_deref()),
-        ("cache_write_ttl_5m", price.rates.cache_write_ttl_5m.as_deref()),
-        ("cache_write_ttl_1h", price.rates.cache_write_ttl_1h.as_deref()),
+        (
+            "cache_write_ttl_5m",
+            price.rates.cache_write_ttl_5m.as_deref(),
+        ),
+        (
+            "cache_write_ttl_1h",
+            price.rates.cache_write_ttl_1h.as_deref(),
+        ),
     ] {
         if let Some(value) = value {
             validate_rate(field, value)?;
@@ -159,7 +165,9 @@ pub fn insert_price_version(db: &Database, price: &PriceVersion) -> Result<()> {
         ],
     )?;
     if changed == 0 {
-        return Err(PricingError::PriceVersionExists(price.price_version.clone()));
+        return Err(PricingError::PriceVersionExists(
+            price.price_version.clone(),
+        ));
     }
     Ok(())
 }
@@ -204,11 +212,8 @@ fn version_covers(version: &PriceVersion, at: &str) -> bool {
     let from_ok = version
         .effective_from
         .as_deref()
-        .map_or(true, |from| from <= at);
-    let to_ok = version
-        .effective_to
-        .as_deref()
-        .map_or(true, |to| at < to);
+        .is_none_or(|from| from <= at);
+    let to_ok = version.effective_to.as_deref().is_none_or(|to| at < to);
     from_ok && to_ok
 }
 
@@ -281,7 +286,12 @@ pub fn estimate_cost_at(
     }
 
     let mut total: Option<String> = None;
-    apply(&mut total, tokens.input_fresh, version.rates.input.as_deref(), "input")?;
+    apply(
+        &mut total,
+        tokens.input_fresh,
+        version.rates.input.as_deref(),
+        "input",
+    )?;
     apply(
         &mut total,
         tokens.output_total,
@@ -361,9 +371,8 @@ pub fn recompute_event_estimate(
     provider: &str,
     model: &str,
 ) -> Result<Option<CostInfo>> {
-    let tokens = load_event_tokens(db, event_id)?.ok_or_else(|| PricingError::EventNotFound(
-        event_id.to_string(),
-    ))?;
+    let tokens = load_event_tokens(db, event_id)?
+        .ok_or_else(|| PricingError::EventNotFound(event_id.to_string()))?;
     let Some(cost) = estimate_cost(db, provider, model, &tokens)? else {
         return Ok(None);
     };
@@ -512,7 +521,14 @@ mod tests {
         db
     }
 
-    fn price(id: &str, from: Option<&str>, to: Option<&str>, currency: &str, input: &str, output: &str) -> PriceVersion {
+    fn price(
+        id: &str,
+        from: Option<&str>,
+        to: Option<&str>,
+        currency: &str,
+        input: &str,
+        output: &str,
+    ) -> PriceVersion {
         PriceVersion {
             price_version: id.into(),
             provider: "kimi".into(),
@@ -570,11 +586,37 @@ mod tests {
     fn selects_latest_effective_interval() {
         let db = db_with_source();
         // 已过期
-        insert_price_version(&db, &price("v-old", Some("2026-01-01T00:00:00Z"), Some("2026-06-01T00:00:00Z"), "USD", "0.1", "0.2")).unwrap();
+        insert_price_version(
+            &db,
+            &price(
+                "v-old",
+                Some("2026-01-01T00:00:00Z"),
+                Some("2026-06-01T00:00:00Z"),
+                "USD",
+                "0.1",
+                "0.2",
+            ),
+        )
+        .unwrap();
         // 命中：较早
-        insert_price_version(&db, &price("v-mid", Some("2026-06-01T00:00:00Z"), None, "USD", "1", "2")).unwrap();
+        insert_price_version(
+            &db,
+            &price("v-mid", Some("2026-06-01T00:00:00Z"), None, "USD", "1", "2"),
+        )
+        .unwrap();
         // 命中：最新
-        insert_price_version(&db, &price("v-new", Some("2026-09-01T00:00:00Z"), None, "USD", "10", "20")).unwrap();
+        insert_price_version(
+            &db,
+            &price(
+                "v-new",
+                Some("2026-09-01T00:00:00Z"),
+                None,
+                "USD",
+                "10",
+                "20",
+            ),
+        )
+        .unwrap();
         let cost = estimate_cost_at(&db, "kimi", "kimi-k2", &tokens(), T0)
             .unwrap()
             .unwrap();
@@ -588,8 +630,30 @@ mod tests {
     fn multi_currency_is_not_merged() {
         let db = db_with_source();
         // 同区间两个币种：只选其一（确定性），绝不相加
-        insert_price_version(&db, &price("cny-v1", Some("2026-01-01T00:00:00Z"), None, "CNY", "7", "14")).unwrap();
-        insert_price_version(&db, &price("usd-v1", Some("2026-01-01T00:00:00Z"), None, "USD", "1", "2")).unwrap();
+        insert_price_version(
+            &db,
+            &price(
+                "cny-v1",
+                Some("2026-01-01T00:00:00Z"),
+                None,
+                "CNY",
+                "7",
+                "14",
+            ),
+        )
+        .unwrap();
+        insert_price_version(
+            &db,
+            &price(
+                "usd-v1",
+                Some("2026-01-01T00:00:00Z"),
+                None,
+                "USD",
+                "1",
+                "2",
+            ),
+        )
+        .unwrap();
         let cost = estimate_cost_at(&db, "kimi", "kimi-k2", &tokens(), T0)
             .unwrap()
             .unwrap();
@@ -601,14 +665,23 @@ mod tests {
     #[test]
     fn price_versions_are_immutable_and_history_is_not_silently_overwritten() {
         let db = db_with_source();
-        insert_price_version(&db, &price("v1", Some("2026-01-01T00:00:00Z"), None, "USD", "1", "2")).unwrap();
+        insert_price_version(
+            &db,
+            &price("v1", Some("2026-01-01T00:00:00Z"), None, "USD", "1", "2"),
+        )
+        .unwrap();
         // 同版本 id 重复写入被拒绝（改动请新建版本）
         assert!(matches!(
-            insert_price_version(&db, &price("v1", Some("2026-01-01T00:00:00Z"), None, "USD", "9", "9")),
+            insert_price_version(
+                &db,
+                &price("v1", Some("2026-01-01T00:00:00Z"), None, "USD", "9", "9")
+            ),
             Err(PricingError::PriceVersionExists(_))
         ));
         // 取回仍是原费率
-        let got = price_version_get(&db, "v1", "kimi", "kimi-k2").unwrap().unwrap();
+        let got = price_version_get(&db, "v1", "kimi", "kimi-k2")
+            .unwrap()
+            .unwrap();
         assert_eq!(got.rates.input.as_deref(), Some("1"));
 
         // 事件写入 v1 估算
@@ -620,10 +693,23 @@ mod tests {
                 '2026-10-11T06:00:00Z', 'request', 1000, 500, 0, 1500, 200, 1700, 'reported')",
             [],
         ).unwrap();
-        recompute_event_estimate(&db, "e1", "kimi", "kimi-k2").unwrap().unwrap();
+        recompute_event_estimate(&db, "e1", "kimi", "kimi-k2")
+            .unwrap()
+            .unwrap();
 
         // 价格上调：新增版本，不覆盖 v1；未重算的事件仍用 v1
-        insert_price_version(&db, &price("v2", Some("2026-10-01T00:00:00Z"), None, "USD", "100", "200")).unwrap();
+        insert_price_version(
+            &db,
+            &price(
+                "v2",
+                Some("2026-10-01T00:00:00Z"),
+                None,
+                "USD",
+                "100",
+                "200",
+            ),
+        )
+        .unwrap();
         let stored: String = db
             .conn()
             .query_row(
@@ -666,7 +752,9 @@ mod tests {
         p.rates.cache_write_ttl_5m = Some("1.25".into());
         p.rates.unit = Some("per_token".into());
         insert_price_version(&db, &p).unwrap();
-        let got = price_version_get(&db, "v1", "kimi", "kimi-k2").unwrap().unwrap();
+        let got = price_version_get(&db, "v1", "kimi", "kimi-k2")
+            .unwrap()
+            .unwrap();
         assert_eq!(got, p);
         assert_eq!(price_versions_list(&db).unwrap().len(), 1);
     }

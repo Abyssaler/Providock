@@ -18,7 +18,7 @@ use providock_lib::ingestion::{
 };
 use providock_lib::services::accounts::{
     account_create, credential_save, snapshot_write, BalanceEntry, BalanceKind, ConfigKind,
-    CredentialType, NewAccount, NewSnapshot, QuotaUnit, QuotaWindow,
+    CredentialType, NewAccount, NewSnapshot, QuotaUnit, QuotaWindow, UsageMetric,
 };
 use providock_lib::services::cleanup::{
     clear_account_snapshots, clear_statistics_detail, delete_account_fully, purge_statistics,
@@ -133,7 +133,11 @@ fn temp_path(name: &str, ext: &str) -> PathBuf {
 fn csv_text_is_prefixed_against_formula_injection_and_numeric_is_raw() {
     let mut db = new_db();
     // model_raw 以 = 开头（文本列 → 必须前缀）；金额为合法负数（数值列 → 原样）
-    let mut ev = sample_event("e-inject", Some("/Users/realuser/Secret Project"), Some("=cmd()"));
+    let mut ev = sample_event(
+        "e-inject",
+        Some("/Users/realuser/Secret Project"),
+        Some("=cmd()"),
+    );
     ev.cost_reported = Some(providock_lib::domain::CostInfo {
         money: providock_lib::domain::Money::new("-0.05", "USD").unwrap(),
         quality: Quality::Reported,
@@ -180,7 +184,10 @@ fn csv_text_is_prefixed_against_formula_injection_and_numeric_is_raw() {
 #[test]
 fn preview_reports_fields_range_and_redaction_without_secret_columns() {
     let mut db = new_db();
-    import(&mut db, sample_event("e1", Some("/Users/realuser/proj"), Some("kimi-k2")));
+    import(
+        &mut db,
+        sample_event("e1", Some("/Users/realuser/proj"), Some("kimi-k2")),
+    );
     let policy = ExportPathPolicy::new(temp_path("preview", "json"));
     let preview = export_statistics(
         &db,
@@ -192,7 +199,10 @@ fn preview_reports_fields_range_and_redaction_without_secret_columns() {
     assert_eq!(preview.contract_version, CONTRACT_VERSION);
     assert_eq!(preview.record_count, 1);
     assert!(preview.fields.iter().any(|f| f.name == "project_ref"));
-    assert!(preview.fields.iter().any(|f| f.name == "total" && f.unit == "tokens"));
+    assert!(preview
+        .fields
+        .iter()
+        .any(|f| f.name == "total" && f.unit == "tokens"));
     // 导出字段集合不含凭据/正文列
     for f in &preview.fields {
         assert!(!f.name.contains("credential"));
@@ -202,7 +212,9 @@ fn preview_reports_fields_range_and_redaction_without_secret_columns() {
     assert!(preview
         .note_keys
         .contains(&"export.redaction.project_paths_anonymized"));
-    assert!(preview.note_keys.contains(&"export.redaction.no_credentials"));
+    assert!(preview
+        .note_keys
+        .contains(&"export.redaction.no_credentials"));
 }
 
 #[test]
@@ -326,6 +338,9 @@ fn make_account_with_snapshot(db: &mut Database, name: &str) -> String {
     let account = account_create(db, &NewAccount::new("kimi", name, ConfigKind::ApiPayg)).unwrap();
     let balance = BalanceEntry::new(BalanceKind::Paid, "12.50", "USD").unwrap();
     let window = QuotaWindow::new("acct:tokens", QuotaUnit::Tokens);
+    let metric = UsageMetric::new("lifetime_tokens", "1000", QuotaUnit::Tokens)
+        .unwrap()
+        .with_scope("account");
     snapshot_write(
         db,
         &NewSnapshot {
@@ -337,6 +352,7 @@ fn make_account_with_snapshot(db: &mut Database, name: &str) -> String {
             expires_at: None,
             balances: vec![balance],
             quota_windows: vec![window],
+            usage_metrics: vec![metric],
         },
     )
     .unwrap();
@@ -351,6 +367,7 @@ fn statistics_and_account_cleanup_do_not_touch_each_other() {
     assert_eq!(count(&db, "account_snapshots"), 1);
     assert_eq!(count(&db, "balances"), 1);
     assert_eq!(count(&db, "quota_windows"), 1);
+    assert_eq!(count(&db, "usage_metrics"), 1);
 
     // 统计清理：账户侧表一行不动
     clear_statistics_detail(&mut db, "src1").unwrap();
@@ -359,6 +376,7 @@ fn statistics_and_account_cleanup_do_not_touch_each_other() {
     assert_eq!(count(&db, "account_snapshots"), 1, "统计清理不得动账户快照");
     assert_eq!(count(&db, "balances"), 1);
     assert_eq!(count(&db, "quota_windows"), 1);
+    assert_eq!(count(&db, "usage_metrics"), 1, "统计清理不得动账户指标");
     assert_eq!(count(&db, "accounts"), 1);
 
     // 账户清理：用量账本一行不动
@@ -366,9 +384,15 @@ fn statistics_and_account_cleanup_do_not_touch_each_other() {
     assert_eq!(cleared.snapshots_removed, 1);
     assert_eq!(cleared.balances_removed, 1);
     assert_eq!(cleared.quota_windows_removed, 1);
+    assert_eq!(cleared.usage_metrics_removed, 1);
     assert_eq!(count(&db, "account_snapshots"), 0);
+    assert_eq!(count(&db, "usage_metrics"), 0);
     assert_eq!(count(&db, "usage_events"), 0, "账户清理不得动用量账本");
-    assert_eq!(count(&db, "event_identity_tombstones"), 1, "账户清理不得动墓碑");
+    assert_eq!(
+        count(&db, "event_identity_tombstones"),
+        1,
+        "账户清理不得动墓碑"
+    );
     assert_eq!(count(&db, "accounts"), 1, "账户行保留");
 }
 
@@ -447,12 +471,22 @@ fn tokens() -> TokenSet {
 fn unknown_price_is_none_and_version_selection_picks_latest() {
     let db = new_db();
     // 未知价格
-    assert!(estimate_cost_at(&db, "kimi", "no-such-model", &tokens(), FIXED_AT)
-        .unwrap()
-        .is_none());
+    assert!(
+        estimate_cost_at(&db, "kimi", "no-such-model", &tokens(), FIXED_AT)
+            .unwrap()
+            .is_none()
+    );
 
-    insert_price_version(&db, &price("v1", Some("2026-01-01T00:00:00Z"), "USD", "1", "2")).unwrap();
-    insert_price_version(&db, &price("v2", Some("2026-09-01T00:00:00Z"), "USD", "10", "20")).unwrap();
+    insert_price_version(
+        &db,
+        &price("v1", Some("2026-01-01T00:00:00Z"), "USD", "1", "2"),
+    )
+    .unwrap();
+    insert_price_version(
+        &db,
+        &price("v2", Some("2026-09-01T00:00:00Z"), "USD", "10", "20"),
+    )
+    .unwrap();
     let cost = estimate_cost_at(&db, "kimi", "kimi-k2", &tokens(), FIXED_AT)
         .unwrap()
         .unwrap();
@@ -461,15 +495,35 @@ fn unknown_price_is_none_and_version_selection_picks_latest() {
     assert_eq!(cost.money.amount, "14000"); // 1000*10 + 200*20
 
     // 价格版本不可变
-    assert!(insert_price_version(&db, &price("v1", Some("2026-01-01T00:00:00Z"), "USD", "9", "9")).is_err());
-    assert_eq!(price_version_get(&db, "v1", "kimi", "kimi-k2").unwrap().unwrap().rates.input.as_deref(), Some("1"));
+    assert!(insert_price_version(
+        &db,
+        &price("v1", Some("2026-01-01T00:00:00Z"), "USD", "9", "9")
+    )
+    .is_err());
+    assert_eq!(
+        price_version_get(&db, "v1", "kimi", "kimi-k2")
+            .unwrap()
+            .unwrap()
+            .rates
+            .input
+            .as_deref(),
+        Some("1")
+    );
 }
 
 #[test]
 fn pricing_multi_currency_is_not_summed() {
     let db = new_db();
-    insert_price_version(&db, &price("cny-v1", Some("2026-01-01T00:00:00Z"), "CNY", "7", "14")).unwrap();
-    insert_price_version(&db, &price("usd-v1", Some("2026-01-01T00:00:00Z"), "USD", "1", "2")).unwrap();
+    insert_price_version(
+        &db,
+        &price("cny-v1", Some("2026-01-01T00:00:00Z"), "CNY", "7", "14"),
+    )
+    .unwrap();
+    insert_price_version(
+        &db,
+        &price("usd-v1", Some("2026-01-01T00:00:00Z"), "USD", "1", "2"),
+    )
+    .unwrap();
     let cost = estimate_cost_at(&db, "kimi", "kimi-k2", &tokens(), FIXED_AT)
         .unwrap()
         .unwrap();

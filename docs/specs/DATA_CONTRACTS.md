@@ -137,7 +137,7 @@ Coding Plan 包含消费不自动乘公开 API 价格当账单；如用户选择
 
 ## 9. 存储与聚合
 
-计划表：sources、source_files、ingestion_cursors、parse_runs、sessions、actors、usage_events、usage_observations、event_identity_tombstones、accounts、credential_refs、wallet_links、account_snapshots、quota_windows、price_versions、settings、diagnostic_events。禁止普通表出现 credential_plaintext、prompt_body、response_body 字段。
+计划表：sources、source_files、ingestion_cursors、parse_runs、sessions、actors、usage_events、usage_observations、event_identity_tombstones、accounts、credential_refs、wallet_links、account_snapshots、quota_windows、usage_metrics、price_versions、settings、diagnostic_events。禁止普通表出现 credential_plaintext、prompt_body、response_body 字段。
 
 事件按 occurred_at/source/agent/model/session 建索引；聚合结果记录活跃账本版本和时区。按本机时区分日，可切换 UTC；夏令时一天可能不是 24 小时，筛选用半开时间区间 [start,end)。没发生时间的事件单独列为“时间未知”，不塞进今天。
 
