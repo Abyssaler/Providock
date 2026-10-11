@@ -61,8 +61,7 @@ pub fn normalize_relative(requested: &Path) -> Result<PathBuf, SafePathError> {
 /// - 返回的是规范化后的真实路径（符号链接已解析），保证位于规范化根目录之下；
 /// - 不存在的叶子路径只要其父目录在根内即放行（用于按需读取尚未出现/新建的文件名）。
 pub fn resolve_within_root(root: &Path, requested: &Path) -> Result<PathBuf, SafePathError> {
-    let canonical_root =
-        std::fs::canonicalize(root).map_err(|_| SafePathError::RootUnavailable)?;
+    let canonical_root = std::fs::canonicalize(root).map_err(|_| SafePathError::RootUnavailable)?;
 
     // 绝对路径：分别对规范化根与原始根尝试剥离前缀（后者兼容符号链接形式的根路径）
     let relative: PathBuf = if requested.is_absolute() {

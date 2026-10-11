@@ -9,7 +9,9 @@
 //! - 之后每条 entry 有 `type`/`id`/`parentId`/`timestamp`（entry 时间戳为 ISO 8601 字符串）。
 //! - 计费记录（本项目采集范围，见下）：
 //!   `message` + `message.role=="assistant"` → usage 在 `message.usage`；
-//!   `compaction` / `branch_summary` → usage 在 entry 顶层 `usage`。
+//!   `compaction` / `branch_summary` → usage 在 entry 顶层 `usage`；
+//!   `usage`（独立计量条目，带 `kind`，官方 session-format 明确其计入会话总量，
+//!   未知 `kind` 也按普通 usage 处理）→ usage 在 entry 顶层 `usage`。
 //!
 //! Usage 映射（Pi 归一化字段，`input` 为新鲜输入、cache 分列相加）：
 //! - input_fresh = usage.input
@@ -22,10 +24,13 @@
 //!
 //! 计数语义：
 //! - `message` → granularity=message，request_count=1。
-//! - `compaction` / `branch_summary` → granularity=request，request_count=1（各是一次真实模型调用）。
+//! - `compaction` / `branch_summary` / `usage` → granularity=request，request_count=1
+//!   （各是一次真实模型调用；`usage.kind` 记录在诊断里，见下）。
+//! - `usage` 的 kind：已知 kind（`cache_warm`）记 `usage_kind:{kind}`；未知 kind 不丢弃、照计，
+//!   记 `usage_kind_unknown:{kind}`（每种 kind 只记一次）。事件本身不携带 kind（契约无此字段）。
 //! - `details.retainedTail` 等嵌套旧消息对象是复制历史，不递归采集（上游夹具已证实）。
 //! - 响应 ID（`message.responseId`）可能复用，不用于身份；身份 = 文件身份+代数+字节偏移。
-//! - 同一文件内重复出现的同一摘要 entry（compaction / branch_summary 同 `id`）只计一次。
+//! - 同一文件内重复出现的同一 entry（compaction / branch_summary / usage 同 `id`）只计一次。
 //!   跨文件复制/分叉不在本层归并，由扫描层按可证实祖先处理（契约第 4 节）。
 //!
 //! 费用：`usage.cost{input,output,cacheRead,cacheWrite,total}`，金额单位为十进制字符串。
@@ -49,6 +54,19 @@ pub const COST_CURRENCY: &str = "USD";
 const MAX_SESSION_ID_BYTES: usize = 256;
 /// 官方 session-format 当前的最高版本（v1 线性 / v2 树 / v3 扩展统一）。
 const SUPPORTED_MAX_SESSION_VERSION: u64 = 3;
+/// 官方文档点名的 `usage.kind`；其余按未知 kind 记诊断但仍照计（官方称未知 kind 也按普通 usage）。
+const KNOWN_USAGE_KINDS: &[&str] = &["cache_warm"];
+
+/// 计费 entry 的形态，决定 granularity 与是否按 entry id 去重。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RecordKind {
+    /// assistant message：granularity=message，不按 id 去重（同数字独立请求要都计）。
+    Message,
+    /// compaction / branch_summary：granularity=request，按 id 去重。
+    Summary,
+    /// 独立 usage 条目：granularity=request，按 id 去重，kind 记诊断。
+    Usage,
+}
 
 pub struct PiParseConfig {
     pub source_id: String,
@@ -113,7 +131,8 @@ pub fn parse_session(bytes: &[u8], cfg: &PiParseConfig) -> PiParseOutcome {
             .push("session_header_missing_or_invalid".into()),
     }
 
-    let mut seen_summaries: HashSet<String> = HashSet::new();
+    let mut seen_entry_ids: HashSet<String> = HashSet::new();
+    let mut seen_kinds: HashSet<String> = HashSet::new();
 
     for (offset, line) in &lines {
         if line.is_empty() {
@@ -126,7 +145,7 @@ pub fn parse_session(bytes: &[u8], cfg: &PiParseConfig) -> PiParseOutcome {
         };
         let record_type = v.get("type").and_then(|t| t.as_str()).unwrap_or("");
 
-        let (usage, model, is_summary) = match record_type {
+        let (usage, model, kind, record_kind) = match record_type {
             "message" => {
                 let message = v.get("message");
                 let role = message
@@ -145,9 +164,20 @@ pub fn parse_session(bytes: &[u8], cfg: &PiParseConfig) -> PiParseOutcome {
                             .and_then(|m| m.get("responseModel"))
                             .and_then(|x| x.as_str())
                     });
-                (usage, model, false)
+                (usage, model, None, RecordKind::Message)
             }
-            "compaction" | "branch_summary" => (v.get("usage"), None, true),
+            "compaction" | "branch_summary" => (v.get("usage"), None, None, RecordKind::Summary),
+            // 独立计量条目：官方 session-format 明确其计入会话总量；未知 kind 也按普通 usage。
+            "usage" => (
+                v.get("usage"),
+                v.get("model").and_then(|x| x.as_str()),
+                Some(
+                    v.get("kind")
+                        .and_then(|x| x.as_str())
+                        .unwrap_or("<missing>"),
+                ),
+                RecordKind::Usage,
+            ),
             _ => continue,
         };
 
@@ -155,24 +185,28 @@ pub fn parse_session(bytes: &[u8], cfg: &PiParseConfig) -> PiParseOutcome {
             continue;
         };
 
-        // 摘要型 entry 文件内去重：同一对象重复出现不重复计（响应 ID 复用不可作身份）。
-        if is_summary {
+        // 摘要型与独立 usage entry 文件内去重：同一 entry 重复出现不重复计
+        // （响应 ID 复用不可作身份）。
+        if matches!(record_kind, RecordKind::Summary | RecordKind::Usage) {
             let key = v
                 .get("id")
                 .and_then(|x| x.as_str())
                 .map(str::to_string)
                 .unwrap_or_else(|| serde_json::to_string(&v).unwrap_or_default());
-            if !seen_summaries.insert(key.clone()) {
+            if !seen_entry_ids.insert(key.clone()) {
                 out.diagnostics
                     .push(format!("duplicate_summary_entry:{key}@{offset}"));
                 continue;
             }
         }
 
-        let Some(tokens) = build_tokens(&usage, *offset, &mut out.diagnostics) else {
+        let Some(tokens) = build_tokens(usage, *offset, &mut out.diagnostics) else {
             continue;
         };
-        let cost_reported = build_cost(&usage, *offset, &mut out.diagnostics);
+        if let Some(kind) = kind {
+            record_usage_kind(kind, &mut seen_kinds, &mut out.diagnostics);
+        }
+        let cost_reported = build_cost(usage, *offset, &mut out.diagnostics);
         let occurred_at = v
             .get("timestamp")
             .and_then(|t| t.as_str())
@@ -187,10 +221,7 @@ pub fn parse_session(bytes: &[u8], cfg: &PiParseConfig) -> PiParseOutcome {
             schema_version: USAGE_EVENT_SCHEMA_VERSION,
             // 偏移身份：append-only 文件内稳定，重扫/重启幂等；
             // 相同数字的独立请求偏移不同，不会被误判重复。
-            event_id: format!(
-                "pi:{}:g{}:o{}",
-                cfg.file_identity, cfg.generation, offset
-            ),
+            event_id: format!("pi:{}:g{}:o{}", cfg.file_identity, cfg.generation, offset),
             agent: AgentKind::Pi,
             source_id: cfg.source_id.clone(),
             stream_domain: StreamDomain::LocalLog,
@@ -203,10 +234,10 @@ pub fn parse_session(bytes: &[u8], cfg: &PiParseConfig) -> PiParseOutcome {
             observed_at: cfg.observed_at.clone(),
             model_raw: model.map(str::to_string),
             model_normalized: None,
-            granularity: if is_summary {
-                Granularity::Request
-            } else {
+            granularity: if record_kind == RecordKind::Message {
                 Granularity::Message
+            } else {
+                Granularity::Request
             },
             request_count: Some(1),
             tokens,
@@ -227,6 +258,19 @@ pub fn parse_session(bytes: &[u8], cfg: &PiParseConfig) -> PiParseOutcome {
     out
 }
 
+/// 记录 `usage.kind`：已知 kind 记信息性 `usage_kind:{kind}`，未知 kind 记 `usage_kind_unknown:{kind}`。
+/// 每种 kind 只记一次（kind 集合去重），避免刷屏；未知 kind 不丢弃，仍照常计入。
+fn record_usage_kind(kind: &str, seen: &mut HashSet<String>, diags: &mut Vec<String>) {
+    if !seen.insert(kind.to_string()) {
+        return;
+    }
+    if KNOWN_USAGE_KINDS.contains(&kind) {
+        diags.push(format!("usage_kind:{kind}"));
+    } else {
+        diags.push(format!("usage_kind_unknown:{kind}"));
+    }
+}
+
 /// 读取 usage 的四项核心分量为标准 TokenSet；四项全缺则不是计费记录（返回 None）。
 fn build_tokens(usage: &Value, offset: u64, diags: &mut Vec<String>) -> Option<TokenSet> {
     let input = token_field(usage, "input", offset, diags);
@@ -235,7 +279,8 @@ fn build_tokens(usage: &Value, offset: u64, diags: &mut Vec<String>) -> Option<T
     let cache_write = token_field(usage, "cacheWrite", offset, diags);
     let reasoning = token_field(usage, "reasoning", offset, diags);
 
-    let has_core = input.is_some() || output.is_some() || cache_read.is_some() || cache_write.is_some();
+    let has_core =
+        input.is_some() || output.is_some() || cache_read.is_some() || cache_write.is_some();
     if !has_core {
         diags.push(format!("usage_without_consumption_fields@{offset}"));
         return None;
@@ -262,7 +307,8 @@ fn build_tokens(usage: &Value, offset: u64, diags: &mut Vec<String>) -> Option<T
         },
         _ => None,
     };
-    let all_core = input.is_some() && cache_read.is_some() && cache_write.is_some() && output.is_some();
+    let all_core =
+        input.is_some() && cache_read.is_some() && cache_write.is_some() && output.is_some();
 
     Some(TokenSet {
         input_fresh: input,
@@ -412,7 +458,7 @@ fn plain_decimal(raw: &str) -> Option<String> {
     };
     let raw = raw.strip_prefix('+').unwrap_or(raw);
 
-    let (mantissa, exp) = match raw.find(|c: char| c == 'e' || c == 'E') {
+    let (mantissa, exp) = match raw.find(['e', 'E']) {
         Some(i) => (&raw[..i], raw[i + 1..].parse::<i64>().ok()?),
         None => (raw, 0),
     };
@@ -433,9 +479,15 @@ fn plain_decimal(raw: &str) -> Option<String> {
     let point = int_part.len() as i64 + exp;
     let n_digits = digits.len() as i64;
     let (int_out, frac_out) = if point <= 0 {
-        ("0".to_string(), format!("{}{digits}", "0".repeat((-point) as usize)))
+        (
+            "0".to_string(),
+            format!("{}{digits}", "0".repeat((-point) as usize)),
+        )
     } else if point >= n_digits {
-        (format!("{digits}{}", "0".repeat((point - n_digits) as usize)), String::new())
+        (
+            format!("{digits}{}", "0".repeat((point - n_digits) as usize)),
+            String::new(),
+        )
     } else {
         let p = point as usize;
         (digits[..p].to_string(), digits[p..].to_string())
@@ -460,7 +512,8 @@ fn is_valid_session_id(s: &str) -> bool {
     let alpha_num = |c: char| c.is_ascii_alphanumeric();
     !s.is_empty()
         && s.len() <= MAX_SESSION_ID_BYTES
-        && s.chars().all(|c| alpha_num(c) || matches!(c, '.' | '_' | '-'))
+        && s.chars()
+            .all(|c| alpha_num(c) || matches!(c, '.' | '_' | '-'))
         && s.starts_with(alpha_num)
         && s.ends_with(alpha_num)
 }
@@ -525,6 +578,44 @@ mod tests {
         assert_eq!(c.granularity, Granularity::Request);
         assert_eq!(c.request_count, Some(1));
         assert!(c.model_raw.is_none());
+    }
+
+    #[test]
+    fn independent_usage_entries_counted_and_kinds_diagnosed() {
+        let data = concat!(
+            "{\"type\":\"session\",\"version\":3,\"id\":\"sess0003\",\"timestamp\":\"2026-10-11T01:00:00.000Z\"}\n",
+            "{\"type\":\"usage\",\"id\":\"00000001\",\"parentId\":null,\"timestamp\":\"2026-10-11T01:00:01.000Z\",\"kind\":\"cache_warm\",\"provider\":\"anthropic\",\"model\":\"claude-sonnet-4-5\",\"usage\":{\"input\":0,\"output\":0,\"cacheRead\":50000,\"cacheWrite\":0,\"totalTokens\":50000}}\n",
+            "{\"type\":\"usage\",\"id\":\"00000002\",\"parentId\":\"00000001\",\"timestamp\":\"2026-10-11T01:00:02.000Z\",\"kind\":\"future_kind\",\"provider\":\"anthropic\",\"model\":\"claude-sonnet-4-5\",\"usage\":{\"input\":4,\"output\":1,\"cacheRead\":0,\"cacheWrite\":0,\"totalTokens\":5}}\n",
+            "{\"type\":\"usage\",\"id\":\"00000003\",\"parentId\":\"00000002\",\"timestamp\":\"2026-10-11T01:00:03.000Z\",\"kind\":\"cache_warm\",\"provider\":\"anthropic\",\"model\":\"claude-sonnet-4-5\",\"usage\":{\"input\":0,\"output\":0,\"cacheRead\":0,\"cacheWrite\":0,\"totalTokens\":0}}\n"
+        );
+        let out = parse_session(data.as_bytes(), &cfg());
+        assert_eq!(out.events.len(), 3);
+        for e in &out.events {
+            assert_eq!(e.granularity, Granularity::Request);
+            assert_eq!(e.request_count, Some(1));
+            assert_eq!(e.model_raw.as_deref(), Some("claude-sonnet-4-5"));
+        }
+        // 已知 kind 记一次（两条 cache_warm 只记一次），未知 kind 记 usage_kind_unknown
+        assert_eq!(
+            out.diagnostics
+                .iter()
+                .filter(|d| d.contains("usage_kind:cache_warm"))
+                .count(),
+            1
+        );
+        assert!(out
+            .diagnostics
+            .iter()
+            .any(|d| d.contains("usage_kind_unknown:future_kind")));
+        assert!(!out
+            .diagnostics
+            .iter()
+            .any(|d| d.contains("usage_kind_unknown:cache_warm")));
+        // 全零独立条目仍是「明确的零」
+        let zero = &out.events[2];
+        assert_eq!(zero.tokens.input_total, Some(0));
+        assert_eq!(zero.tokens.total, Some(0));
+        assert_eq!(zero.tokens.quality, Quality::Reported);
     }
 
     #[test]

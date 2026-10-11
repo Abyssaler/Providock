@@ -179,9 +179,7 @@ pub fn parse_projects(bytes: &[u8], cfg: &ClaudeParseConfig) -> ClaudeParseOutco
             continue;
         }
 
-        let has_stop_reason = message
-            .get("stop_reason")
-            .is_some_and(|x| !x.is_null());
+        let has_stop_reason = message.get("stop_reason").is_some_and(|x| !x.is_null());
         let candidate = Candidate {
             message_id: message_id.to_string(),
             offset: *offset,
@@ -258,7 +256,11 @@ pub fn parse_projects(bytes: &[u8], cfg: &ClaudeParseConfig) -> ClaudeParseOutco
         // 子 Agent 沿用父会话 sessionId，故 parent_session_id 与 session_id 同源；
         // actor_id 才是区分子 Agent 的身份。
         let (ev_session, ev_parent, ev_actor) = if cfg.is_subagent {
-            (session_id.clone(), session_id.clone(), cfg.subagent_actor_id.clone())
+            (
+                session_id.clone(),
+                session_id.clone(),
+                cfg.subagent_actor_id.clone(),
+            )
         } else {
             (session_id.clone(), None, None)
         };
@@ -355,7 +357,11 @@ mod tests {
     fn same_message_id_merges_stop_reason_priority() {
         let data = format!(
             "{}{}",
-            assistant("msg_s", "null", "{\"input_tokens\":200,\"output_tokens\":40}"),
+            assistant(
+                "msg_s",
+                "null",
+                "{\"input_tokens\":200,\"output_tokens\":40}"
+            ),
             assistant(
                 "msg_s",
                 "\"end_turn\"",
@@ -365,7 +371,11 @@ mod tests {
         let out = parse_projects(data.as_bytes(), &cfg());
         assert_eq!(out.events.len(), 1, "同 id 只产出一条");
         let e = &out.events[0].event;
-        assert_eq!(e.tokens.output_total, Some(25), "stop_reason 优先，即使更小");
+        assert_eq!(
+            e.tokens.output_total,
+            Some(25),
+            "stop_reason 优先，即使更小"
+        );
         assert_eq!(e.tokens.total, Some(225));
         assert!(out
             .diagnostics
@@ -378,7 +388,11 @@ mod tests {
         let data = format!(
             "{}{}",
             assistant("msg_o", "null", "{\"input_tokens\":80,\"output_tokens\":7}"),
-            assistant("msg_o", "null", "{\"input_tokens\":80,\"output_tokens\":12}"),
+            assistant(
+                "msg_o",
+                "null",
+                "{\"input_tokens\":80,\"output_tokens\":12}"
+            ),
         );
         let out = parse_projects(data.as_bytes(), &cfg());
         assert_eq!(out.events.len(), 1);
@@ -389,8 +403,16 @@ mod tests {
     fn identical_numbers_different_ids_are_both_counted() {
         let data = format!(
             "{}{}",
-            assistant("msg_a", "null", "{\"input_tokens\":100,\"output_tokens\":20}"),
-            assistant("msg_b", "null", "{\"input_tokens\":100,\"output_tokens\":20}"),
+            assistant(
+                "msg_a",
+                "null",
+                "{\"input_tokens\":100,\"output_tokens\":20}"
+            ),
+            assistant(
+                "msg_b",
+                "null",
+                "{\"input_tokens\":100,\"output_tokens\":20}"
+            ),
         );
         let out = parse_projects(data.as_bytes(), &cfg());
         assert_eq!(out.events.len(), 2, "相同数字不判重");
@@ -415,7 +437,11 @@ mod tests {
     fn unterminated_tail_not_consumed() {
         let data = format!(
             "{}{}",
-            assistant("msg_t", "null", "{\"input_tokens\":64,\"output_tokens\":16}"),
+            assistant(
+                "msg_t",
+                "null",
+                "{\"input_tokens\":64,\"output_tokens\":16}"
+            ),
             "{\"type\":\"assistant\",\"message\":{\"id\":\"msg_x\",\"usa"
         );
         let out = parse_projects(data.as_bytes(), &cfg());
@@ -426,7 +452,11 @@ mod tests {
 
     #[test]
     fn subagent_identity_from_content_and_config() {
-        let data = assistant("msg_sub", "\"end_turn\"", "{\"input_tokens\":300,\"output_tokens\":60}");
+        let data = assistant(
+            "msg_sub",
+            "\"end_turn\"",
+            "{\"input_tokens\":300,\"output_tokens\":60}",
+        );
         let cfg = ClaudeParseConfig {
             is_subagent: true,
             subagent_actor_id: Some("agent-7f3a".into()),

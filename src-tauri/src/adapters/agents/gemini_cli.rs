@@ -113,7 +113,14 @@ pub fn parse_session_json(bytes: &[u8], cfg: &GeminiParseConfig) -> GeminiParseO
             continue;
         }
         let locator = format!("messages[{i}]");
-        match build_event(msg, &session_key, &session_id, &locator, cfg, &mut out.diagnostics) {
+        match build_event(
+            msg,
+            &session_key,
+            &session_id,
+            &locator,
+            cfg,
+            &mut out.diagnostics,
+        ) {
             Ok(event) => out.events.push(ParsedEvent {
                 event,
                 // 完整 JSON 是一次快照，看不出本轮哪些消息被更新：按 upsert 语义全部标记替换
@@ -148,7 +155,8 @@ pub fn parse_session_jsonl(bytes: &[u8], cfg: &GeminiParseConfig) -> GeminiParse
             continue;
         }
         let Ok(record) = serde_json::from_slice::<Value>(line) else {
-            out.diagnostics.push(format!("malformed_line_at_offset:{offset}"));
+            out.diagnostics
+                .push(format!("malformed_line_at_offset:{offset}"));
             continue;
         };
         let locator = offset.to_string();
@@ -223,7 +231,14 @@ pub fn parse_session_jsonl(bytes: &[u8], cfg: &GeminiParseConfig) -> GeminiParse
             continue;
         }
         let locator = replay.locators.get(id).cloned().unwrap_or_default();
-        match build_event(msg, &session_key, &session_id, &locator, cfg, &mut out.diagnostics) {
+        match build_event(
+            msg,
+            &session_key,
+            &session_id,
+            &locator,
+            cfg,
+            &mut out.diagnostics,
+        ) {
             Ok(event) => out.events.push(ParsedEvent {
                 event,
                 replace_existing: replay.replace_flags.get(id).copied().unwrap_or(false),
@@ -334,9 +349,10 @@ fn build_event(
     cfg: &GeminiParseConfig,
     diagnostics: &mut Vec<String>,
 ) -> std::result::Result<UsageEvent, String> {
-    let id = msg.get("id").and_then(non_empty_str).ok_or(
-        "missing_message_id: 跳过该消息（不复制上游 \"unknown\" 兜底撞主键的缺陷）",
-    )?;
+    let id = msg
+        .get("id")
+        .and_then(non_empty_str)
+        .ok_or("missing_message_id: 跳过该消息（不复制上游 \"unknown\" 兜底撞主键的缺陷）")?;
     let tokens = msg
         .get("tokens")
         .filter(|t| t.is_object())
@@ -460,8 +476,11 @@ mod tests {
         // 契约场景：总输入 1000 含 cached 400 → fresh 600 / read 400 / input_total 1000（不是 1400）
         let data = format!(
             "{{\"sessionId\":\"s1\",\"messages\":[{}\n]}}",
-            msg("m1", "{\"input\":1000,\"output\":10,\"thoughts\":0,\"cached\":400,\"total\":1010}")
-                .trim_end()
+            msg(
+                "m1",
+                "{\"input\":1000,\"output\":10,\"thoughts\":0,\"cached\":400,\"total\":1010}"
+            )
+            .trim_end()
         );
         let out = parse_session_json(data.as_bytes(), &cfg());
         assert_eq!(out.events.len(), 1);
@@ -492,14 +511,22 @@ mod tests {
         assert_eq!(t.output_total, Some(434), "thoughts 计入输出");
         assert_eq!(t.output_reasoning, Some(405));
         assert_eq!(t.input_fresh, Some(5384));
-        assert_eq!(t.total, Some(8956), "与源 total 一致（源 total 本身不读取）");
+        assert_eq!(
+            t.total,
+            Some(8956),
+            "与源 total 一致（源 total 本身不读取）"
+        );
     }
 
     #[test]
     fn gemini_cache_write_stays_unknown_not_zero() {
         let data = format!(
             "{{\"sessionId\":\"s1\",\"messages\":[{}\n]}}",
-            msg("m1", "{\"input\":10,\"output\":1,\"thoughts\":0,\"cached\":0}").trim_end()
+            msg(
+                "m1",
+                "{\"input\":10,\"output\":1,\"thoughts\":0,\"cached\":0}"
+            )
+            .trim_end()
         );
         let out = parse_session_json(data.as_bytes(), &cfg());
         let t = &out.events[0].event.tokens;
@@ -568,7 +595,11 @@ mod tests {
     fn gemini_json_snapshot_consumes_whole_file_and_marks_replace() {
         let data = format!(
             "{{\"sessionId\":\"s1\",\"messages\":[{}\n]}}",
-            msg("m1", "{\"input\":1,\"output\":1,\"thoughts\":0,\"cached\":0}").trim_end()
+            msg(
+                "m1",
+                "{\"input\":1,\"output\":1,\"thoughts\":0,\"cached\":0}"
+            )
+            .trim_end()
         );
         let out = parse_session_json(data.as_bytes(), &cfg());
         assert_eq!(out.consumed_bytes, data.len() as u64);
@@ -750,7 +781,11 @@ mod tests {
     fn gemini_cached_exceeding_input_is_clamped_with_diagnostic() {
         let data = format!(
             "{{\"sessionId\":\"s1\",\"messages\":[{}\n]}}",
-            msg("m1", "{\"input\":100,\"output\":10,\"thoughts\":5,\"cached\":400}").trim_end()
+            msg(
+                "m1",
+                "{\"input\":100,\"output\":10,\"thoughts\":5,\"cached\":400}"
+            )
+            .trim_end()
         );
         let out = parse_session_json(data.as_bytes(), &cfg());
         let t = &out.events[0].event.tokens;
@@ -767,7 +802,11 @@ mod tests {
     fn gemini_missing_session_id_falls_back_to_file_identity() {
         let data = format!(
             "{{\"messages\":[{}\n]}}",
-            msg("m1", "{\"input\":10,\"output\":1,\"thoughts\":0,\"cached\":0}").trim_end()
+            msg(
+                "m1",
+                "{\"input\":10,\"output\":1,\"thoughts\":0,\"cached\":0}"
+            )
+            .trim_end()
         );
         let out = parse_session_json(data.as_bytes(), &cfg());
         assert_eq!(out.session_id, None);
@@ -785,7 +824,11 @@ mod tests {
     fn gemini_event_carries_message_granularity_and_evidence() {
         let data = format!(
             "{{\"sessionId\":\"s1\",\"messages\":[{}\n]}}",
-            msg("m1", "{\"input\":10,\"output\":1,\"thoughts\":2,\"cached\":0}").trim_end()
+            msg(
+                "m1",
+                "{\"input\":10,\"output\":1,\"thoughts\":2,\"cached\":0}"
+            )
+            .trim_end()
         );
         let out = parse_session_json(data.as_bytes(), &cfg());
         let e = &out.events[0].event;

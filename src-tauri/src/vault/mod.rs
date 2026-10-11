@@ -274,7 +274,10 @@ mod tests {
     fn invalid_reference_is_rejected() {
         let vault = MemoryVault::new();
         let secret = SecretString::new("sk-x");
-        assert!(matches!(vault.store("", &secret), Err(VaultError::InvalidRef)));
+        assert!(matches!(
+            vault.store("", &secret),
+            Err(VaultError::InvalidRef)
+        ));
         assert!(matches!(
             vault.store("../../etc/passwd", &secret),
             Err(VaultError::InvalidRef)

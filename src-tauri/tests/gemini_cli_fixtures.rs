@@ -136,7 +136,11 @@ fn fixture_cases() {
         // 逐事件不变量 + 契约算术自洽
         for e in &out.events {
             assert_eq!(e.event.agent, AgentKind::GeminiCli, "{case} agent");
-            assert_eq!(e.event.granularity, Granularity::Message, "{case} granularity");
+            assert_eq!(
+                e.event.granularity,
+                Granularity::Message,
+                "{case} granularity"
+            );
             assert_eq!(e.event.request_count, Some(1), "{case} request_count");
             assert_eq!(e.event.tokens.quality, Quality::Derived, "{case} quality");
             assert_eq!(
@@ -151,14 +155,14 @@ fn fixture_cases() {
             let t = &e.event.tokens;
             assert_eq!(
                 t.input_total,
-                t.input_fresh.unwrap().checked_add(t.input_cache_read.unwrap()),
+                t.input_fresh
+                    .unwrap()
+                    .checked_add(t.input_cache_read.unwrap()),
                 "{case} input_total = fresh + read（cached 不重复加）"
             );
             assert_eq!(
                 t.total,
-                t.input_total
-                    .unwrap()
-                    .checked_add(t.output_total.unwrap()),
+                t.input_total.unwrap().checked_add(t.output_total.unwrap()),
                 "{case} total = input_total + output_total"
             );
         }

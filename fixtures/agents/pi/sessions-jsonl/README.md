@@ -20,6 +20,7 @@
 | `message` | `message.role=="assistant"` | `message.usage` | message | 1 |
 | `compaction` | — | entry 顶层 `usage` | request | 1 |
 | `branch_summary` | — | entry 顶层 `usage` | request | 1 |
+| `usage` | 独立计量条目（带 `kind`） | entry 顶层 `usage` | request | 1 |
 
 - `message.role=="toolResult"` 不采集；其他 entry 类型忽略。
 - 映射：`input_fresh=input`、`input_cache_read=cacheRead`、`input_cache_write=cacheWrite`、
@@ -30,12 +31,14 @@
   上游 cc-switch 完全丢弃 reasoning，本项目改为保留附属字段。
 - `details.retainedTail` 等嵌套旧消息对象是复制历史，**不递归采集**（上游夹具已证实该语义）。
 - 响应 ID 可能复用，不用于身份；身份 = `pi:{file_identity}:g{generation}:o{字节偏移}`。
-- 同一文件内重复出现的同一摘要 entry（`id` 相同）只计一次；跨文件复制/分叉不在解析器层归并。
+- 同一文件内重复出现的同一 entry（`id` 相同，覆盖 compaction / branch_summary / usage）只计一次；
+  跨文件复制/分叉不在解析器层归并。
 - 尾行未换行不消费；畸形行记诊断。
 - 四项全零的 usage 仍以「明确的零」产出事件（源确实记录了一次调用）；上游 cc-switch 会丢弃这类记录，
   本项目保留，是否展示由上层决定。
-- **本次未采集**官方 `type=="usage"`（如 `cache_warm`）entry：官方 session-format 称其计入会话总量，
-  但不在 A06 约定的计费类型内，待产品确认后另行补测。
+- 官方 `type=="usage"` entry（如 `cache_warm`）计入会话总量；未知 `kind` 也按普通 usage 处理、不丢弃。
+  kind 记入诊断：已知 kind（`cache_warm`）记 `usage_kind:{kind}`，未知 kind 记 `usage_kind_unknown:{kind}`，
+  每种 kind 只记一次。事件本身不携带 kind（数据契约无此字段），故用诊断留痕。
 
 ## 用例（每例一个 `input/<timestamp>_<session-id>.jsonl`）
 
@@ -107,3 +110,11 @@
 - 第 3 行是非法 JSON，记诊断 `malformed_line_at_offset` 并跳过。
 - a2: 9/0/0 → in_total 9，out 2 → total 11
 - 合计 fresh 14，read 0，write 0，input_total 14，output 3，total 17，请求数 2。
+
+### usage-kind-entries（4 事件）
+- assistant a1: 10/0/0 → in_total 10，out 2 → total 12（granularity message）
+- `type=="usage" kind="cache_warm"`: 0/50000/0 → in_total 50000，out 0 → total 50000（granularity request）
+- `type=="usage" kind="future_kind"`（未知 kind，不丢弃、照计）: 4/0/0 → in_total 4，out 1 → total 5
+- `type=="usage" kind="cache_warm"` 全零: 0/0/0 → in_total 0，out 0 → total 0（「明确的零」仍产出）
+- 诊断：`usage_kind:cache_warm`（两条同 kind 只记一次）、`usage_kind_unknown:future_kind`。
+- 合计 fresh 14，read 50000，write 0，input_total 50014，output 3，total 50017，请求数 4。

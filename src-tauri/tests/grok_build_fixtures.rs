@@ -103,7 +103,12 @@ fn fixture_cases() {
             assert_eq!(got_req, want_req, "{case} request_count");
         }
 
-        for (i, exp) in expected["event_expect"].as_array().unwrap().iter().enumerate() {
+        for (i, exp) in expected["event_expect"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .enumerate()
+        {
             let e = &out.events[i];
             if let Some(t) = exp["turn_id"].as_str() {
                 assert_eq!(e.turn_id.as_deref(), Some(t), "{case}[{i}] turn_id");
@@ -111,7 +116,11 @@ fn fixture_cases() {
             match &exp["model_raw"] {
                 Value::Null => assert_eq!(e.model_raw, None, "{case}[{i}] model_raw"),
                 Value::String(s) => {
-                    assert_eq!(e.model_raw.as_deref(), Some(s.as_str()), "{case}[{i}] model_raw")
+                    assert_eq!(
+                        e.model_raw.as_deref(),
+                        Some(s.as_str()),
+                        "{case}[{i}] model_raw"
+                    )
                 }
                 other => panic!("{case}[{i}] bad model_raw {other}"),
             }
@@ -126,20 +135,31 @@ fn fixture_cases() {
             }
             match &exp["cost"] {
                 Value::Null => {
-                    assert!(e.cost_reported.is_none(), "{case}[{i}] cost should be null (无价不等于免费)")
+                    assert!(
+                        e.cost_reported.is_none(),
+                        "{case}[{i}] cost should be null (无价不等于免费)"
+                    )
                 }
                 c => {
                     let cost = e
                         .cost_reported
                         .as_ref()
                         .unwrap_or_else(|| panic!("{case}[{i}] missing cost_reported"));
-                    assert_eq!(cost.money.amount, c["amount"].as_str().unwrap(), "{case}[{i}] amount");
+                    assert_eq!(
+                        cost.money.amount,
+                        c["amount"].as_str().unwrap(),
+                        "{case}[{i}] amount"
+                    );
                     assert_eq!(
                         cost.money.currency,
                         c["currency"].as_str().unwrap(),
                         "{case}[{i}] currency"
                     );
-                    assert_eq!(cost.quality.as_str(), c["quality"].as_str().unwrap(), "{case}[{i}] quality");
+                    assert_eq!(
+                        cost.quality.as_str(),
+                        c["quality"].as_str().unwrap(),
+                        "{case}[{i}] quality"
+                    );
                     assert_eq!(
                         cost.completeness.as_str(),
                         c["completeness"].as_str().unwrap(),
@@ -179,7 +199,11 @@ fn fixture_cases() {
                     .iter()
                     .filter(|x| x.contains(needle.as_str()))
                     .count();
-                assert_eq!(got, want.as_u64().unwrap() as usize, "{case} diagnostics count {needle}");
+                assert_eq!(
+                    got,
+                    want.as_u64().unwrap() as usize,
+                    "{case} diagnostics count {needle}"
+                );
             }
         }
     }

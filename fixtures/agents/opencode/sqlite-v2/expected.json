@@ -1,0 +1,27 @@
+{
+  "version": "v2",
+  "config": { "session_id": null },
+  "events": 4,
+  "granularity": "message",
+  "totals": {
+    "input_fresh": "900",
+    "input_cache_read": "110",
+    "input_cache_write": "25",
+    "input_total": "1035",
+    "output_total": "120",
+    "total": "1155",
+    "request_count": "4"
+  },
+  "cost": {
+    "opencode:ses-v2-a:a1": "1.25",
+    "opencode:ses-v2-a:a2": "0",
+    "opencode:ses-v2-a:c1": null,
+    "opencode:ses-v2-a:c2": null
+  },
+  "diagnostics_include": [
+    "schema:v2",
+    "compaction_counted:c1",
+    "compaction_counted:c2",
+    "compaction_without_tokens:c3"
+  ]
+}

@@ -5,10 +5,10 @@
 pub mod adapters;
 pub mod domain;
 pub mod ingestion;
-pub mod vault;
 pub mod safepath;
 pub mod services;
 pub mod storage;
+pub mod vault;
 
 use ingestion::scanner::{discover_sources, scan_source, SourceScanReport};
 use serde::{Deserialize, Serialize};

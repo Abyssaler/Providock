@@ -2,7 +2,9 @@
 //! （fixtures/agents/claude_code/projects-jsonl/）。
 //! 预期值由人工按 Anthropic 口径独立计算（见夹具 README），不由 parser 生成。
 
-use providock_lib::adapters::agents::claude_code::{parse_projects, ClaudeParseConfig, ParsedEvent};
+use providock_lib::adapters::agents::claude_code::{
+    parse_projects, ClaudeParseConfig, ParsedEvent,
+};
 use providock_lib::domain::TokenSet;
 use serde_json::Value;
 use std::path::PathBuf;
@@ -98,11 +100,7 @@ fn fixture_cases() {
                     Value::String(s) => Some(s.parse().unwrap()),
                     other => panic!("{case}.{field}: bad expected {other}"),
                 };
-                assert_eq!(
-                    sum_field(&out.events, field),
-                    want,
-                    "{case} total {field}"
-                );
+                assert_eq!(sum_field(&out.events, field), want, "{case} total {field}");
             }
             let want_req: Option<u128> =
                 totals["request_count"].as_str().map(|s| s.parse().unwrap());
@@ -134,8 +132,16 @@ fn fixture_cases() {
                     "{case} parent_session_id"
                 );
                 assert_eq!(e.event.actor_id.as_deref(), want_actor, "{case} actor_id");
-                assert_eq!(e.event.granularity.as_str(), "request", "{case} granularity");
-                assert_eq!(e.event.request_count, Some(1), "{case} request_count per event");
+                assert_eq!(
+                    e.event.granularity.as_str(),
+                    "request",
+                    "{case} granularity"
+                );
+                assert_eq!(
+                    e.event.request_count,
+                    Some(1),
+                    "{case} request_count per event"
+                );
             }
         }
 

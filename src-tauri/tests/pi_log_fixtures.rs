@@ -149,7 +149,11 @@ fn fixture_cases() {
                     .iter()
                     .filter(|e| e.granularity.as_str() == name)
                     .count();
-                assert_eq!(got as u64, want.as_u64().unwrap(), "{case} granularity {name}");
+                assert_eq!(
+                    got as u64,
+                    want.as_u64().unwrap(),
+                    "{case} granularity {name}"
+                );
             }
         }
 
@@ -163,7 +167,11 @@ fn fixture_cases() {
                     Value::Null => assert!(got.is_none(), "{case} event {i} cost should be None"),
                     Value::Object(_) => {
                         let got = got.unwrap_or_else(|| panic!("{case} event {i} cost missing"));
-                        assert_eq!(got.money.amount, want["amount"].as_str().unwrap(), "{case} event {i}");
+                        assert_eq!(
+                            got.money.amount,
+                            want["amount"].as_str().unwrap(),
+                            "{case} event {i}"
+                        );
                         assert_eq!(
                             got.money.currency,
                             want["currency"].as_str().unwrap(),
@@ -190,7 +198,10 @@ fn fixture_cases() {
             "all" => assert_eq!(out.consumed_bytes, input.len() as u64, "{case} consumed"),
             "last_newline" => {
                 let pos = input.iter().rposition(|b| *b == b'\n').unwrap() as u64 + 1;
-                assert_eq!(out.consumed_bytes, pos, "{case} consumed after last newline");
+                assert_eq!(
+                    out.consumed_bytes, pos,
+                    "{case} consumed after last newline"
+                );
             }
             s if s.starts_with("before_marker:") => {
                 let marker = s.trim_start_matches("before_marker:");

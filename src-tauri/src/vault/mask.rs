@@ -46,8 +46,7 @@ pub fn generate_salt() -> [u8; SALT_LEN] {
 ///
 /// HMAC 接受任意长度密钥，`new_from_slice` 对 `Hmac<Sha256>` 不可能失败；panic 信息不含秘密。
 pub fn fingerprint_hex(salt: &[u8], secret: &str) -> String {
-    let mut mac =
-        HmacSha256::new_from_slice(salt).expect("HMAC-SHA256 accepts keys of any length");
+    let mut mac = HmacSha256::new_from_slice(salt).expect("HMAC-SHA256 accepts keys of any length");
     mac.update(secret.as_bytes());
     encode_hex(&mac.finalize().into_bytes())
 }
@@ -162,7 +161,10 @@ mod tests {
     #[test]
     fn different_secret_gives_different_fingerprint() {
         let salt = [9u8; SALT_LEN];
-        assert_ne!(fingerprint_hex(&salt, "sk-a"), fingerprint_hex(&salt, "sk-b"));
+        assert_ne!(
+            fingerprint_hex(&salt, "sk-a"),
+            fingerprint_hex(&salt, "sk-b")
+        );
     }
 
     #[test]

@@ -205,7 +205,12 @@ pub fn read_events(conn: &Connection, cfg: &McodeConfig) -> McodeOutcome {
 
         let mut row_diag: Vec<String> = Vec::new();
         let fresh = token_nonneg(raw.input_tokens, "input_tokens", id, &mut row_diag);
-        let cache_read = token_nonneg(raw.cache_read_tokens, "cache_read_tokens", id, &mut row_diag);
+        let cache_read = token_nonneg(
+            raw.cache_read_tokens,
+            "cache_read_tokens",
+            id,
+            &mut row_diag,
+        );
         let cache_write = token_nonneg(
             raw.cache_write_tokens,
             "cache_write_tokens",
@@ -432,7 +437,10 @@ mod tests {
         // after_id=4, overlap=8 → lower=0，读到全部 6 行（重叠回看）
         let out = read_events(&conn, &cfg(Some(4), 8));
         let ids: Vec<&str> = out.events.iter().map(|e| e.event_id.as_str()).collect();
-        assert_eq!(ids, ["mcode:1", "mcode:2", "mcode:3", "mcode:4", "mcode:5", "mcode:6"]);
+        assert_eq!(
+            ids,
+            ["mcode:1", "mcode:2", "mcode:3", "mcode:4", "mcode:5", "mcode:6"]
+        );
         assert_eq!(out.max_id, Some(6));
         // after_id=4, overlap=0 → 只读新增 id>4
         let out2 = read_events(&conn, &cfg(Some(4), 0));

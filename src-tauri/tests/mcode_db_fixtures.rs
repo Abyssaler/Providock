@@ -49,7 +49,10 @@ fn sum_request_count(events: &[UsageEvent]) -> Option<u128> {
 fn parse_opt_u128(v: &Value, ctx: &str) -> Option<u128> {
     match v {
         Value::Null => None,
-        Value::String(s) => Some(s.parse().unwrap_or_else(|_| panic!("{ctx}: bad number {s}"))),
+        Value::String(s) => Some(
+            s.parse()
+                .unwrap_or_else(|_| panic!("{ctx}: bad number {s}")),
+        ),
         other => panic!("{ctx}: bad expected {other}"),
     }
 }
@@ -189,9 +192,14 @@ fn fixture_cases() {
 
         // 逐事件 model_raw（原样）
         if let Some(models) = expected.get("models") {
-            let want: Vec<Option<&str>> =
-                models.as_array().unwrap().iter().map(|v| v.as_str()).collect();
-            let got: Vec<Option<&str>> = out.events.iter().map(|e| e.model_raw.as_deref()).collect();
+            let want: Vec<Option<&str>> = models
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|v| v.as_str())
+                .collect();
+            let got: Vec<Option<&str>> =
+                out.events.iter().map(|e| e.model_raw.as_deref()).collect();
             assert_eq!(got, want, "{case} models");
         }
 
@@ -199,8 +207,11 @@ fn fixture_cases() {
         if let Some(at) = expected.get("occurred_at") {
             let want: Vec<Option<&str>> =
                 at.as_array().unwrap().iter().map(|v| v.as_str()).collect();
-            let got: Vec<Option<&str>> =
-                out.events.iter().map(|e| e.occurred_at.as_deref()).collect();
+            let got: Vec<Option<&str>> = out
+                .events
+                .iter()
+                .map(|e| e.occurred_at.as_deref())
+                .collect();
             assert_eq!(got, want, "{case} occurred_at");
         }
 

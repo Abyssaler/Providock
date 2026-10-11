@@ -435,7 +435,10 @@ mod tests {
     #[test]
     fn url_is_not_mistaken_for_path() {
         let result = redact("GET https://api.example.com/v1/usage returned 401");
-        assert!(!result.contains("<file:"), "URL 不应被当作绝对路径: {result}");
+        assert!(
+            !result.contains("<file:"),
+            "URL 不应被当作绝对路径: {result}"
+        );
     }
 
     #[test]

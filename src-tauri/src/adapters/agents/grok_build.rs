@@ -92,7 +92,8 @@ pub fn parse_updates(bytes: &[u8], cfg: &GrokParseConfig) -> GrokParseOutcome {
         let v: Value = match serde_json::from_slice(line) {
             Ok(v) => v,
             Err(_) => {
-                out.diagnostics.push(format!("malformed_line_at_offset:{offset}"));
+                out.diagnostics
+                    .push(format!("malformed_line_at_offset:{offset}"));
                 continue;
             }
         };
@@ -103,7 +104,9 @@ pub fn parse_updates(bytes: &[u8], cfg: &GrokParseConfig) -> GrokParseOutcome {
             .filter(|u| u.is_object());
         let is_target_method =
             v.get("method").and_then(Value::as_str) == Some("_x.ai/session/update");
-        let session_update = update.and_then(|u| u.get("sessionUpdate")).and_then(Value::as_str);
+        let session_update = update
+            .and_then(|u| u.get("sessionUpdate"))
+            .and_then(Value::as_str);
 
         if !(is_target_method && session_update == Some("turn_completed")) {
             if usage.is_some() {
@@ -116,11 +119,13 @@ pub fn parse_updates(bytes: &[u8], cfg: &GrokParseConfig) -> GrokParseOutcome {
             continue;
         }
         let Some(usage) = usage else {
-            out.diagnostics.push(format!("turn_completed_without_usage:{offset}"));
+            out.diagnostics
+                .push(format!("turn_completed_without_usage:{offset}"));
             continue;
         };
         let Some(ts) = v.get("timestamp").and_then(Value::as_i64) else {
-            out.diagnostics.push(format!("turn_completed_without_numeric_timestamp:{offset}"));
+            out.diagnostics
+                .push(format!("turn_completed_without_numeric_timestamp:{offset}"));
             continue;
         };
 
@@ -134,11 +139,13 @@ pub fn parse_updates(bytes: &[u8], cfg: &GrokParseConfig) -> GrokParseOutcome {
             .ok()
             .and_then(|dt| dt.format(&Rfc3339).ok())
         else {
-            out.diagnostics.push(format!("timestamp_out_of_range:{offset}"));
+            out.diagnostics
+                .push(format!("timestamp_out_of_range:{offset}"));
             continue;
         };
         if as_millis {
-            out.diagnostics.push(format!("timestamp_treated_as_millis:{offset}"));
+            out.diagnostics
+                .push(format!("timestamp_treated_as_millis:{offset}"));
         }
 
         // 身份：prompt_id 优先，缺失退回字节偏移。
