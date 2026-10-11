@@ -4,6 +4,7 @@
 
 pub mod adapters;
 pub mod domain;
+pub mod gateway;
 pub mod ingestion;
 pub mod safepath;
 pub mod services;

@@ -1,0 +1,3 @@
+data: {"candidates":[{"content":{"parts":[{"functionCall":{"name":"get_weather","args":{"city":"SF"}}}],"role":"model"}}],"usageMetadata":{"promptTokenCount":1200,"candidatesTokenCount":20,"cachedContentTokenCount":300,"totalTokenCount":1220},"modelVersion":"gemini-2.5-pro","responseId":"gem_05"}
+
+data: {"candidates":[{"content":{"parts":[{"functionCall":{"name":"get_weather","args":{"city":"SF"}}}],"role":"model"},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":1200,"candidatesTokenCount":40,"thoughtsTokenCount":10,"cachedContentTokenCount":300,"totalTokenCount":1250},"modelVersion":"gemini-2.5-pro","responseId":"gem_05"}

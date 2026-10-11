@@ -1,0 +1,19 @@
+{
+  "protocol": "openai_chat_completions",
+  "kind": "stream",
+  "input": "input/stream.sse",
+  "request_id": "chatcmpl-03",
+  "model": "gpt-4o-2024-11-20",
+  "quality": "reported",
+  "completeness": "partial",
+  "tokens": {
+    "input_fresh": "450",
+    "input_cache_read": "50",
+    "input_cache_write": null,
+    "input_total": "500",
+    "output_total": "100",
+    "output_reasoning": "20",
+    "total": "600"
+  },
+  "diagnostics_include": ["stream_missing_terminal_frame:openai_chat_completions"]
+}

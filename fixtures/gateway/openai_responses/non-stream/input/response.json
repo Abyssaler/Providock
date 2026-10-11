@@ -1,0 +1,14 @@
+{
+  "id": "resp_01",
+  "object": "response",
+  "model": "gpt-5-2025-08-07",
+  "status": "completed",
+  "output": [],
+  "usage": {
+    "input_tokens": 2000,
+    "input_tokens_details": { "cached_tokens": 500 },
+    "output_tokens": 400,
+    "output_tokens_details": { "reasoning_tokens": 150 },
+    "total_tokens": 2400
+  }
+}

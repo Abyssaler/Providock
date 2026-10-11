@@ -1,0 +1,19 @@
+{
+  "protocol": "openai_responses",
+  "kind": "stream",
+  "input": "input/stream.sse",
+  "request_id": "resp_04",
+  "model": "gpt-5-2025-08-07",
+  "quality": "unknown",
+  "completeness": "partial",
+  "tokens": {
+    "input_fresh": null,
+    "input_cache_read": null,
+    "input_cache_write": null,
+    "input_total": null,
+    "output_total": null,
+    "output_reasoning": null,
+    "total": null
+  },
+  "diagnostics_include": ["usage_absent:openai_responses"]
+}

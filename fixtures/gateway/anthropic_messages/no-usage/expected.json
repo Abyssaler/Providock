@@ -1,0 +1,19 @@
+{
+  "protocol": "anthropic_messages",
+  "kind": "stream",
+  "input": "input/stream.sse",
+  "request_id": "msg_04NOUSAGE",
+  "model": "claude-sonnet-4-5-20250929",
+  "quality": "unknown",
+  "completeness": "partial",
+  "tokens": {
+    "input_fresh": null,
+    "input_cache_read": null,
+    "input_cache_write": null,
+    "input_total": null,
+    "output_total": null,
+    "output_reasoning": null,
+    "total": null
+  },
+  "diagnostics_include": ["usage_absent:anthropic_messages"]
+}

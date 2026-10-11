@@ -1,0 +1,19 @@
+{
+  "protocol": "anthropic_messages",
+  "kind": "stream",
+  "input": "input/stream.sse",
+  "request_id": "msg_03CUT",
+  "model": "claude-sonnet-4-5-20250929",
+  "quality": "reported",
+  "completeness": "partial",
+  "tokens": {
+    "input_fresh": "500",
+    "input_cache_read": "0",
+    "input_cache_write": "0",
+    "input_total": "500",
+    "output_total": "42",
+    "output_reasoning": null,
+    "total": "542"
+  },
+  "diagnostics_include": ["stream_missing_terminal_frame:anthropic_messages"]
+}

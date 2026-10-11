@@ -1,0 +1,19 @@
+{
+  "protocol": "gemini_native",
+  "kind": "stream",
+  "input": "input/stream.sse",
+  "request_id": "gem_05",
+  "model": "gemini-2.5-pro",
+  "quality": "derived",
+  "completeness": "complete",
+  "tokens": {
+    "input_fresh": "900",
+    "input_cache_read": "300",
+    "input_cache_write": null,
+    "input_total": "1200",
+    "output_total": "50",
+    "output_reasoning": "10",
+    "total": "1250"
+  },
+  "diagnostics_include": []
+}

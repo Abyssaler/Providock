@@ -1,0 +1,14 @@
+event: message_start
+data: {"type":"message_start","message":{"id":"msg_05TOOL","model":"claude-sonnet-4-5-20250929","usage":{"input_tokens":1200,"cache_read_input_tokens":300,"cache_creation_input_tokens":0,"output_tokens":1}}}
+
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_1","name":"get_weather","input":{}}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"city\":"}}
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"tool_use"},"usage":{"output_tokens":88}}
+
+event: message_stop
+data: {"type":"message_stop"}

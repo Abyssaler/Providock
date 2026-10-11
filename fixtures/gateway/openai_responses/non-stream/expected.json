@@ -1,0 +1,19 @@
+{
+  "protocol": "openai_responses",
+  "kind": "non_stream",
+  "input": "input/response.json",
+  "request_id": "resp_01",
+  "model": "gpt-5-2025-08-07",
+  "quality": "reported",
+  "completeness": "complete",
+  "tokens": {
+    "input_fresh": "1500",
+    "input_cache_read": "500",
+    "input_cache_write": null,
+    "input_total": "2000",
+    "output_total": "400",
+    "output_reasoning": "150",
+    "total": "2400"
+  },
+  "diagnostics_include": []
+}

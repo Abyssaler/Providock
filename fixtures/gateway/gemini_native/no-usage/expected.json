@@ -1,0 +1,19 @@
+{
+  "protocol": "gemini_native",
+  "kind": "stream",
+  "input": "input/stream.sse",
+  "request_id": "gem_04",
+  "model": "gemini-2.5-pro",
+  "quality": "unknown",
+  "completeness": "partial",
+  "tokens": {
+    "input_fresh": null,
+    "input_cache_read": null,
+    "input_cache_write": null,
+    "input_total": null,
+    "output_total": null,
+    "output_reasoning": null,
+    "total": null
+  },
+  "diagnostics_include": ["usage_absent:gemini_native"]
+}

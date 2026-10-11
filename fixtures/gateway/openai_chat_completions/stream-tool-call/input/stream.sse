@@ -1,0 +1,9 @@
+data: {"id":"chatcmpl-05","object":"chat.completion.chunk","model":"gpt-4o-2024-11-20","choices":[{"index":0,"delta":{"role":"assistant","tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"get_weather","arguments":""}}]},"finish_reason":null}],"usage":null}
+
+data: {"id":"chatcmpl-05","object":"chat.completion.chunk","model":"gpt-4o-2024-11-20","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"city\":\"SF\"}"}}]},"finish_reason":null}],"usage":null}
+
+data: {"id":"chatcmpl-05","object":"chat.completion.chunk","model":"gpt-4o-2024-11-20","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}],"usage":null}
+
+data: {"id":"chatcmpl-05","object":"chat.completion.chunk","model":"gpt-4o-2024-11-20","choices":[],"usage":{"prompt_tokens":900,"completion_tokens":120,"total_tokens":1020,"prompt_tokens_details":{"cached_tokens":0},"completion_tokens_details":{"reasoning_tokens":0}}}
+
+data: [DONE]

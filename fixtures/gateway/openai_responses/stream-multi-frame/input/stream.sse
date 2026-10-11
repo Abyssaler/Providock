@@ -1,0 +1,11 @@
+event: response.created
+data: {"type":"response.created","response":{"id":"resp_02","model":"gpt-5-2025-08-07","status":"in_progress"}}
+
+event: response.output_text.delta
+data: {"type":"response.output_text.delta","delta":"Hello"}
+
+event: response.output_text.delta
+data: {"type":"response.output_text.delta","delta":" world"}
+
+event: response.completed
+data: {"type":"response.completed","response":{"id":"resp_02","model":"gpt-5-2025-08-07","status":"completed","usage":{"input_tokens":2000,"input_tokens_details":{"cached_tokens":500},"output_tokens":400,"output_tokens_details":{"reasoning_tokens":150},"total_tokens":2400}}}

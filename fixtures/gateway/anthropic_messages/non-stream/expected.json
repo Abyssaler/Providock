@@ -1,0 +1,19 @@
+{
+  "protocol": "anthropic_messages",
+  "kind": "non_stream",
+  "input": "input/response.json",
+  "request_id": "msg_01ABC",
+  "model": "claude-sonnet-4-5-20250929",
+  "quality": "reported",
+  "completeness": "complete",
+  "tokens": {
+    "input_fresh": "1000",
+    "input_cache_read": "200",
+    "input_cache_write": "50",
+    "input_total": "1250",
+    "output_total": "300",
+    "output_reasoning": null,
+    "total": "1550"
+  },
+  "diagnostics_include": []
+}

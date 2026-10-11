@@ -1,0 +1,19 @@
+{
+  "protocol": "anthropic_messages",
+  "kind": "stream",
+  "input": "input/stream.sse",
+  "request_id": "msg_02SSE",
+  "model": "claude-opus-4-1-20250805",
+  "quality": "reported",
+  "completeness": "complete",
+  "tokens": {
+    "input_fresh": "800",
+    "input_cache_read": "120",
+    "input_cache_write": "30",
+    "input_total": "950",
+    "output_total": "410",
+    "output_reasoning": null,
+    "total": "1360"
+  },
+  "diagnostics_include": []
+}

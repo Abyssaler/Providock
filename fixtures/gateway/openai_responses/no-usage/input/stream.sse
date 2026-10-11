@@ -1,0 +1,2 @@
+event: response.completed
+data: {"type":"response.completed","response":{"id":"resp_04","model":"gpt-5-2025-08-07","status":"completed"}}
