@@ -1,6 +1,23 @@
 # 兼容登记
 
-最近更新：2026-10-11（T00 证据核实完成一轮）。状态含义：`researched` = 阅读固定提交源码/官方文档；`fixture_verified` = 合成/脱敏样本 + 独立预期值通过；`live_verified` = 真实环境实测。当前全部条目均为 researched，无任何 fixture_verified / live_verified。
+最近更新：2026-10-11（T00 证据核实完成一轮）。状态含义：`researched` = 阅读固定提交源码/官方文档；`fixture_verified` = 合成/脱敏样本 + 独立预期值通过；`live_verified` = 真实环境实测。
+
+## 实现状态（2026-10-11，随验收更新）
+
+| 条目 | 解析器 | 夹具 | 扫描接入 | 实机 | 状态 |
+| --- | --- | --- | --- | --- | --- |
+| A01 Claude Code | ✅ claude_code.rs | 7 用例通过 | 未接 | 未 | fixture_verified |
+| A02 Codex | ✅ codex_rollout.rs | 7 用例通过 | ✅ scanner（含 .zst、两遍 fork） | 本机无 Codex 目录 | fixture_verified |
+| A03 Gemini CLI | ✅ gemini_cli.rs（JSON+JSONL 回放） | 10 用例通过 | 未接 | 未 | fixture_verified |
+| A04 Grok Build | ✅ grok_build.rs | 9 用例通过 | 未接 | 未 | fixture_verified |
+| A05 OpenCode | 开发中 | — | 未接 | 未 | implementing |
+| A06 Pi | ✅ pi_log.rs | 12 用例通过（usage kind 条目补充中） | 未接 | 未 | fixture_verified |
+| A07 MCode | ✅ mcode_db.rs | 6 用例通过 | 未接 | 未 | fixture_verified |
+| A08 Kimi Code | ✅ kimi_wire.rs | 7 用例通过 | ✅ scanner | **macOS 实测：52 文件 3261 事件、0 诊断、重扫幂等**（Windows 待验） | fixture_verified + macOS live |
+| A09 Desktop 网关 | 未开始（T00-G 演示待做） | — | — | 未 | researched |
+| 旧 Python Kimi | 未开始（独立适配器） | — | — | 未 | researched |
+
+数据核心（T02）、凭据库/路径守卫/诊断脱敏（T03）、聚合服务与用量页纵线（T04）已实现并有测试。全部 Windows 行为未经实机验证。
 
 证据文档（均为 2026-10-11 按固定提交核实，含逐行 URL）：
 
