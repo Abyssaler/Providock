@@ -10,8 +10,8 @@
 | A02 Codex | ✅ codex_rollout.rs | 7 用例通过 | ✅ scanner（含 .zst、两遍 fork） | 本机无 Codex 目录 | fixture_verified |
 | A03 Gemini CLI | ✅ gemini_cli.rs（JSON+JSONL 回放） | 10 用例通过 | 未接 | 未 | fixture_verified |
 | A04 Grok Build | ✅ grok_build.rs | 9 用例通过 | 未接 | 未 | fixture_verified |
-| A05 OpenCode | 开发中 | — | 未接 | 未 | implementing |
-| A06 Pi | ✅ pi_log.rs | 12 用例通过（usage kind 条目补充中） | 未接 | 未 | fixture_verified |
+| A05 OpenCode | ✅ opencode_db.rs（V1/V2 探测） | 3 库用例通过（含反向验证） | 未接 | 未 | fixture_verified |
+| A06 Pi | ✅ pi_log.rs | 13 用例通过（含 usage kind 条目） | 未接 | 未 | fixture_verified |
 | A07 MCode | ✅ mcode_db.rs | 6 用例通过 | 未接 | 未 | fixture_verified |
 | A08 Kimi Code | ✅ kimi_wire.rs | 7 用例通过 | ✅ scanner | **macOS 实测：52 文件 3261 事件、0 诊断、重扫幂等**（Windows 待验） | fixture_verified + macOS live |
 | A09 Desktop 网关 | 未开始（T00-G 演示待做） | — | — | 未 | researched |
