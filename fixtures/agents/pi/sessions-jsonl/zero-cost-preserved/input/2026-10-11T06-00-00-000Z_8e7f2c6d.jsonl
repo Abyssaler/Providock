@@ -1,0 +1,3 @@
+{"type":"session","version":3,"id":"8e7f2c6d","timestamp":"2026-10-11T06:00:00.000Z","cwd":"/home/example/demo"}
+{"type":"message","id":"00000001","parentId":null,"timestamp":"2026-10-11T06:00:01.000Z","message":{"role":"user","content":"free tier answer","timestamp":1760162401000}}
+{"type":"message","id":"00000002","parentId":"00000001","timestamp":"2026-10-11T06:00:02.000Z","message":{"role":"assistant","content":[{"type":"text","text":"free answer"}],"api":"openai-completions","provider":"local","model":"local-model","usage":{"input":50,"output":10,"cacheRead":0,"cacheWrite":0,"totalTokens":60,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"stop","timestamp":1760162402000}}

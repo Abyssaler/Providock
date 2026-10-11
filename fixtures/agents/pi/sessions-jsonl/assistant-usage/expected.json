@@ -1,0 +1,18 @@
+{
+  "session_id": "3f2a9c1d",
+  "events": 2,
+  "totals": {
+    "input_fresh": "300",
+    "input_cache_read": "30",
+    "input_cache_write": "5",
+    "input_total": "335",
+    "output_total": "90",
+    "output_reasoning": null,
+    "total": "425",
+    "request_count": "2"
+  },
+  "granularity_counts": { "message": 2 },
+  "costs": [null, null],
+  "consumed": "all",
+  "diagnostics_include": []
+}

@@ -1,0 +1,5 @@
+{"type":"session","version":3,"id":"c2bd6a01","timestamp":"2026-10-11T10:00:00.000Z","cwd":"/home/example/demo"}
+{"type":"message","id":"00000001","parentId":null,"timestamp":"2026-10-11T10:00:01.000Z","message":{"role":"user","content":"compact twice","timestamp":1760176801000}}
+{"type":"message","id":"00000002","parentId":"00000001","timestamp":"2026-10-11T10:00:02.000Z","message":{"role":"assistant","content":[{"type":"text","text":"before compaction"}],"api":"anthropic-messages","provider":"anthropic","model":"claude-sonnet-4-5","usage":{"input":20,"output":5,"cacheRead":0,"cacheWrite":0,"totalTokens":25},"stopReason":"stop","timestamp":1760176802000}}
+{"type":"compaction","id":"dead0001","parentId":"00000002","timestamp":"2026-10-11T10:00:03.000Z","summary":"Synthetic duplicated summary.","firstKeptEntryId":"00000002","usage":{"input":8,"output":2,"cacheRead":0,"cacheWrite":0,"totalTokens":10}}
+{"type":"compaction","id":"dead0001","parentId":"00000002","timestamp":"2026-10-11T10:00:03.000Z","summary":"Synthetic duplicated summary.","firstKeptEntryId":"00000002","usage":{"input":8,"output":2,"cacheRead":0,"cacheWrite":0,"totalTokens":10}}
