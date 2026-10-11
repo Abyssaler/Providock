@@ -1,0 +1,11 @@
+# 统一 LF 行尾：Windows CI 上 prettier/cargo fmt 与 macOS 语义一致
+* text=auto eol=lf
+
+# 二进制（夹具与图标）不做行尾转换
+*.png binary
+*.ico binary
+*.icns binary
+*.sqlite binary
+*.db binary
+*.zst binary
+*.dmg binary
