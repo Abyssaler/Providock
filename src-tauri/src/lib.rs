@@ -5,6 +5,7 @@
 pub mod adapters;
 pub mod domain;
 pub mod ingestion;
+pub mod vault;
 pub mod services;
 pub mod storage;
 
