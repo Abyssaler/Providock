@@ -31,25 +31,27 @@
 
 下列均须在 P0 做证据/认证/schema 验证。只有 E1/E2 可转为实现任务；调查无结果可按用户允许保留管理条目、隐藏查询指标。不得把候选表写成“已支持”。
 
+2026-10-11 已完成一轮逐项审计，E 级结论已更新入表，逐项证据与“需真实凭据实测”清单见 [账户审计记录](../research/evidence/accounts-b01-b07-candidates.md)。修正记录：MiniMax 官方路径为 `/v1/token_plan/remains`（非 cc-switch 的 coding_plan 路径）；ZenMux 由 E3 升级为 E1（官方 Management API）。
+
 | 平台/类别 | cc-switch 当前线索 | 本项目当前结论 / 下一步 |
 | --- | --- | --- |
-| StepFun API | GET `https://api.stepfun.com/v1/accounts` | 待补官方文档/客户端证据和响应单位；E3 线索，不先承诺可查 |
-| SiliconFlow 中国 API | GET `/v1/user/info` 旧实现 | 官方公告已于 2026-08-14 停用 `/user/info`；禁用旧查询，等待官方替代 |
-| SiliconFlow 国际 API | `.com` 旧 user/info | 单独核实国际站，不能由中国公告直接推出同日停用，也不能默认仍可用；未核实不发布 |
-| Kimi Coding Key 直接查询 | `https://api.kimi.com/coding/v1/usages` | 当前优先已确认的官方 Server 通道；直接 HTTP 通道补官方证据与认证后再启用 |
-| Zhipu 团队版 | 相同 quota host + org/project | 官方支持范围、org/project 字段、所需权限单独核实；不得将个人 Key 当团队凭据 |
-| MiniMax 中国/国际 Coding Plan | `/v1/api/openplatform/coding_plan/remains` | 核实官方文档/插件；general 与其他模型池分开；不能强制所有套餐都有周额度 |
-| ZenMux Plan | 上游 coding_plan 服务专用查询 | 补官方接口依据、认证和单位；第三方线索未满足用户边界 |
-| 火山引擎 Agent Plan / Coding Plan | OpenAPI Action 签名查询，区域区分 | AK/SK 与 V4 签名，不是推理 API Key；分别核实官方 Action、Version 和最小权限 |
-| OpenCode Go | `https://opencode.ai/zen/go/v1/usage`，上游指出官方 console 路由 | 到官方 repo 固定路由源码提交，确认 token 与 plan scope 后进入 E2 |
-| CommandCode | `/alpha/usage/summary` 等 | 核实官方 SDK/源码和组织范围；alpha 路径要标实验 |
-| Claude 订阅 | cc-switch subscription 中 OAuth usage | 补官方客户端依据/凭据方式；不默认读取所有本机登录凭据或借用浏览器 Cookie |
-| Gemini 订阅 | retrieveUserQuota 等官方服务线索 | 官方客户端依据、账户/项目范围和协议版本审核后决定；不等同 Gemini API 现金余额 |
-| GitHub Copilot / Grok 账户 | 上游认证模块的额度线索 | 单独审计官方来源；与 Grok Build 本机用量采集无绑定依赖 |
-| Moonshot API 现金 | 可能有独立开放平台能力 | 与 Kimi Code 订阅分开；本次未确认当前官方余额文档，不虚构端点 |
-| GLM API 现金 | Coding Plan 查询不返回现金钱包 | 未确认官方余额能力，暂不显示；计划窗口仍可显示 |
-| Xiaomi MiMo API / Token Plan | 第三方工具通过控制台 Cookie 查询 | 仅第三方私有端点证据，不接入；等待官方公开接口/官方客户端依据。Token Plan 若以后接入，按 Credits/月度等实际单位建模，不预设 5h/7d |
-| OpenAI API 现金 / Anthropic API 现金 | 组织 usage/cost 能力与充值余额不是同一接口 | 有官方权限可研究 usage/cost；没有充值余额依据时不声称能查余额，更不能拿 Codex/Claude 订阅额度替代 |
+| StepFun API | GET `https://api.stepfun.com/v1/accounts` | E1（2026-10-11 审计找到官方文档）；响应 object/balance/total_cash_balance/total_voucher_balance，¥；实现前做响应夹具 |
+| SiliconFlow 中国 API | GET `/v1/user/info` 旧实现 | E0：官方公告已于 2026-08-14 停用 `/user/info`；禁用旧查询，等待官方替代 |
+| SiliconFlow 国际 API | `.com` 旧 user/info | E1：docs.siliconflow.com 仍收录 `GET /v1/user/info`，国际站无停用公告；响应单位未标注，需实测后才可显示数值 |
+| Kimi Coding Key 直接查询 | `https://api.kimi.com/coding/v1/usages` | E2：官方 CLI 源码 `managed-usage.ts`（kimi-code `c9f01f07`）确认 Bearer + `${base}/usages`；当前仍优先本机 Server 通道（B06），直接 HTTP 通道作为其上游来源标注 |
+| Zhipu 团队版 | 相同 quota host + org/project | E3：官方插件与官方文档均只支持个人版；不得将个人 Key 当团队凭据 |
+| MiniMax 中国/国际 Coding Plan | `/v1/api/openplatform/coding_plan/remains` | E1，但官方路径是 `/v1/token_plan/remains`（中国 `www.minimax.cn` / 国际 `www.minimax.io`，官方 FAQ）；cc-switch 的 coding_plan 路径官方查无，不采用；general 与其他模型池分开 |
+| ZenMux Plan | 上游 coding_plan 服务专用查询 | E1（2026-10-11 升级）：官方 Management API `/api/v1/management/subscription/detail` 与 `/payg/balance`，需 `sk-mg-v1-*` 个人管理密钥；实现前确认单位 |
+| 火山引擎 Agent Plan / Coding Plan | OpenAPI Action 签名查询，区域区分 | E1：官方 Action `GetAFPUsage` 等，V4 签名 AK/SK；官方 host 为 `ark.<region>.volcengineapi.com`，不是 cc-switch 的 `open.volcengineapi.com`；最小权限待实测 |
+| OpenCode Go | `https://opencode.ai/zen/go/v1/usage`，上游指出官方 console 路由 | E2：官方 repo `packages/console/app/src/routes/zen/go/v1/usage.ts` 确认 Bearer + `{usage:{rolling,weekly,monthly{percent,resetsAt}}}`；第一方但未文档化 |
+| CommandCode | `/alpha/usage/summary` 等 | E3：官方文档未覆盖 alpha 控制面路由；保持线索 |
+| Claude 订阅 | cc-switch subscription 中 OAuth usage | E3：无官方文档/开源客户端依据；不默认读取所有本机登录凭据或借用浏览器 Cookie |
+| Gemini 订阅 | retrieveUserQuota 等官方服务线索 | E2：官方 gemini-cli 源码确认 `POST cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota`；属订阅配额非现金；账户/项目范围与协议版本实现前审核 |
+| GitHub Copilot / Grok 账户 | 上游认证模块的额度线索 | Copilot：个人 E3（官方明确无个人配额 API），组织/企业 E1（官方 metrics）；Grok 账户 E3（`api.x.ai/v1/user/balance` 404）；与 Grok Build 本机采集无绑定 |
+| Moonshot API 现金 | 可能有独立开放平台能力 | E1：官方 `GET /v1/users/me/balance`（available/voucher/cash_balance）；与 Kimi Code 订阅分开建模 |
+| GLM API 现金 | Coding Plan 查询不返回现金钱包 | E3：仅控制台私有端点线索，暂不显示；计划窗口仍可显示 |
+| Xiaomi MiMo API / Token Plan | 第三方工具通过控制台 Cookie 查询 | E3（近 E0）：仅第三方私有端点证据，不接入；等待官方公开接口/官方客户端依据。Token Plan 若以后接入，按 Credits/月度等实际单位建模，不预设 5h/7d |
+| OpenAI API 现金 / Anthropic API 现金 | 组织 usage/cost 能力与充值余额不是同一接口 | E1（组织 Admin API，需 Admin Key）：是组织用量/成本，不是充值余额；没有充值余额依据时不声称能查余额，更不能拿 Codex/Claude 订阅额度替代 |
 
 SiliconFlow 官方停用依据：[官方发布记录](https://docs.siliconflow.cn/docs/release-notes/overview)。MiMo 产品入口：[官方 Token Plan 页面](https://mimo.mi.com/docs/zh-CN/tokenplan)；该页面不能单独证明存在可调用余额接口。
 

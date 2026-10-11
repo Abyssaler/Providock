@@ -1,25 +1,53 @@
-# 兼容登记：实施前初始状态
+# 兼容登记
 
-日期 2026-10-11。这里的 researched 只表示阅读了代码/官方说明，不表示应用已实现，也不表示通过实机测试。
+最近更新：2026-10-11（T00 证据核实完成一轮）。状态含义：`researched` = 阅读固定提交源码/官方文档；`fixture_verified` = 合成/脱敏样本 + 独立预期值通过；`live_verified` = 真实环境实测。当前全部条目均为 researched，无任何 fixture_verified / live_verified。
 
-| ID | 当前证据 | 协议/版本待办 | 状态 |
-| --- | --- | --- | --- |
-| A01 Claude Code | cc-switch 固定导入器 | 固定官方版本，主子/分叉夹具、两平台路径 | researched |
-| A02 Codex | cc-switch 固定导入器 + 官方协议文档 | 累计语义、压缩格式、fork 范围 | researched |
-| A03 Gemini CLI | cc-switch 固定导入器 | 官方输入缓存/thoughts包含关系 | researched |
-| A04 Grok Build | cc-switch 固定导入器 | turn_completed 身份和模型调用字段 | researched |
-| A05 OpenCode | cc-switch 固定导入器 | V1/V2更新规则、reasoning包含关系 | researched |
-| A06 Pi | cc-switch 固定导入器与路径配置 | 官方路径、摘要计量与跨文件身份 | researched |
-| A07 MCode | cc-switch 固定导入器与路径配置 | 官方投影表schema/更新规则 | researched |
-| A08 Kimi | 固定官方 TS 源码、官方目录/Server文档 | 新wire版本夹具、旧Python独立格式、fork/迁移 | researched |
-| A09 Desktop | cc-switch 条件路由范围 | 一次可重复的手动模型映射演示 | researched |
-| B01 DeepSeek | E1 官方文档 | 响应夹具、权限、实测时间 | researched |
-| B02/B03 OpenRouter | E1 两个不同官方接口 | 普通/管理Key分开、预算scope | researched |
-| B04 Novita | E1 当前官方余额文档 | 新路径、1/10000USD换算 | researched |
-| B05 GLM | E2 固定官方插件源码 | 区域、窗口单位、个人/团队区别 | researched |
-| B06 Kimi | E1 官方实验本机API | 版本协商、成功/错误双层envelope | researched |
-| B07 Codex | E1 官方App Server文档 | 安装版本能力、只读方法范围 | researched |
+证据文档（均为 2026-10-11 按固定提交核实，含逐行 URL）：
 
-其他账户候选的初始状态见 [账户规范](../specs/ACCOUNT_ADAPTERS.md)，逐项审核后增补，不默认为支持。
+- [A01–A04 cc-switch 导入器](evidence/a01-a04-ccswitch-importers.md)（cc-switch `df40d53c`）
+- [A05–A07 cc-switch 导入器](evidence/a05-a07-ccswitch-importers.md)（cc-switch `df40d53c`）
+- [A08 Kimi 新/旧官方格式](evidence/a08-kimi-official.md)（kimi-code `c9f01f07`、kimi-cli 归档仓库）
+- [A09 Desktop 网关捕获范围](evidence/a09-desktop-gateway.md)（cc-switch `df40d53c`）
+- [B01–B07 与账户候选审计](evidence/accounts-b01-b07-candidates.md)
 
-每项后续增加：product_versions、protocol_or_schema、OS、source_commit、checked_at、fixture_ids、expected_totals、字段覆盖、缺口、live_validation、发布状态。fixture_verified / live_verified 分开；没有真实权限就不能伪造 live_verified。正式支持范围必须能回溯到对应版本和验收记录。
+## Agent 适配器
+
+| ID | 已核实要点（摘要） | 与上游的关键差异/风险 | fixture 计划 | 状态 |
+| --- | --- | --- | --- | --- |
+| A01 Claude Code | `~/.claude/projects/**/*.jsonl`（含 subagents 固定深度）；assistant 消息 usage；input 为 fresh 不含缓存；cache TTL 细分存在 | 上游有「相同 Token 四元组 ±600s」代理指纹去重，与契约冲突，不沿用；截断钉 EOF 策略待评估；上游不读 CLAUDE_CONFIG_DIR（需按官方规则补） | 流式多次更新、相同用量独立请求、截断尾行、子 Agent、分叉 | researched |
+| A02 Codex | `sessions/YYYY/MM/DD` + archived；`.zst` 压缩；`last_token_usage` 优先、`total_token_usage` 受控差分；input 为 TOTAL（含 cached）需换算 fresh/read | 上游游标为行号且每轮全量重读、未见截断检测；fork 靠签名子序列对齐——我们按契约做祖先身份归并 | 累计重复/重置/倒退、fork 前缀、压缩继承、截断首累计量 | researched |
+| A03 Gemini CLI | `tmp/<hash>/chats/session-*`；JSON 与 JSONL（`$set`/`$rewindTo` 回放）；字段 input/output/cached/thoughts | 上游 output+thoughts 相加、input 含 cached 但未标语义——包含关系必须对官方版本核实，不照抄；缺 message id 撞主键的上游缺陷要修 | 包含关系验证、rewind、缺 id、工具回显 | researched |
+| A04 Grok Build | `sessions|archived_sessions/**/updates.jsonl`；`turn_completed` 回合聚合；`costUsdTicks` 1 tick=1e-10 USD；reasoning ⊂ output | 上游 60s 沉降窗/接管守卫无 session 维度会漏记；无价时分项记 0 违反「未知≠0」 | 连续同数字两轮、部分计价、归档移动 | researched |
+| A05 OpenCode | `OPENCODE_DB` > XDG > `~/.local/share/opencode`（Windows 同样走 XDG 规则，待实测）；V2(session_v2/session_message) 存在时弃读 V1 | 上游 INSERT OR IGNORE 无法校正后续更新的消息行——需 updated_at 重叠回看游标；compaction(failed) 也计费待官方确认 | V1/V2、消息更新、WAL/锁、compaction | researched |
+| A06 Pi | `PI_CODING_AGENT_DIR` / sessionDir / `~/.pi/agent`；compaction、branch_summary 计费；retainedTail 嵌套历史不计入 | 上游丢弃 `usage.reasoning`；`total==0` 当未知——合法 0 要保留；分叉按可证实祖先归并 | 摘要消费、嵌套复制、响应 ID 复用、费用矛盾 | researched |
+| A07 MCode | `MINIMAX_DATA_DIR`>`MAVIS_DATA_DIR`>`~/.minimax` + `v2/sqlite/runtime-state.sqlite`；`local_runtime_token_usage` 10 列；id 单调游标；cost_usd=0 合法保留 | 上游 output+reasoning 相加待官方确认；id 是否 append-only 待核实（否则加重叠窗）；真实 DDL 未获取 | DDL 核实、更新行、共享库单实例 | researched |
+| A08 Kimi Code | 新版：`KIMI_CODE_HOME`/`~/.kimi-code`，`sessions/<wd_key>/<sid>/agents/<agentId>/wire.jsonl` + `session_index.jsonl`；wire 首行 metadata `protocol_version:"1.5"`；**一次 LLM 请求一条 durable `usage.record`**（inputOther/inputCacheRead/inputCacheCreation/output）；`usageScope` 仅按 source.type=='turn' 判 turn，session scope 目前唯一来源是全量压缩；`agent.status.updated` 为累计快照不durable、不计入；fork 经 `state.json.forkedFrom`+wire 末尾 `forked`；undo 三条记录不撤销账本；迁移写 protocol 1.0 + `token_counting.measured`（上下文锚点，非消费） | 旧 Python kimi-cli（已归档）：`KIMI_SHARE_DIR`/`~/.kimi`，`sessions/<md5>/<uuid>/`，wire `{timestamp,message{type,payload}}`（协议 1.10），snake_case 字段，逐 step `token_usage` 绝对值、无会话累计——与新版分开适配 | 新协议头、turn/session scope、主子 Agent、fork 前缀、undo、压缩、崩溃尾行、unknown protocol、旧 Python、迁移测量、同数字独立调用 | researched |
+| A09 Desktop 网关 | 上游默认 `127.0.0.1:15721`，`/claude-desktop/*` 需 Bearer 令牌；协议：Anthropic Messages / OpenAI Chat / Responses / Gemini Native；流式按事件合并（message_start/delta）或末 chunk 快照；request_id 派生自上游响应 id（`session:{msg_id}`），无独立 provider request-id 列 | 上游缺口：透传缺 usage 落全 0 行、重试不逐次记账、1h 缓存未落库；我们按契约标记 partial/unknown，不落假 0 | 非流式/流式/断流/取消/工具调用/重试、与日志重叠域 | researched（实机演示未做，见下） |
+
+T00-G 状态：Desktop 模型映射最小网关演示**未完成**——需要本机安装 Claude Desktop 并手工配置，属于需要用户环境配合的实机验证；上游源码路径已固定（见证据文档），演示在 T08 前完成。
+
+## 账户适配器（B01–B07 优先项，证据详见账户审计文档）
+
+| ID | 结论 | 接口与认证 | 关键字段/单位 | 状态 |
+| --- | --- | --- | --- | --- |
+| B01 DeepSeek | E1 | `GET https://api.deepseek.com/user/balance`，Bearer | `balance_infos[]{currency,total_balance,granted_balance,topped_up_balance}`，总额已含赠金+充值，分币种 | researched |
+| B02 OpenRouter Key | E1 | `GET https://openrouter.ai/api/v1/key`，Bearer 当前 Key | usage/limit/limit_remaining/budgets 等；Key 级预算≠现金余额 | researched |
+| B03 OpenRouter Credits | E1 | `GET https://openrouter.ai/api/v1/credits`，**管理密钥** | total_credits/total_usage，普通 Key 403 | researched |
+| B04 Novita | E1 | `GET https://api.novita.ai/openapi/v1/billing/balance/detail`，Bearer | available/cash/creditLimit/pending/outstanding，单位 1/10000 USD | researched |
+| B05 GLM Coding Plan | E2（官方插件 `0446d0bb`） | host `open.bigmodel.cn`/`dev.bigmodel.cn`/`api.z.ai`；`/api/monitor/usage/quota/limit`、`/model-usage`、`/tool-usage`；Authorization 为原 token | TOKENS_LIMIT=5h 百分比、TIME_LIMIT=MCP 月度；非现金 | researched |
+| B06 Kimi 本机 Server | E1（官方实验） | `http://127.0.0.1:58627`，Bearer；`/api/v1/meta`、`/sessions/{id}/snapshot`、`/oauth/usage` | 信封 `{code,msg,data,request_id}`；quota.usages{limit5h,limit7d,monthTotal,monthCode}{usedRatio,resetAt}+extraUsage 钱包 cents | researched |
+| B07 Codex App Server | E1 | `account/rateLimits/read`、`account/usage/read`；initialize 协商 | rate_limits 窗口 used_percent/resets_at；usage 有 lifetimeTokens 等；API-key-only/Bedrock 不支持 usage | researched |
+
+## 账户候选审计结论（2026-10-11，详见审计文档）
+
+- E1：StepFun `/v1/accounts`；SiliconFlow **国际站** `/v1/user/info`（单位待实测）；MiniMax `/v1/token_plan/remains`（**非** cc-switch 的 coding_plan 路径）；ZenMux 管理 API（`sk-mg-v1-*`）；火山引擎 `GetAFPUsage`（V4 签名 AK/SK，host 为 `ark.<region>.volcengineapi.com`）；Moonshot 开放平台 `/v1/users/me/balance`；GitHub Copilot **组织/企业** metrics；OpenAI/Anthropic 组织 Admin usage/cost（非充值余额）。
+- E2：Kimi Coding Key `api.kimi.com/coding/v1/usages`（官方 CLI 源码 `managed-usage.ts`）；OpenCode Go zen usage（官方 console 路由）；Gemini `retrieveUserQuota`（官方 gemini-cli 源码，订阅配额非现金）。
+- E3：Zhipu 团队版、CommandCode alpha、Claude 订阅 OAuth、Grok 账户、GLM 现金、Copilot 个人。
+- E0：SiliconFlow **中国站** `/v1/user/info`（官方公告 2026-08-14 停用）；Xiaomi MiMo（仅控制台 Cookie 线索，接近 E0）。
+- 与 `docs/specs/ACCOUNT_ADAPTERS.md` 第 3 节的两处表述差异已按证据修正（MiniMax 路径、ZenMux 升级 E1），理由见该文档与审计文档。
+
+## 下一步
+
+1. 按 fixture 计划编写合成样本与独立预期值（随 T04–T07 逐适配器落地，先 Codex/Kimi）。
+2. 账户适配器实现前的 mock 响应夹具（B01–B07，按审计文档 schema 摘要）。
+3. 需要真实凭据实测的 17 项清单见审计文档末尾——无凭据不标 live_verified。
