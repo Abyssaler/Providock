@@ -1,0 +1,22 @@
+{
+  "config": {
+    "filename_thread_id": "44444444-4444-4444-4444-444444444444",
+    "parent_signatures": [
+      [100, 0, 0, 10, 0, 110],
+      [200, 0, 0, 20, 0, 220]
+    ]
+  },
+  "status": "ok",
+  "events": 1,
+  "totals": {
+    "input_fresh": "50",
+    "input_cache_read": "0",
+    "input_cache_write": "0",
+    "input_total": "50",
+    "output_total": "5",
+    "total": "55",
+    "request_count": "1"
+  },
+  "consumed": "all",
+  "diagnostics_include": ["fork_replay_skipped:2"]
+}

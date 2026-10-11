@@ -1,0 +1,16 @@
+{
+  "config": { "filename_thread_id": "33333333-3333-3333-3333-333333333333", "parent_signatures": null },
+  "status": "ok",
+  "events": 3,
+  "totals": {
+    "input_fresh": "960",
+    "input_cache_read": "0",
+    "input_cache_write": "0",
+    "input_total": "960",
+    "output_total": "45",
+    "total": "1005",
+    "request_count": null
+  },
+  "consumed": "all",
+  "diagnostics_include": ["counter_reset"]
+}
