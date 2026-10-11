@@ -1,6 +1,6 @@
 [package]
 name = "providock"
-version = "0.1.0"
+version = "1.1.0-preview.1"
 description = "本地优先的 Agent 用量监测与 AI 账户额度管理"
 license = "MIT"
 edition = "2021"

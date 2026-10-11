@@ -47,3 +47,15 @@ macOS 正式分发需要 Developer ID 签名与公证，Windows 代码签名用�
 两个正式目标都必须验证：全新用户安装、启动、升级、卸载重装、中文路径、缺源目录、文件同时追加、SQLite WAL/锁定、历史重扫不变、凭据保存/更新/删除、断网/代理、睡眠唤醒、深色模式、缩放、网关默认关闭/启停/端口冲突、正文选择性读取。
 
 记录系统版本、CPU 架构、Agent/协议版本、安装包 hash、签名状态、测试步骤和结果。真实 Windows 环境缺失会阻塞正式发布，不能把通过 cross-compile 当运行验收。CI 与人工报告共同构成发布证据。
+
+## 7. 当前预览版的人工发布流程
+
+当前主线为重建后的实现，应用标识固定为 io.providock.app。历史 v1.0.0 来自旧实现 com.providock.desktop；预览版不自动迁移旧数据，不使用旧 updater 协议，也不覆盖旧版 latest.json。当前不恢复自动稳定发布，Release 与 main 分支 CI 是两个独立步骤。
+
+1. 统一 package.json、src-tauri/tauri.conf.json、src-tauri/Cargo.toml 和 Cargo.lock 的应用版本，并新增 docs/releases/ 下对应版本说明；同步 CHANGELOG、README、当前状态及兼容表。
+2. 推送版本提交到 main，确认对应完整 SHA 的 macOS / Windows 两个 CI job 成功；安装包缺失必须使 CI 失败，不能上传空 Release。
+3. 通过 gh run download 下载该次 CI 的 providock-macos-aarch64 和 providock-windows-x64；不得混用另一提交或旧版本产物。核对文件名、版本、架构及 SHA-256，生成 SHA256SUMS.txt。
+4. 在该确切提交创建版本标签，使用 gh release create 的 prerelease 标志与 latest=false，附对应发布说明、CI 链接、构建提交和两平台安装包/校验和。不移动既有标签或覆盖已有资产；不把未验证预览版设成 latest 稳定版。
+5. 从新 Release 下载 macOS 包，核对资产 hash，安装到用户 Mac 并记录启动检查结果。Windows CI 成功仍须保留 Windows 实机待验状态。
+
+当前预览标签为 v1.1.0-preview.1。没有签名证书与完整实机验收时继续只发布明确标注边界的预览版；稳定发布仍须满足上文的完整门槛。

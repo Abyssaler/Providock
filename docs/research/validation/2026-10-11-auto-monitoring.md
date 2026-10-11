@@ -79,4 +79,4 @@ Chrome + 模拟 IPC 检查通过：筛选参数、手动同步状态、两开关
 
 原因是测试使用 `root.join("sessions/2026/10/11")` 构造路径并直接转成事件身份，而扫描器逐层枚举后使用 Windows 原生分隔符。同一个文件的两种路径文本指向相同位置，却不能作为相同的稳定字符串身份；合成的“旧重复事件”由此没有命中应退休的身份。修复让测试读取首次扫描已保存的 `ingestion_cursors.file_identity`，准确模拟旧解析器使用同一身份的记录。
 
-断言保持并加强：首次 2 条/240 Token，插入合成重复后确为 3 条，升级后恢复 2 条/240 Token，重扫文件跳过。只改测试构造，不改变生产路径或去重规则。本机 monitoring_regressions 四项、Codex 夹具、fmt 与目标 Clippy 通过；Windows 的最终结果以该修复提交的 CI 为准。
+断言保持并加强：首次 2 条/240 Token，插入合成重复后确为 3 条，升级后恢复 2 条/240 Token，重扫文件跳过。只改测试构造，不改变生产路径或去重规则。本机 monitoring_regressions 四项、Codex 夹具、fmt 与目标 Clippy 通过；[修复提交 d9f11f9 的双平台 CI](https://github.com/Abyssaler/Providock/actions/runs/38138488820) 已全部通过，并产出 macOS ARM64 与 Windows x64 测试安装包；这不是 Windows 实机安装运行验收。
