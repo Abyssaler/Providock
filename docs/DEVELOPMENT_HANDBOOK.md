@@ -1,16 +1,16 @@
 # Providock 开发手册
 
-版本 0.1 · 2026-10-11 · 状态：设计已建立，应用尚未搭建。
+版本 0.1 · 2026-10-11 · 状态：核心链路与主要 UI 已实现，发布验收尚未完成；逐任务事实见 [CURRENT_STATUS.md](CURRENT_STATUS.md)。
 
 本手册用于人类开发者、Codex、Claude Code、Kimi Code 等后续开发 Agent 接手。先明确统计语义和适配证据，再实现 UI；任何“已支持”结论必须有可重放验证。
 
 ## 1. 五分钟接手
 
-1. 读 [产品需求](PRODUCT_REQUIREMENTS.md) 和 [AGENTS.md](../AGENTS.md)，确认本任务没有改变用户已确认选择。
+1. 先读 [当前状态](CURRENT_STATUS.md)、[产品需求](PRODUCT_REQUIREMENTS.md) 和 [AGENTS.md](../AGENTS.md)，确认已实现范围、验证边界与用户选择。
 2. 读 [数据契约](specs/DATA_CONTRACTS.md)，特别是互斥输入、reasoning 包含关系、累计/增量与未知值。
 3. 在 [路线图](ROADMAP_AND_ACCEPTANCE.md) 选一个任务编号，查其依赖和完成门槛。
 4. 查相关 adapter 的 [采集规范](specs/AGENT_ADAPTERS.md) 或 [账户规范](specs/ACCOUNT_ADAPTERS.md)，从 [研究证据](research/UPSTREAM_AUDIT.md) 跳到固定源码。
-5. 确认当前代码状态再操作。本文规划的目录/命令尚不存在时先搭建，不能报告“测试已通过”。
+5. 确认当前代码、工作区和最近变更再操作。下文实施顺序保留任务目标，不能据此把现有模块当作未实现，也不能把规划项报告为“测试已通过”。
 
 需求冲突时优先最新用户明确决定，再更新 PRD/ADR；不能悄悄改变边界。可以自行解决包名、内部函数、文件划分等工程选择。没有证据的端点、路径和字段语义必须保留待核实状态。
 
@@ -82,12 +82,12 @@ compatibility_status / owner_or_task_id
 
 对单位换算、字段包含关系和支持格式合成样本要求零算术误差。服务器已消费但日志从未落盘不是 parser 可修复的问题，应在覆盖说明披露。
 
-## 6. 工程搭建后应提供的命令
+## 6. 当前工程命令
 
-以下是**拟定接口**，尚未实现；T01 必须把脚本和 CI 一并落地，之后 README 再给用户可运行命令。
+以下命令已落地，与 README 和双平台 CI 对齐。前端浏览器模式没有原生 IPC；它可用于布局与模拟 IPC 检查，真实本机数据需要桌面应用。
 
 ```text
-pnpm install --frozen-lockfile       # 已提交 lockfile 后可用
+pnpm install --frozen-lockfile       # 使用已提交的锁文件
 pnpm dev                           # 仅前端，演示数据需明确标记
 pnpm tauri dev                     # 桌面联调
 pnpm typecheck
@@ -100,11 +100,17 @@ cargo test --manifest-path src-tauri/Cargo.toml
 pnpm tauri build                   # 在目标 OS 构建
 ```
 
-搭建时选定可用版本的 Node 活跃 LTS、Rust toolchain、pnpm 和依赖并提交锁文件。不要在两 OS 采用不同语义的 formatter/linter。系统依赖安装按 Tauri 对应版本官方文档核实。
+工具链已由 .node-version、rust-toolchain.toml、packageManager 和锁文件固定；升级时同步检查两个目标系统。不要在两 OS 采用不同语义的 formatter/linter。系统依赖安装按 Tauri 对应版本官方文档核实。
+
+### 自动采集联调与独立核对
+
+应用默认启动同步 Agent 日志，此后每轮结束等待 60 秒；账户按各自到期时间查询。用量页「数据采集与调度」和设置页可分别关闭两类自动任务，开关重启后保留。显示刷新只读取 Providock 数据库，不能用它触发文件扫描或账户网络请求。详细行为、回归与实机核对见 [本次验证记录](research/validation/2026-10-11-auto-monitoring.md)。
+
+`python3 scripts/verify_local_usage.py` 只读取 Kimi/Codex 计量数据，临时提取无正文快照，用内存数据库运行正式扫描器并与独立计算比较。核对器的协议/格式边界见验证记录；不支持的输入必须停止，不能跳过后宣布通过。该命令不查询订阅额度、不访问凭据库、不启动推理。
 
 ## 7. 数据迁移与解析器升级
 
-自有数据库 schema_version 与 adapter/parser_version 分开。DB migration 先备份、自检、事务提交；源数据从不迁移。解析规则修正通过 parse_run 重建与切换活跃版本，不能同时累加旧结果。
+自有数据库 schema_version 与 adapter/parser_version 分开。DB migration 先备份、自检、事务提交；源数据从不迁移。目标是通过 parse_run 重建与原子切换活跃版本，不能同时累加旧结果；当前通用的整源切换仍未完成，不能把逐批事务当作整源回滚。Codex v2 本次采用精确身份退休与游标同事务提交，范围见验证记录。
 
 删除某源统计与重建的操作必须同时维护 event identity、游标和聚合缓存。保留统计历史但源丢失时继续可读；不能因找不到原文件就删历史。统计清理和账户清理不互相影响。
 
@@ -135,6 +141,4 @@ pnpm tauri build                   # 在目标 OS 构建
 下一步：具体可执行的一项
 ```
 
-本次设计交付的现状：应用代码、运行测试、真实账户查询、安装包、签名与跨平台实机测试均尚未完成。下一步从 T00 兼容证据登记和 T01 工程搭建开始，不需要再次讨论已经确认的产品方向。
-
-（2026-10-11 更新：T00–T10 主线已实施，逐任务交接见 [CURRENT_STATUS.md](CURRENT_STATUS.md)。）
+当前交接：核心采集/聚合、独立账户服务、主要页面和自动调度已实施并有回归；Kimi/Codex 另有 macOS 只读计量快照核对。真实账户联网、完整原生 GUI、Windows 实机、通用数据升级/保留、网关转发和性能发布门槛仍需完成。具体后续任务以 [CURRENT_STATUS.md](CURRENT_STATUS.md) 为准，不重复搭建已有模块或重新讨论已确认方向。

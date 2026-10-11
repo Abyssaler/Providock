@@ -42,6 +42,8 @@ export interface UsageFilter {
   to?: string;
   agent?: string;
   streamDomain?: string;
+  sourceId?: string;
+  model?: string;
 }
 
 export type UsageSeriesPoint = [string, string | null];
@@ -69,4 +71,22 @@ export interface SourceInfo {
   enabled: boolean;
   lastSyncAt: string | null;
   events: number;
+}
+
+export interface SyncStatus {
+  running: boolean;
+  lastCompletedAt: string | null;
+  lastError: string | null;
+  reports: SourceScanReport[];
+}
+export interface MonitoringSettings {
+  agentAutoSyncEnabled: boolean;
+  accountAutoRefreshEnabled: boolean;
+  agentIntervalSeconds: number;
+  balanceIntervalSeconds: number;
+  planIntervalSeconds: number;
+}
+export interface UsageOptions {
+  sources: { sourceId: string; agent: string; label: string }[];
+  models: string[];
 }

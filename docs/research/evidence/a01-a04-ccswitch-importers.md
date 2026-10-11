@@ -484,3 +484,18 @@ JSONL（可选 zstd 单帧压缩）。解析时只看三类行（先按行首 51
 12. **跨源去重的实测影响面**：±600 秒 + 「token 四元组相同 + model 相同/unknown」的判重（`usage_stats.rs#L634-L694`）在真实混杂流量下会误合并多少行、以及 A04 的接管守卫会漏掉多少官方态轮次，都只能实机测量。
 
 （本文结论仅来自上述固定提交处读到的代码；未读到的部分已在正文标注「未获取」或列入本清单。）
+
+
+## 自动采集交付补充（2026-10-11）
+
+本节与上文最初的研究记录分开。此次另读 cc-switch 提交 `f88068b9e59a43379e14cc8f294467aebb71e26b`：
+
+- [后台入口 lib.rs L1287–L1345](https://github.com/farion1231/cc-switch/blob/f88068b9e59a43379e14cc8f294467aebb71e26b/src-tauri/src/lib.rs#L1287)：启动同步、60 秒周期、错过周期 Skip，自动同步开关会阻止源文件采集。
+- [前端查询 usage.ts L202–L206](https://github.com/farion1231/cc-switch/blob/f88068b9e59a43379e14cc8f294467aebb71e26b/src/lib/query/usage.ts#L202)：默认 30 秒显示刷新，背景刷新默认关闭；显示周期独立于采集周期。
+- [Codex 重播判断 L1193–L1240](https://github.com/farion1231/cc-switch/blob/f88068b9e59a43379e14cc8f294467aebb71e26b/src-tauri/src/services/session_usage_codex.rs#L1193)：按 total+last 签名与来源/前一快照识别重播，last 优先、累计基线同时更新，零增量不成为计费记录。没有 total 时相同 last 数字仍可代表独立请求。
+
+Providock 采用 60 秒源扫描和独立显示刷新，增加可持久化的 Agent/账户两个开关；关闭调度后纯等待通知。保留八源，不启用文件监听。各扫描器仍沿用自身游标/mtime/WAL/行号策略，并非所有源都只读新增字节。
+
+本机只读计量快照发现：原 Codex 发现逻辑在 YYYY/MM/DD 层读取文件前退出，漏掉实际文件；包含 total+last 的重播也被旧解析器重复计数。新 parser_version 为 codex-rollout-2，合成样本 replayed-cumulative 覆盖同源/相邻源重播、同 last 但累计推进的独立请求、零 last 心跳，人工预期两条请求共 240 Token。升级事务只删除已证实重复/心跳的精确事件身份，其他历史保留。
+
+验算方法：Kimi 以 durable usage.record 的互斥四分量独立求和；Codex 使用各完整会话最终累计量，不把生产解析器输出当预期。六项 Token 分别核对全量与当天，再重扫确认守恒。仅临时保存无正文的 usage-only 快照，不提交真实日志。核对结果与格式限制见 CURRENT_STATUS；第三方行为仍不能替代账户端点的官方依据。

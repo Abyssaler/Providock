@@ -16,6 +16,8 @@
 //!
 //! 计数规则（契约第 5 节）：
 //! - 有 last_token_usage 优先直接采用（granularity=request，request_count=1）。
+//!   同一 total+last 快照的同源/相邻重放只计一次；全零 last 心跳不冒充新请求。
+//!   同时维护累计基线，后续只有 total 时继续按差值计入。
 //! - 否则对 total_token_usage 做高水位差分（granularity=session_delta，request_count=None）。
 //!   首个累计量的基线为零（完整会话起点）；重复快照产生零增量不发事件；
 //!   字段倒退视为计数器重置：记诊断缺口、基线重定为当前快照，本次不发事件。
@@ -28,7 +30,7 @@
 
 use crate::domain::*;
 
-pub const PARSER_VERSION: &str = "codex-rollout-1";
+pub const PARSER_VERSION: &str = "codex-rollout-2";
 
 /// token 事件签名：用于父子 rollout 前缀对齐（不是去重依据）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -71,6 +73,8 @@ pub struct CodexParseOutcome {
     pub events: Vec<UsageEvent>,
     pub consumed_bytes: u64,
     pub diagnostics: Vec<String>,
+    /// 已证明为重复累计快照或零心跳的旧身份；升级时只退休这些记录，不清空历史。
+    pub duplicate_event_ids: Vec<String>,
     pub session: Option<SessionMeta>,
     /// 本文件 token 事件签名时间线（供子 rollout 对齐）
     pub signatures: Vec<EventSignature>,
@@ -174,6 +178,8 @@ pub fn parse_rollout(bytes: &[u8], cfg: &CodexParseConfig) -> CodexParseOutcome 
         output: u64,
     }
     let mut high_water: Option<Counters> = None;
+    let mut latest_by_source = std::collections::HashMap::new();
+    let mut previous_snapshot = None;
     let mut reset_reported = false;
 
     for (offset, line) in &lines {
@@ -268,7 +274,41 @@ pub fn parse_rollout(bytes: &[u8], cfg: &CodexParseConfig) -> CodexParseOutcome 
             (None, None) => continue,
         };
 
+        // 同一累计快照的重播不是新请求；只有 last 时，相同数字仍按独立调用计数。
+        let as_signature = |(c, r, tt): (Counters, u64, Option<u64>)| EventSignature {
+            input: c.input,
+            cached: c.cached,
+            cache_write: c.cache_write,
+            output: c.output,
+            reasoning: r,
+            total: tt,
+        };
+        let snapshot = (total.map(as_signature), last.map(as_signature));
+        let source = payload
+            .get("rate_limits")
+            .and_then(|v| v.get("limit_id"))
+            .and_then(|v| v.as_str())
+            .filter(|v| !v.is_empty())
+            .map(str::to_owned);
+        let duplicate = total.is_some()
+            && (latest_by_source.get(&source) == Some(&snapshot)
+                || previous_snapshot.as_ref() == Some(&snapshot));
+        if total.is_some() {
+            latest_by_source.insert(source, snapshot);
+        }
+        previous_snapshot = Some(snapshot);
+        if duplicate {
+            out.duplicate_event_ids.push(format!(
+                "codex:{}:{}:g{}:o{}",
+                logical_thread, cfg.file_identity, cfg.generation, offset
+            ));
+            continue;
+        }
+
         let (effective, from_last) = if let Some((l, r, tt)) = last {
+            if let Some((current, _, _)) = total {
+                high_water = Some(current);
+            }
             (
                 EventSignature {
                     input: l.input,
@@ -333,6 +373,18 @@ pub fn parse_rollout(bytes: &[u8], cfg: &CodexParseConfig) -> CodexParseOutcome 
         };
 
         out.signatures.push(signature);
+        // token_count 的全零 last 是状态刷新，不是一次有计量的请求。
+        if effective.input == 0
+            && effective.cached == 0
+            && effective.cache_write == 0
+            && effective.output == 0
+        {
+            out.duplicate_event_ids.push(format!(
+                "codex:{}:{}:g{}:o{}",
+                logical_thread, cfg.file_identity, cfg.generation, offset
+            ));
+            continue;
+        }
         raw_events.push(RawEvent {
             offset: *offset,
             timestamp,

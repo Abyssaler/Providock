@@ -7,13 +7,13 @@
 | 条目 | 解析器 | 夹具 | 扫描接入 | 实机 | 状态 |
 | --- | --- | --- | --- | --- | --- |
 | A01 Claude Code | ✅ claude_code.rs | 7 用例通过 | ✅ scanner | 未 | fixture_verified |
-| A02 Codex | ✅ codex_rollout.rs | 7 用例通过 | ✅ scanner（含 .zst、两遍 fork） | 本机无 Codex 目录 | fixture_verified |
+| A02 Codex | ✅ codex_rollout.rs v2 | 8 用例通过 + 升级/父时间线回归 | ✅ scanner（日期目录、.zst、两遍 fork） | **macOS 只读快照：10 文件 338 事件，六项 Token 全量/当天独立核对一致、重扫守恒** | fixture_verified + macOS live |
 | A03 Gemini CLI | ✅ gemini_cli.rs（JSON+JSONL 回放） | 10 用例通过 | ✅ scanner | 未 | fixture_verified |
 | A04 Grok Build | ✅ grok_build.rs | 9 用例通过 | ✅ scanner | 未 | fixture_verified |
 | A05 OpenCode | ✅ opencode_db.rs（V1/V2 探测） | 3 库用例通过（含反向验证） | ✅ scanner（mtime+WAL 指纹整库重读） | **macOS 实测：真实库 V2 249 事件、重扫一致** | fixture_verified + macOS live |
 | A06 Pi | ✅ pi_log.rs | 13 用例通过（含 usage kind 条目） | ✅ scanner | 未 | fixture_verified |
 | A07 MCode | ✅ mcode_db.rs | 6 用例通过 | ✅ scanner（row_id 游标+重叠回看） | 未 | fixture_verified |
-| A08 Kimi Code | ✅ kimi_wire.rs | 7 用例通过 | ✅ scanner | **macOS 实测：52 文件 3261 事件、0 诊断、重扫幂等**（Windows 待验） | fixture_verified + macOS live |
+| A08 Kimi Code | ✅ kimi_wire.rs | 7 用例通过 | ✅ scanner | **macOS 实测：63 文件 4147 事件、六项 Token 全量/当天独立核对一致、重扫幂等**（Windows 待验） | fixture_verified + macOS live |
 | A09 Desktop 网关 | 未开始（T00-G 演示待做） | — | — | 未 | researched |
 | 旧 Python Kimi | 未开始（独立适配器） | — | — | 未 | researched |
 
@@ -30,7 +30,7 @@
 | B05 GLM Coding Plan | ✅ glm_plan.rs | 样本验证 | E2；双 TOKENS_LIMIT 区分待官方证据 |
 | B06 Kimi 本机 Server | ✅ kimi_server.rs | 样本验证 | 需用户已运行 Server；meta 协商已实现 |
 | B07 Codex App Server | ✅ codex_appserver.rs | 样本验证（协议构造/响应解析） | 进程协议未接线，查询占位 unsupported |
-| 账户域服务 | services/{accounts,account_query,account_scheduler}.rs | 单测 + mock HTTP 实测（重定向剥 Auth 等） | 调度真实循环未起；DB 锁内 HTTP 待优化 |
+| 账户域服务 | services/{accounts,account_query,account_scheduler}.rs | 单测 + mock HTTP 实测（重定向剥 Auth 等） | 后台循环及持久化开关已接；逐账户到期；禁用启动首轮、锁外 HTTP、并发和删除中请求回归通过 |
 
 账户页 UI（T12）已接 IPC。全部账户结论均为样本验证，非 live_verified。
 

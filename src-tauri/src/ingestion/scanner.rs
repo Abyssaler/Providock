@@ -64,7 +64,7 @@ pub struct DiscoveredSource {
     pub resolution: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SourceScanReport {
     pub source_id: String,
@@ -393,6 +393,7 @@ struct FileCursor {
     generation: u64,
     consumed_bytes: u64,
     tail_checksum: Option<String>,
+    parser_version: String,
 }
 
 fn read_cursor(
@@ -402,7 +403,7 @@ fn read_cursor(
     cursor_kind: &str,
 ) -> Result<Option<FileCursor>, IngestionError> {
     let mut stmt = db.conn().prepare(
-        "SELECT generation, cursor_value, tail_checksum FROM ingestion_cursors
+        "SELECT generation, cursor_value, tail_checksum, parser_version FROM ingestion_cursors
          WHERE source_id = ?1 AND file_identity = ?2 AND cursor_kind = ?3
          ORDER BY generation DESC LIMIT 1",
     )?;
@@ -413,6 +414,7 @@ fn read_cursor(
             generation: r.get::<_, i64>(0)? as u64,
             consumed_bytes: value.parse().unwrap_or(0),
             tail_checksum: r.get(2)?,
+            parser_version: r.get(3)?,
         })
     } else {
         None
@@ -737,7 +739,12 @@ fn scan_codex(
         let Some((size, mtime_secs)) = file_meta(path) else {
             continue;
         };
-        let cursor = read_cursor(db, &src.source_id, &file_identity, "byte_offset")?;
+        let mut cursor = read_cursor(db, &src.source_id, &file_identity, "byte_offset")?;
+        if let Some(old) = &mut cursor {
+            if old.parser_version != src.parser_version {
+                old.tail_checksum = None;
+            }
+        }
         let generation = match decide_action(cursor.as_ref(), size, mtime_secs) {
             FileAction::Skip => {
                 report.files_unchanged += 1;
@@ -811,6 +818,13 @@ fn scan_codex(
         }
     }
 
+    let parent_files: HashMap<String, &PathBuf> = files
+        .iter()
+        .filter_map(|path| {
+            let name = path.file_name()?.to_str()?;
+            Some((uuid_from_filename(name)?, path))
+        })
+        .collect();
     for pending in deferred_files {
         // probe 只为取 session 信息（parent_signatures=None 时 fork 文件必 Deferred）
         let probe_cfg = CodexParseConfig {
@@ -823,7 +837,25 @@ fn scan_codex(
         };
         let probe = codex_rollout::parse_rollout(&pending.bytes, &probe_cfg);
         let parent_id = probe.session.and_then(|s| s.parent_thread_id);
-        let timeline = parent_id.as_ref().and_then(|p| timelines.get(p)).cloned();
+        let timeline = parent_id
+            .as_ref()
+            .and_then(|p| timelines.get(p))
+            .cloned()
+            .or_else(|| {
+                let path = parent_files.get(parent_id.as_ref()?)?;
+                let bytes = read_rollout_bytes(path).ok()?;
+                // 只构建签名，不导入祖先；父未变化也能供活跃子会话对齐。
+                let config = CodexParseConfig {
+                    source_id: src.source_id.clone(),
+                    file_identity: path.to_string_lossy().into_owned(),
+                    generation: 0,
+                    observed_at: observed_now(),
+                    filename_thread_id: parent_id.clone(),
+                    parent_signatures: Some(vec![]),
+                };
+                let parsed = codex_rollout::parse_rollout(&bytes, &config);
+                (parsed.status == Some(CodexStatus::Ok)).then_some(parsed.signatures)
+            });
         match timeline {
             Some(tl) => {
                 let cfg = CodexParseConfig {
@@ -846,8 +878,8 @@ fn scan_codex(
                 report.files_deferred += 1;
                 report.diagnostics.push(format!(
                     "deferred: 父时间线不可用（{} ← {}），下轮重试",
-                    pending.file_identity,
-                    parent_id.unwrap_or_default()
+                    anon_id(&pending.file_identity),
+                    "unavailable"
                 ));
             }
         }
@@ -895,8 +927,13 @@ fn scan_codex(
                 tail_checksum: Some(format!("{}:{}", pending.size, pending.mtime_secs)),
             }),
         };
-        match commit_batch(db, run_id, &batch) {
+        match super::commit_batch_retiring(db, run_id, &batch, &out.duplicate_event_ids) {
             Ok(stats) => {
+                if stats.tombstoned > 0 {
+                    report
+                        .diagnostics
+                        .push(format!("duplicate_snapshot_retired:{}", stats.tombstoned));
+                }
                 report.events_inserted += stats.inserted;
                 report.events_replaced += stats.replaced;
                 report.events_already_present += stats.already_present;
@@ -1758,7 +1795,7 @@ fn scan_mcode(
 }
 
 fn collect_rollouts(dir: &Path, max_depth: usize, out: &mut Vec<PathBuf>) {
-    if max_depth == 0 || !dir.is_dir() {
+    if !dir.is_dir() {
         return;
     }
     let Ok(entries) = std::fs::read_dir(dir) else {
@@ -1766,8 +1803,13 @@ fn collect_rollouts(dir: &Path, max_depth: usize, out: &mut Vec<PathBuf>) {
     };
     for entry in entries.flatten() {
         let path = entry.path();
+        if entry.file_type().is_ok_and(|ty| ty.is_symlink()) {
+            continue;
+        }
         if path.is_dir() {
-            collect_rollouts(&path, max_depth - 1, out);
+            if max_depth > 0 {
+                collect_rollouts(&path, max_depth - 1, out);
+            }
         } else {
             let name = entry.file_name().to_string_lossy().into_owned();
             let is_rollout = name.starts_with("rollout-")
@@ -1812,6 +1854,7 @@ mod tests {
     fn action_decision() {
         // 未变化跳过
         let c = FileCursor {
+            parser_version: "test".into(),
             generation: 0,
             consumed_bytes: 100,
             tail_checksum: Some("100:55".into()),

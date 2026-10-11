@@ -17,6 +17,8 @@ pub struct UsageFilter {
     pub agent: Option<String>,
     /// 默认只统计本地账本；网关域需显式选择（R12）
     pub stream_domain: Option<String>,
+    pub source_id: Option<String>,
+    pub model: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -113,6 +115,14 @@ pub fn usage_summary(db: &Database, filter: &UsageFilter) -> crate::storage::Res
     if let Some(a) = &filter.agent {
         sql.push_str(" AND agent = ?");
         params.push(a.clone().into());
+    }
+    if let Some(source_id) = &filter.source_id {
+        sql.push_str(" AND source_id = ?");
+        params.push(source_id.clone().into());
+    }
+    if let Some(model) = &filter.model {
+        sql.push_str(" AND COALESCE(model_normalized, model_raw) = ?");
+        params.push(model.clone().into());
     }
     if let Some(f) = &filter.from {
         sql.push_str(" AND occurred_at >= ?");
@@ -229,7 +239,7 @@ pub fn usage_series_daily(
     filter: &UsageFilter,
 ) -> crate::storage::Result<Vec<(String, Option<String>)>> {
     let mut sql = String::from(
-        "SELECT substr(occurred_at, 1, 10) AS day, input_total, output_total
+        "SELECT substr(occurred_at, 1, 10) AS day, total
          FROM usage_events WHERE occurred_at IS NOT NULL",
     );
     let mut params: Vec<rusqlite::types::Value> = Vec::new();
@@ -242,6 +252,14 @@ pub fn usage_series_daily(
     if let Some(a) = &filter.agent {
         sql.push_str(" AND agent = ?");
         params.push(a.clone().into());
+    }
+    if let Some(source_id) = &filter.source_id {
+        sql.push_str(" AND source_id = ?");
+        params.push(source_id.clone().into());
+    }
+    if let Some(model) = &filter.model {
+        sql.push_str(" AND COALESCE(model_normalized, model_raw) = ?");
+        params.push(model.clone().into());
     }
     if let Some(f) = &filter.from {
         sql.push_str(" AND occurred_at >= ?");
@@ -257,15 +275,12 @@ pub fn usage_series_daily(
     let mut day_has_known: BTreeMap<String, bool> = BTreeMap::new();
     while let Some(row) = rows.next()? {
         let day: String = row.get(0)?;
-        let input_total: Option<i64> = row.get(1)?;
-        let output_total: Option<i64> = row.get(2)?;
-        if input_total.is_none() && output_total.is_none() {
+        let total: Option<i64> = row.get(1)?;
+        let Some(total) = total else {
             day_has_known.entry(day).or_insert(false);
             continue;
-        }
-        let sum = u128::from(input_total.unwrap_or(0) as u64)
-            + u128::from(output_total.unwrap_or(0) as u64);
-        *days.entry(day.clone()).or_insert(0) += sum;
+        };
+        *days.entry(day.clone()).or_insert(0) += total as u128;
         day_has_known.insert(day, true);
     }
     Ok(day_has_known

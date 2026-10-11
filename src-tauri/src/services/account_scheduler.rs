@@ -9,12 +9,17 @@
 //! 边界：本模块只做只读查询调度；网关推理不采用这套重试策略。
 //! 纯计算函数（配置、间隔、抖动、合并）单独可测，不在测试里起真实循环。
 
+use super::background;
+pub use super::background::TaskHandle as SchedulerHandle;
 use crate::services::account_query;
 use crate::services::accounts::{self, ConfigKind};
 use crate::storage::Database;
 use crate::vault::Vault;
+use std::collections::{hash_map::DefaultHasher, HashMap};
+use std::hash::{Hash, Hasher};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
+use tauri::Emitter;
 
 /// settings 键：调度开关（"true"/"false"，默认开启）。
 pub const SCHEDULER_ENABLED_KEY: &str = "accounts.scheduler.enabled";
@@ -28,8 +33,6 @@ pub const DEFAULT_BALANCE_INTERVAL_SECONDS: u64 = 15 * 60;
 pub const DEFAULT_PLAN_INTERVAL_SECONDS: u64 = 5 * 60;
 /// 抖动比例：±10%。
 pub const JITTER_RATIO: f64 = 0.1;
-/// 未启用时重查开关的间隔（用户可能随时打开）。
-const DISABLED_POLL_SECONDS: u64 = 60;
 
 /// 调度配置。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -135,7 +138,7 @@ pub fn save_config(db: &Database, config: &SchedulerConfig) -> accounts::Result<
 
 /// 抖动后的周期（秒）：`sample ∈ [-1, 1]` 时区间为 `[0.9·base, 1.1·base]`，至少 1 秒。
 ///
-/// `sample = 0` 返回基准值（便于测试）；真实循环用随机样本。
+/// `sample = 0` 返回基准值（便于测试）；真实循环按账户与本次尝试生成稳定样本。
 pub fn jitter_seconds(base_seconds: u64, sample: f64) -> u64 {
     let sample = sample.clamp(-1.0, 1.0);
     let scaled = base_seconds as f64 * (1.0 + JITTER_RATIO * sample);
@@ -161,105 +164,124 @@ pub fn batches_due(elapsed_seconds: u64, interval_seconds: u64) -> u32 {
 // 后台循环
 // ---------------------------------------------------------------------------
 
-/// 调度器句柄：`shutdown()` 请求取消，`Drop` 时中止任务（应用退出可取消）。
-pub struct SchedulerHandle {
-    shutdown: tokio::sync::watch::Sender<bool>,
-    join: Option<tauri::async_runtime::JoinHandle<()>>,
-}
-
-impl SchedulerHandle {
-    pub fn shutdown(&mut self) {
-        let _ = self.shutdown.send(true);
-        if let Some(join) = self.join.take() {
-            join.abort();
-        }
-    }
-}
-
-impl Drop for SchedulerHandle {
-    fn drop(&mut self) {
-        let _ = self.shutdown.send(true);
-        if let Some(join) = self.join.take() {
-            join.abort();
-        }
-    }
-}
-
-/// 启动后台调度任务。默认开启；失败静默降级（查询层把失败记为 stale/unavailable，不抛出）。
-pub fn spawn(db: Arc<Mutex<Database>>, vault: Arc<dyn Vault>) -> SchedulerHandle {
-    let (shutdown, receiver) = tokio::sync::watch::channel(false);
-    let join = tauri::async_runtime::spawn(scheduler_loop(db, vault, receiver));
-    SchedulerHandle {
-        shutdown,
-        join: Some(join),
-    }
-}
-
-async fn scheduler_loop(
+pub fn spawn(
     db: Arc<Mutex<Database>>,
     vault: Arc<dyn Vault>,
-    mut shutdown: tokio::sync::watch::Receiver<bool>,
-) {
-    if *shutdown.borrow() {
-        return;
-    }
-    // 启动时只补一次最新，不重放错过的周期。
-    run_round(&db, &vault).await;
-
-    loop {
-        let config = {
-            let Ok(guard) = db.lock() else { return };
-            load_config(&guard)
-        };
-        if !config.enabled {
-            if sleep_or_shutdown(Duration::from_secs(DISABLED_POLL_SECONDS), &mut shutdown).await {
+    app: tauri::AppHandle,
+) -> SchedulerHandle {
+    SchedulerHandle::spawn(move |mut change| async move {
+        let mut attempts = HashMap::new();
+        loop {
+            if *change.borrow() {
                 return;
             }
+            let worker_db = Arc::clone(&db);
+            let worker_vault = Arc::clone(&vault);
+            let stopped = change.clone();
+            let app = app.clone();
+            let result = tokio::task::spawn_blocking(move || {
+                let next = refresh_round(
+                    &worker_db,
+                    worker_vault.as_ref(),
+                    &mut attempts,
+                    || *stopped.borrow(),
+                    || {
+                        let _ = app.emit("accounts-updated", ());
+                    },
+                );
+                (attempts, next)
+            })
+            .await;
+            let next = match result {
+                Ok((updated, next)) => {
+                    attempts = updated;
+                    next
+                }
+                Err(_) => return,
+            };
+            if background::wait(next, &mut change).await {
+                return;
+            }
+        }
+    })
+}
+
+fn now_seconds() -> i64 {
+    time::OffsetDateTime::now_utc().unix_timestamp()
+}
+
+/// 每个账户的抖动固定到这次查询及周期，避免每轮重抽导致到期时间漂移。
+fn deadline(account_id: &str, last_attempt: i64, interval: u64) -> i64 {
+    let mut hash = DefaultHasher::new();
+    (account_id, last_attempt, interval).hash(&mut hash);
+    let sample = (hash.finish() % 2001) as f64 / 1000.0 - 1.0;
+    last_attempt.saturating_add(jitter_seconds(interval, sample) as i64)
+}
+
+fn schedule(db: &Database, attempts: &HashMap<String, i64>, now: i64) -> Vec<(String, i64)> {
+    let config = load_config(db);
+    if !config.enabled {
+        return vec![];
+    }
+    let Ok(accounts) = accounts::accounts_list(db, false) else {
+        return vec![];
+    };
+    accounts.into_iter().map(|account| {
+        // 成功和失败均算查询尝试；手动刷新也自然推迟下一次自动查询。
+        let saved: Option<i64> = db.conn().query_row(
+            "SELECT MAX(CAST(strftime('%s', queried_at) AS INTEGER)) FROM account_snapshots WHERE account_id = ?1",
+            [&account.account_id], |row| row.get(0),
+        ).ok().flatten();
+        let last = saved.into_iter().chain(attempts.get(&account.account_id).copied()).max();
+        let due = last.map(|last| deadline(&account.account_id, last, config.interval_for(account.config_kind))).unwrap_or(now);
+        (account.account_id, due)
+    }).collect()
+}
+
+fn refresh_round(
+    db: &Arc<Mutex<Database>>,
+    vault: &dyn Vault,
+    attempts: &mut HashMap<String, i64>,
+    stopped: impl Fn() -> bool,
+    notify: impl Fn(),
+) -> Option<Duration> {
+    if stopped() {
+        return None;
+    }
+    let now = now_seconds();
+    // 启动首轮也先检查 enabled。无账户/关闭时返回 None，纯等待设置变化。
+    let scheduled = {
+        let guard = db.lock().ok()?;
+        schedule(&guard, attempts, now)
+    };
+    let mut changed = false;
+    for (account_id, due) in scheduled {
+        if due > now {
             continue;
         }
-        // 10% 抖动；真实样本取自 OS 熵源。
-        let sample = rand::random::<f64>() * 2.0 - 1.0;
-        let interval = jittered_duration(config.tick_seconds(), sample);
-        if sleep_or_shutdown(interval, &mut shutdown).await {
-            return;
+        if stopped() {
+            break;
         }
-        run_round(&db, &vault).await;
+        {
+            let guard = db.lock().ok()?;
+            if !load_config(&guard).enabled {
+                break;
+            }
+        }
+        attempts.insert(account_id.clone(), now_seconds());
+        // HTTP / 凭据读取在 DB 锁外；删除或换凭据后不提交旧查询结果。
+        drop(account_query::query_account_shared(db, vault, &account_id));
+        changed = true;
     }
-}
-
-/// 在阻塞线程池里执行一轮刷新：网络 I/O 与 SQLite 都是阻塞操作，不得占用异步工作线程。
-async fn run_round(db: &Arc<Mutex<Database>>, vault: &Arc<dyn Vault>) {
-    let db = Arc::clone(db);
-    let vault = Arc::clone(vault);
-    // 阻塞任务无法被 abort 打断；取消只在 await 点生效（已知边界）。
-    let _ = tokio::task::spawn_blocking(move || refresh_round(&db, &vault)).await;
-}
-
-/// 等待时长或关闭信号；返回 `true` 表示收到关闭。
-async fn sleep_or_shutdown(
-    duration: Duration,
-    shutdown: &mut tokio::sync::watch::Receiver<bool>,
-) -> bool {
-    tokio::select! {
-        _ = tokio::time::sleep(duration) => false,
-        changed = shutdown.changed() => changed.is_err() || *shutdown.borrow(),
+    if changed {
+        notify();
     }
-}
-
-/// 一轮刷新：对每个有效账户按各自周期判断是否到期（到期才刷，错过合并为一次）。
-fn refresh_round(db: &Arc<Mutex<Database>>, vault: &Arc<dyn Vault>) {
-    let Ok(mut guard) = db.lock() else { return };
-    let Ok(accounts) = accounts::accounts_list(&guard, false) else {
-        return;
-    };
-    for account in accounts {
-        // 失败静默：查询层已把平台/网络失败写成 stale/unavailable；本地错误直接跳过。
-        drop(account_query::query_account(
-            &mut guard,
-            vault.as_ref(),
-            &account.account_id,
-        ));
-    }
+    let now = now_seconds();
+    let guard = db.lock().ok()?;
+    schedule(&guard, attempts, now)
+        .into_iter()
+        .map(|(_, due)| Duration::from_secs(due.saturating_sub(now).max(1) as u64))
+        .min()
 }
 
 #[cfg(test)]
@@ -328,6 +350,98 @@ mod tests {
         assert_eq!(
             load_config(&db).balance_interval_seconds,
             DEFAULT_BALANCE_INTERVAL_SECONDS
+        );
+    }
+    fn new_account(db: &Database, kind: ConfigKind) -> accounts::Account {
+        accounts::account_create(
+            db,
+            &accounts::NewAccount {
+                platform: "deepseek".into(),
+                region: None,
+                display_name: "test".into(),
+                vendor_user_id: None,
+                scope: None,
+                config_kind: kind,
+            },
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn each_account_uses_its_own_deadline_and_latest_manual_or_failed_attempt() {
+        let db = Database::open_in_memory().unwrap();
+        let balance = new_account(&db, ConfigKind::ApiPayg);
+        let plan = new_account(&db, ConfigKind::CodingPlan);
+        let both = new_account(&db, ConfigKind::Both);
+        for account in [&balance, &plan, &both] {
+            db.conn().execute("INSERT INTO account_snapshots (account_id, queried_at, status) VALUES (?1, '2026-10-11T00:00:00Z', 'unavailable')", [&account.account_id]).unwrap();
+        }
+        let last = 1791676800;
+        let due = schedule(&db, &HashMap::new(), last + 400);
+        assert!(
+            due.iter()
+                .find(|(id, _)| id == &balance.account_id)
+                .unwrap()
+                .1
+                > last + 400
+        );
+        assert!(due.iter().find(|(id, _)| id == &plan.account_id).unwrap().1 <= last + 400);
+        assert!(due.iter().find(|(id, _)| id == &both.account_id).unwrap().1 <= last + 400);
+        let attempts = HashMap::from([(plan.account_id.clone(), last + 400)]);
+        assert!(
+            schedule(&db, &attempts, last + 400)
+                .iter()
+                .find(|(id, _)| id == &plan.account_id)
+                .unwrap()
+                .1
+                > last + 400
+        );
+        assert_eq!(
+            deadline(&plan.account_id, last, 300),
+            deadline(&plan.account_id, last, 300)
+        );
+    }
+
+    #[test]
+    fn disabled_first_round_does_not_query_or_notify_and_empty_waits() {
+        let db = Arc::new(Mutex::new(Database::open_in_memory().unwrap()));
+        let vault = crate::vault::MemoryVault::default();
+        assert!(refresh_round(
+            &db,
+            &vault,
+            &mut HashMap::new(),
+            || false,
+            || panic!("empty round queried")
+        )
+        .is_none());
+        {
+            let guard = db.lock().unwrap();
+            new_account(&guard, ConfigKind::ApiPayg);
+            save_config(
+                &guard,
+                &SchedulerConfig {
+                    enabled: false,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        }
+        assert!(refresh_round(
+            &db,
+            &vault,
+            &mut HashMap::new(),
+            || false,
+            || panic!("disabled round queried")
+        )
+        .is_none());
+        assert_eq!(
+            db.lock()
+                .unwrap()
+                .conn()
+                .query_row("SELECT COUNT(*) FROM account_snapshots", [], |r| r
+                    .get::<_, i64>(0))
+                .unwrap(),
+            0
         );
     }
 }

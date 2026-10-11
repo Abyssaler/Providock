@@ -51,3 +51,7 @@
 ### identical-two-requests（2 事件）
 - 两次真实请求的 last_token_usage 完全相同 {70,10,0,5}（各 fresh 60, total 75）
 - 两条都计入：fresh 120, read 20, input_total 140, output 10, total 150, requests 2
+
+### replayed-cumulative（2 事件）
+
+同一 total+last 快照在同一或相邻 limit_id 重播，不是新消费。七条 token_count（包含零 last 心跳）只有两次累计推进：每次输入 100（缓存 20）、输出 20，因此总量 240；相同 last 数字但累计推进的两次请求都保留。预期人工计算。

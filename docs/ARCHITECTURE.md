@@ -2,7 +2,7 @@
 
 ## 1. 技术选择
 
-采用 Tauri 2 桌面壳、Rust 后端、React + TypeScript + Vite 前端、SQLite 本地存储。理由是只读文件/数据库采集、系统凭据库、低常驻开销和两平台安装支持。界面使用 Tailwind 与轻量无障碍组件，图表采用能在系统 WebView 工作的库。具体依赖版本在搭建时锁定，不在本文虚构“最新版”。
+采用 Tauri 2 桌面壳、Rust 后端、React + TypeScript + Vite 前端、SQLite 本地存储。理由是只读文件/数据库采集、系统凭据库、低常驻开销和两平台安装支持。当前界面使用 React 与本地 CSS，趋势以 SVG 呈现；后续组件/图表库选型需验证系统 WebView 兼容性。具体依赖版本在搭建时锁定，不在本文虚构“最新版”。
 
 Rust 侧承担采集、账户 HTTP、凭据访问、Token 标准化、持久化、聚合和导出。前端只接收脱敏 DTO、分页数据和任务状态；不持有 HTTP 鉴权信息。账户 adapter、Agent adapter、网关 parser 共享标准契约，彼此不共享隐式配置。
 
@@ -44,7 +44,7 @@ src-tauri/src/
   adapters/agents/     # 八个 Agent 的独立适配器
   adapters/accounts/   # 平台、区域、认证类型适配器
   adapters/content/    # 各源的正文映射，独立于统计
-  ingestion/           # 发现、文件监视、轮询、游标、事务、去重
+  ingestion/           # 发现、定时扫描、游标、事务、去重
   gateway/             # 可选转发、协议 usage 解析
   storage/             # 自有数据库与 migrations
   vault/               # macOS Keychain / Windows 凭据库
@@ -66,17 +66,23 @@ Agent 适配器提供 `detect_roots`、`detect_format`、`scan_incremental`、`c
 
 ## 5. 同步与一致性
 
-首次扫描发现历史，随后文件监视提示增量扫描；监视不能保证可靠，因此同时保留低频目录对账。拟定活跃源 2 秒去抖、30 秒补扫，未发现源每 5 分钟检查，均可调整。扫描在有界后台任务中执行，不阻塞 UI。
+按用户确认的 D10，默认启动时同步一次 Agent 日志；每轮结束后等待 60 秒再扫描，不启用文件监听，不补发休眠期间错过的周期。既有游标/变化检测跳过未变化文件；变化文件沿用各适配器的解析方式（部分仍整文件读取）。手动与自动同步共享并发门，已有任务时合并触发；各数据源之间释放数据库锁。关闭自动采集后只等待设置通知，手动同步仍可用。
+
+账户调度与 Agent 采集独立。每个账户以最近查询尝试（成功/失败、含手动）和配置类型计算下一次到期，纯余额 15 分钟、计划/混合账户 5 分钟，加固定到本次尝试的 ±10% 抖动；仅查询到期账户。启动首轮先检查开关。HTTP/凭据读取在数据库锁外，提交时复核账户与凭据未变化；同账户并发查询合并。关闭调度或无账户时等待通知，不轮询设置。设置更新、账户增删改或手动刷新会唤醒相应任务重新计算。关闭窗口停止两个调度任务；正在执行的阻塞读取/HTTP 收尾后不再开始下一项。
 
 一次提交事务包含事件 upsert、身份表、会话更新、游标更新；其中任一步失败全部回滚。文件游标记录源实例、文件身份、代数、字节偏移、尾部校验和解析器版本。未写完的 JSONL 尾行不推进已提交偏移；轮转、截断、文件替换重新发现，重新扫描靠身份去重保障。
 
 源 SQLite 用只读连接、短事务和有界 busy timeout。尊重活动 WAL，不能用 immutable=1 假设数据库不会变化，不能 checkpoint、VACUUM 或 migrate 源数据库。自有数据库使用 WAL、单写入队列、参数化 SQL 和版本化迁移。
 
-解析器升级在新的 parse_run 中重建该源派生记录，成功后事务切换活跃版本，失败保留旧数据；聚合按当前活跃版本计算。禁止新旧解析结果同时计入。
+目标是解析器升级在新的 parse_run 中重建该源派生记录，成功后事务切换活跃版本，失败保留旧数据；禁止新旧解析结果同时计入。当前整源原子切换尚未实现，已有保证是逐批事件/游标事务。Codex v2 通过保留身份重读、精确退休已证明重复/零心跳身份修复旧记录，不能据此宣称通用升级/截断问题已全部解决。
 
 ## 6. IPC 与前端状态
 
-计划命令：`usage_summary`、`usage_series`、`usage_events_page`、`sessions_page`、`session_content_page`、`sources_list`、`source_update`、`sync_start`、`sync_cancel`、`accounts_list`、`account_save`、`account_rotate_credential`、`account_refresh`、`account_delete`、`export_statistics`、`gateway_status`、`gateway_start`、`gateway_stop`。
+调度设置复用 settings 表：`usage.auto_sync_enabled` 与 `accounts.scheduler.enabled`，缺省均为 true；开关保存采用同一事务，之后只唤醒被修改的任务。本次不变更 DB schema。
+
+已接入采集控制命令：`usage_sync_status`、`monitoring_settings`、`monitoring_update`、`usage_options`，事件 `usage-sync-updated` / `accounts-updated`。用量页默认每 30 秒刷新数据库统计，可选关闭/5/10/30/60 秒；页面隐藏时暂停该显示计时器，后端采集周期独立。
+
+其余命令与规划（具体接线以 lib.rs 与 CURRENT_STATUS 为准）：`usage_summary`、`usage_series`、`usage_events_page`、`sessions_page`、`session_content_page`、`sources_list`、`source_update`、`sync_start`、`sync_cancel`、`accounts_list`、`account_save`、`account_rotate_credential`、`account_refresh`、`account_delete`、`export_statistics`、`gateway_status`、`gateway_start`、`gateway_stop`。
 
 保存凭据命令只接受输入、不返回秘密；不提供“列出所有明文 Key”命令。状态事件为采集进度、账本版本变化、账户刷新完成和错误代码，消息中不含原始响应或正文。前端查询键包括筛选、时区、活跃账本版本，避免切换时显示旧范围数据。
 
@@ -92,6 +98,6 @@ Agent 适配器提供 `detect_roots`、`detect_format`、`scan_incremental`、`c
 
 ## 8. 质量与性能目标
 
-目标数据集为 100 万条标准事件。已索引聚合 p95 < 500ms、增量事件在源落盘后通常 5 秒内显示、空闲 CPU 平均 < 1%、RSS 目标 < 200MB；这些是待基准验证目标。记录测试设备、系统、数据规模和冷/热缓存。大文件流式处理，不加载整文件；消息分页，不渲染完整对话。没有达到目标时披露测量值，不虚报通过。
+目标数据集为 100 万条标准事件。已索引聚合 p95 < 500ms、增量事件在源落盘后通常一个 60 秒采集周期及扫描时间内显示、空闲 CPU 平均 < 1%、RSS 目标 < 200MB；这些是待基准验证目标。记录测试设备、系统、数据规模和冷/热缓存。大文件流式处理，不加载整文件；消息分页，不渲染完整对话。没有达到目标时披露测量值，不虚报通过。
 
 结构化诊断只记录适配器、错误码、文件匿名 ID 和计数；便于定位未知格式，但不泄露路径、Key 或对话。默认无遥测和远程错误上传。

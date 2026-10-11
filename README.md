@@ -2,7 +2,7 @@
 
 本地优先的 Agent 用量监测与 AI 账户额度管理桌面应用。
 
-**当前状态：核心链路已实现并通过样本级验证（2026-10-11）。** 八个本地 Agent 的解析器、采集入库、聚合与用量/账户/会话/数据源四页 UI 均已落地；macOS 实机只读验证了 Kimi Code 与 OpenCode。账户查询全部接口为样本验证（mock），未做真实凭据实测；Windows 实机、Claude Desktop 网关演示、正文查看的实机联调尚未完成。**准确的逐项状态见 [CURRENT_STATUS.md](docs/CURRENT_STATUS.md)，不要把本文的功能描述当作已实机验收。**
+**当前状态：核心链路已实现并通过样本级验证（2026-10-11）。** 八个本地 Agent 的解析器、采集入库、聚合与用量/账户/会话/数据源四页 UI 均已落地；macOS 实机只读验证了 Kimi Code、Codex 与 OpenCode。账户查询全部接口为样本验证（mock），未做真实凭据实测；Windows 实机、Claude Desktop 网关演示、正文查看的实机联调尚未完成。**准确的逐项状态见 [CURRENT_STATUS.md](docs/CURRENT_STATUS.md)，不要把本文的功能描述当作已实机验收。**
 
 ## 开发命令
 
@@ -24,6 +24,16 @@ Providock 聚合电脑上的 Agent Token 用量、输入输出、缓存读写及
 首个稳定版本目标：Claude Code、Codex、Gemini CLI、Grok Build、OpenCode、Pi、MiniMax Code、Kimi Code；另以默认关闭的可选采集网关覆盖 cc-switch 已有的 Claude Desktop 模型映射请求范围。界面参考 cc-switch **v3.20.4** 的布局和视觉风格，监测能力对齐研究时的当前源码基线。
 
 首版语言为简体中文，正式平台为 Apple Silicon macOS 和 Windows x64 普通安装包。可选查看原始对话，默认只保存统计元数据。
+
+## 自动监测
+
+应用启动后默认同步一次本机 Agent 日志，随后每 60 秒扫描；通过文件游标/变化检测跳过未变化内容，不启用文件监听。用量页「数据采集与调度」和设置页提供独立的「Agent 自动同步」「账户自动刷新」开关，保存到本机，关闭后重启也不会执行自动首轮；手动同步/刷新仍可用。应用关闭后停止调度，休眠期间的周期不会积压补发。
+
+账户按各自最近查询时间判断到期：纯 API 余额默认 15 分钟，Coding Plan/两者兼有默认 5 分钟，含 ±10% 抖动。用量页的「显示刷新」只更新数据库统计，不改变采集或账户请求频率。
+
+详细行为、核对结果、格式限制和未验证边界见 [自动监测验证记录](docs/research/validation/2026-10-11-auto-monitoring.md)；各次变更见 [CHANGELOG](CHANGELOG.md)。
+
+本机 Kimi Code / Codex 数字核对：`python3 scripts/verify_local_usage.py`。脚本只读源日志，在临时目录提取不含正文的计量快照，以内存数据库扫描并与独立计算比较，结束后删除快照。它不查询平台订阅额度，也不触发推理；遇到不支持的格式会停止并说明原因。
 
 ## 阅读入口
 

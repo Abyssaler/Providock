@@ -559,50 +559,63 @@ pub fn query_account_via(
     transport: &dyn HttpTransport,
     base_override: Option<&str>,
 ) -> Result<SnapshotOutcome> {
+    let prepared = prepare_query(db, account_id)?;
+    let outcome = execute_query(&prepared, vault, transport, base_override)?;
+    finish_query(db, &prepared, outcome)
+}
+
+struct PreparedQuery {
+    account: Account,
+    credential: Option<accounts::ActiveCredential>,
+    plan: AdapterPlan,
+    queried_at: String,
+}
+
+fn prepare_query(db: &Database, account_id: &str) -> Result<PreparedQuery> {
     let account = accounts::account_get(db, account_id)?
         .ok_or_else(|| QueryError::AccountNotFound(account_id.to_owned()))?;
     if account.is_deleted() {
         return Err(QueryError::AccountDeleted(account_id.to_owned()));
     }
-    let queried_at = accounts::now_rfc3339();
     let credential = accounts::active_credential_ref(db, account_id)?;
     let plan = resolve_plan(db, &account, credential.as_ref().map(|c| c.credential_type))?;
-    // Codex 是进程协议（JSON-RPC），不在本 HTTP 服务接线范围：返回 unsupported 占位。
-    if let AdapterPlan::Codex = plan {
-        return query_codex(db, vault, account_id);
-    }
-    let spec = build_spec(&plan)?;
+    Ok(PreparedQuery {
+        account,
+        credential,
+        plan,
+        queried_at: accounts::now_rfc3339(),
+    })
+}
 
-    // 无有效凭据：属认证缺失，记 auth_required 失败（保留旧快照）。
-    let Some(credential) = credential else {
-        let signal = FailureSignal {
+fn execute_query(
+    prepared: &PreparedQuery,
+    vault: &dyn Vault,
+    transport: &dyn HttpTransport,
+    base_override: Option<&str>,
+) -> Result<ParseOutcome> {
+    if matches!(prepared.plan, AdapterPlan::Codex) {
+        return Ok(ParseOutcome::Fail(FailureSignal {
+            unsupported: true,
+            ..Default::default()
+        }));
+    }
+    let spec = build_spec(&prepared.plan)?;
+    let Some(credential) = &prepared.credential else {
+        return Ok(ParseOutcome::Fail(FailureSignal {
             status_hint: Some(SnapshotStatus::AuthRequired),
             ..Default::default()
-        };
-        return record_failure(db, account_id, None, &queried_at, &signal);
+        }));
     };
-
-    // 短期解封：拿到秘密后立刻用它构造请求头，随后 secret 在作用域结束即 drop（Drop 清零）。
     let secret = match vault.get(&credential.vault_ref) {
         Ok(secret) => secret,
-        // 凭据条目缺失等同认证失效。
         Err(VaultError::NotFound) => {
-            let signal = FailureSignal {
+            return Ok(ParseOutcome::Fail(FailureSignal {
                 status_hint: Some(SnapshotStatus::AuthRequired),
                 ..Default::default()
-            };
-            return record_failure(
-                db,
-                account_id,
-                Some(&credential.credential_id),
-                &queried_at,
-                &signal,
-            );
+            }))
         }
-        // 凭据库锁定/不可用：不清空、不写失败；由上层显示已保存快照（SECURITY_PRIVACY 第 2/6 节）。
         Err(other) => return Err(QueryError::Vault(other)),
     };
-
     let auth_header = spec
         .auth
         .as_ref()
@@ -616,34 +629,35 @@ pub fn query_account_via(
         timeout_seconds: spec.timeout_hint_seconds.clamp(1, TOTAL_TIMEOUT_SECONDS),
         max_body_bytes: MAX_BODY_BYTES,
     };
-    // 秘密已进入请求头字符串，尽快释放独立的 SecretString。
     drop(secret);
+    Ok(match transport.send(&request) {
+        Ok(response) => parse_payload(&prepared.plan, response.status, &response.body),
+        Err(_) => ParseOutcome::Fail(FailureSignal {
+            transport_failed: true,
+            status_hint: Some(SnapshotStatus::Unavailable),
+            ..Default::default()
+        }),
+    })
+}
 
-    let response = match transport.send(&request) {
-        Ok(response) => response,
-        Err(_transport_error) => {
-            // 传输层失败：stale/unavailable，保留最近成功值（契约第 8 节）。
-            let signal = FailureSignal {
-                transport_failed: true,
-                status_hint: Some(SnapshotStatus::Unavailable),
-                ..Default::default()
-            };
-            return record_failure(
-                db,
-                account_id,
-                Some(&credential.credential_id),
-                &queried_at,
-                &signal,
-            );
-        }
-    };
-
-    match parse_payload(&plan, response.status, &response.body) {
+fn finish_query(
+    db: &mut Database,
+    prepared: &PreparedQuery,
+    outcome: ParseOutcome,
+) -> Result<SnapshotOutcome> {
+    let account_id = &prepared.account.account_id;
+    if matches!(prepared.plan, AdapterPlan::Codex) {
+        return Ok(codex_unsupported(account_id));
+    }
+    match outcome {
         ParseOutcome::Ok(payload) => {
             let draft = NewSnapshot {
-                account_id: account_id.to_owned(),
-                credential_id: Some(credential.credential_id.clone()),
-                queried_at: queried_at.clone(),
+                account_id: account_id.clone(),
+                credential_id: prepared
+                    .credential
+                    .as_ref()
+                    .map(|c| c.credential_id.clone()),
+                queried_at: prepared.queried_at.clone(),
                 provider_as_of: payload.provider_as_of,
                 evidence: payload.evidence,
                 expires_at: None,
@@ -661,11 +675,78 @@ pub fn query_account_via(
         ParseOutcome::Fail(signal) => record_failure(
             db,
             account_id,
-            Some(&credential.credential_id),
-            &queried_at,
+            prepared
+                .credential
+                .as_ref()
+                .map(|c| c.credential_id.as_str()),
+            &prepared.queried_at,
             &signal,
         ),
     }
+}
+
+/// 生产共享入口：网络与凭据读取不持有数据库锁。完成时校验账户/凭据仍有效，
+/// 避免删除、换凭据或编辑账户期间把旧请求结果写回。
+pub fn query_account_shared(
+    db: &std::sync::Mutex<Database>,
+    vault: &dyn Vault,
+    account_id: &str,
+) -> Result<SnapshotOutcome> {
+    query_account_shared_via(db, vault, account_id, &ReqwestTransport::new())
+}
+
+fn query_account_shared_via(
+    db: &std::sync::Mutex<Database>,
+    vault: &dyn Vault,
+    account_id: &str,
+    transport: &dyn HttpTransport,
+) -> Result<SnapshotOutcome> {
+    type QueryLocks = std::sync::Mutex<
+        std::collections::HashMap<(usize, String), std::sync::Weak<std::sync::Mutex<()>>>,
+    >;
+    static LOCKS: OnceLock<QueryLocks> = OnceLock::new();
+    let gate = {
+        let mut locks = LOCKS
+            .get_or_init(Default::default)
+            .lock()
+            .map_err(|_| QueryError::Build("query lock unavailable".into()))?;
+        locks.retain(|_, gate| gate.strong_count() > 0);
+        let key = (db as *const _ as usize, account_id.to_owned());
+        match locks.get(&key).and_then(std::sync::Weak::upgrade) {
+            Some(gate) => gate,
+            None => {
+                let gate = std::sync::Arc::new(std::sync::Mutex::new(()));
+                locks.insert(key, std::sync::Arc::downgrade(&gate));
+                gate
+            }
+        }
+    };
+    let _in_flight = gate
+        .try_lock()
+        .map_err(|_| QueryError::Build("account query already in progress".into()))?;
+    let prepared = {
+        let db = db
+            .lock()
+            .map_err(|_| QueryError::Build("database lock unavailable".into()))?;
+        prepare_query(&db, account_id)?
+    };
+    let outcome = execute_query(&prepared, vault, transport, None)?;
+    let mut db = db
+        .lock()
+        .map_err(|_| QueryError::Build("database lock unavailable".into()))?;
+    let current = accounts::account_get(&db, account_id)?
+        .ok_or_else(|| QueryError::AccountNotFound(account_id.into()))?;
+    if current.is_deleted() {
+        return Err(QueryError::AccountDeleted(account_id.into()));
+    }
+    if current != prepared.account
+        || accounts::active_credential_ref(&db, account_id)? != prepared.credential
+    {
+        return Err(QueryError::Build(
+            "account changed during query; refresh again".into(),
+        ));
+    }
+    finish_query(&mut db, &prepared, outcome)
 }
 
 fn record_failure(
@@ -693,7 +774,11 @@ pub fn query_codex(
     _vault: &dyn Vault,
     account_id: &str,
 ) -> Result<SnapshotOutcome> {
-    Ok(SnapshotOutcome {
+    Ok(codex_unsupported(account_id))
+}
+
+fn codex_unsupported(account_id: &str) -> SnapshotOutcome {
+    SnapshotOutcome {
         account_id: account_id.to_owned(),
         status: SnapshotStatus::Unsupported,
         snapshot_id: None,
@@ -705,7 +790,7 @@ pub fn query_codex(
         quota_windows: Vec::new(),
         usage_metrics: Vec::new(),
         stale: false,
-    })
+    }
 }
 
 /// 供上层构造鉴权头做单元测试：不暴露任何秘密来源。
@@ -1281,5 +1366,102 @@ mod tests {
 
         assert_eq!(outcome.status, SnapshotStatus::Ok);
         assert_eq!(outcome.balances[0].amount, "3.00");
+    }
+    struct InspectTransport<'a> {
+        db: &'a Mutex<Database>,
+        account_id: &'a str,
+        delete: bool,
+    }
+    impl HttpTransport for InspectTransport<'_> {
+        fn send(
+            &self,
+            _request: &HttpRequest,
+        ) -> std::result::Result<HttpResponse, TransportError> {
+            let guard = self.db.try_lock().expect("HTTP held the database lock");
+            if self.delete {
+                guard.conn().execute("UPDATE accounts SET deleted_at = '2026-10-11T12:00:00Z' WHERE account_id = ?1", [self.account_id]).unwrap();
+            }
+            drop(guard);
+            // Another refresh of this same account must not send a second request.
+            let result =
+                query_account_shared_via(self.db, &MemoryVault::new(), self.account_id, self);
+            assert!(
+                matches!(result, Err(QueryError::Build(message)) if message.contains("already in progress"))
+            );
+            Ok(HttpResponse { status: 200, body: br#"{"is_available":true,"balance_infos":[{"currency":"USD","total_balance":"12.34","granted_balance":"2.00","topped_up_balance":"10.34"}]}"#.to_vec() })
+        }
+    }
+
+    #[test]
+    fn shared_query_releases_database_lock_and_coalesces_concurrent_refreshes() {
+        let db = Mutex::new(Database::open_in_memory().unwrap());
+        let vault = MemoryVault::new();
+        let account = {
+            let guard = db.lock().unwrap();
+            let account = account_create(
+                &guard,
+                &NewAccount::new("deepseek", "test", ConfigKind::ApiPayg),
+            )
+            .unwrap();
+            save_credential(&guard, &vault, &account.account_id, CredentialType::ApiKey);
+            account
+        };
+        let result = query_account_shared_via(
+            &db,
+            &vault,
+            &account.account_id,
+            &InspectTransport {
+                db: &db,
+                account_id: &account.account_id,
+                delete: false,
+            },
+        )
+        .unwrap();
+        assert_eq!(result.status, SnapshotStatus::Ok);
+        assert_eq!(
+            db.lock()
+                .unwrap()
+                .conn()
+                .query_row("SELECT COUNT(*) FROM account_snapshots", [], |r| r
+                    .get::<_, i64>(0))
+                .unwrap(),
+            1
+        );
+    }
+
+    #[test]
+    fn shared_query_does_not_write_back_after_account_deleted_during_http() {
+        let db = Mutex::new(Database::open_in_memory().unwrap());
+        let vault = MemoryVault::new();
+        let account = {
+            let guard = db.lock().unwrap();
+            let account = account_create(
+                &guard,
+                &NewAccount::new("deepseek", "test", ConfigKind::ApiPayg),
+            )
+            .unwrap();
+            save_credential(&guard, &vault, &account.account_id, CredentialType::ApiKey);
+            account
+        };
+        let result = query_account_shared_via(
+            &db,
+            &vault,
+            &account.account_id,
+            &InspectTransport {
+                db: &db,
+                account_id: &account.account_id,
+                delete: true,
+            },
+        );
+        assert!(matches!(result, Err(QueryError::AccountDeleted(_))));
+        assert_eq!(
+            db.lock()
+                .unwrap()
+                .conn()
+                .query_row("SELECT COUNT(*) FROM account_snapshots", [], |r| r
+                    .get::<_, i64>(0))
+                .unwrap(),
+            0
+        );
     }
 }

@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import MonitoringControls from "../features/usage/MonitoringControls";
 import UsagePage from "../features/usage/UsagePage";
 import AccountsPage from "../features/accounts/AccountsPage";
 import SessionsPage from "../features/sessions/SessionsPage";
 import SourcesPage from "../features/sources/SourcesPage";
 import "./app.css";
 
-type PageId = "usage" | "accounts" | "sessions" | "sources";
+type PageId = "usage" | "accounts" | "sessions" | "sources" | "settings";
 
 const PAGES: { id: PageId; label: string }[] = [
   { id: "usage", label: "用量" },
@@ -71,7 +72,10 @@ export default function App() {
           >
             ◐
           </button>
-          <button disabled title="设置将在后续任务中实现">
+          <button
+            onClick={() => setPage("settings")}
+            className={page === "settings" ? "active" : ""}
+          >
             设置
           </button>
         </div>
@@ -81,8 +85,17 @@ export default function App() {
         {page === "accounts" && <AccountsPage />}
         {page === "sessions" && <SessionsPage />}
         {page === "sources" && <SourcesPage />}
+        {page === "settings" && (
+          <section aria-label="采集设置">
+            <div className="page-head">
+              <h1>自动监测设置</h1>
+              <p className="muted">Agent 用量与平台账户分别调度，关闭自动任务不影响手动刷新。</p>
+            </div>
+            <MonitoringControls />
+          </section>
+        )}
         <footer className="foot">
-          <span>Providock · 工程骨架（T01）</span>
+          <span>Providock · 本地用量与账户管理</span>
           <span>本机记录 ≠ 平台全部消费 · 未提供 ≠ 0</span>
         </footer>
       </main>

@@ -84,8 +84,25 @@ pub fn finish_parse_run(db: &Database, run_id: i64, ok: bool, error: Option<&str
 
 /// 在一个事务里提交一批事件、会话更新与游标。
 pub fn commit_batch(db: &mut Database, run_id: i64, batch: &ImportBatch) -> Result<CommitStats> {
+    commit_batch_retiring(db, run_id, batch, &[])
+}
+
+/// 精确退休已证明重复的身份，与本批事件/游标一起提交；失败整体回滚。
+pub fn commit_batch_retiring(
+    db: &mut Database,
+    run_id: i64,
+    batch: &ImportBatch,
+    duplicates: &[String],
+) -> Result<CommitStats> {
     let tx = db.transaction()?;
     let mut stats = CommitStats::default();
+    for event_id in duplicates {
+        tx.execute("INSERT OR IGNORE INTO event_identity_tombstones (event_id, reason) SELECT event_id, 'duplicate_cumulative_snapshot' FROM usage_events WHERE event_id = ?1 AND source_id = ?2", rusqlite::params![event_id, batch.source_id])?;
+        stats.tombstoned += tx.execute(
+            "DELETE FROM usage_events WHERE event_id = ?1 AND source_id = ?2",
+            rusqlite::params![event_id, batch.source_id],
+        )? as u64;
+    }
 
     {
         let mut tombstone_stmt =

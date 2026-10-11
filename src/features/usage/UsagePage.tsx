@@ -1,252 +1,471 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import type {
+  MetricTotal,
+  MonitoringSettings,
   SourceScanReport,
-  UsageFilter,
+  SyncStatus,
+  UsageOptions,
   UsageSeriesPoint,
   UsageSummary,
 } from "../../contracts/usage";
-import { formatTokenCompact, formatTokenFull } from "../../lib/format";
+import { formatTokenFull } from "../../lib/format";
+import {
+  AGENTS,
+  agentLabel,
+  formatUsageCompact,
+  percentage,
+  periodFilter,
+  type Period,
+} from "./usageDisplay";
+import MonitoringControls from "./MonitoringControls";
+import "./usage.css";
 
-type Period = "today" | "7d" | "30d";
+const EMPTY_STATUS: SyncStatus = {
+  running: false,
+  lastCompletedAt: null,
+  lastError: null,
+  reports: [],
+};
 
-function periodFilter(p: Period): UsageFilter {
-  const now = new Date();
-  const from = new Date(now);
-  if (p === "today") {
-    from.setUTCHours(0, 0, 0, 0);
-  } else {
-    from.setUTCDate(now.getUTCDate() - (p === "7d" ? 7 : 30));
+function Metric({
+  label,
+  metric,
+  events,
+  hint,
+}: {
+  label: string;
+  metric: MetricTotal;
+  events: number;
+  hint?: string;
+}) {
+  return (
+    <div className="usage-metric">
+      <span className="muted">{label}</span>
+      <strong>{formatUsageCompact(metric.value)}</strong>
+      <small className="muted" title={hint}>
+        {hint ?? `覆盖 ${metric.knownEvents}/${events} 条记录`}
+      </small>
+    </div>
+  );
+}
+function Trend({ series }: { series: UsageSeriesPoint[] }) {
+  const known = series.map(([, value]) => (value === null ? null : Number(value)));
+  const max = Math.max(1, ...known.map((value) => value ?? 0));
+  const points = known.map((value, index) => ({
+    x: series.length === 1 ? 480 : 40 + (index * 880) / (series.length - 1),
+    y: value === null ? null : 215 - (value / max) * 175,
+  }));
+  // 未知值断开曲线，不能画成零消费。
+  let path = "";
+  let connected = false;
+  for (const point of points) {
+    if (point.y === null) {
+      connected = false;
+      continue;
+    }
+    path += `${connected ? "L" : "M"}${point.x},${point.y} `;
+    connected = true;
   }
-  return { from: from.toISOString(), to: now.toISOString() };
+  return (
+    <div className="usage-trend">
+      <svg viewBox="0 0 960 255" role="img" aria-label="每日 Token 使用趋势">
+        {[0, 1, 2, 3].map((row) => (
+          <g key={row}>
+            <line
+              x1="40"
+              x2="920"
+              y1={40 + (row * 175) / 3}
+              y2={40 + (row * 175) / 3}
+              className="trend-grid"
+            />
+            <text x="40" y={30 + (row * 175) / 3}>
+              {formatUsageCompact(String(Math.round(max * (1 - row / 3))))}
+            </text>
+          </g>
+        ))}
+        <path d={path} className="trend-line" />
+        {points.map((point, i) => (
+          <g key={series[i][0]}>
+            {point.y !== null && (
+              <circle cx={point.x} cy={point.y} r="4" className="trend-point">
+                <title>
+                  {series[i][0]} · {formatTokenFull(series[i][1])} Tokens
+                </title>
+              </circle>
+            )}
+            {(series.length <= 12 ||
+              i % Math.ceil(series.length / 10) === 0 ||
+              i === series.length - 1) && (
+              <text x={point.x} y="245" textAnchor="middle">
+                {series[i][0].slice(5)}
+              </text>
+            )}
+          </g>
+        ))}
+      </svg>
+      {series.some(([, value]) => value === null) && (
+        <p className="muted small">部分日期未提供总 Token，曲线保留缺口。</p>
+      )}
+    </div>
+  );
 }
 
 export default function UsagePage() {
-  const [period, setPeriod] = useState<Period>("7d");
+  const [monitoring, setMonitoring] = useState<MonitoringSettings | null>(null);
+  const [period, setPeriod] = useState<Period>("today");
+  const [dates, setDates] = useState({ start: "", end: "" });
+  const [agent, setAgent] = useState("");
+  const [sourceId, setSourceId] = useState("");
+  const [model, setModel] = useState("");
+  const [refreshSeconds, setRefreshSeconds] = useState(30);
   const [summary, setSummary] = useState<UsageSummary | null>(null);
   const [series, setSeries] = useState<UsageSeriesPoint[]>([]);
-  const [syncing, setSyncing] = useState(false);
-  const [syncReports, setSyncReports] = useState<SourceScanReport[] | null>(null);
+  const [options, setOptions] = useState<UsageOptions>({ sources: [], models: [] });
+  const [status, setStatus] = useState<SyncStatus>(EMPTY_STATUS);
+  const [manualBusy, setManualBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const request = useRef(0);
 
-  const refresh = useCallback((p: Period) => {
-    const filter = periodFilter(p);
-    invoke<UsageSummary>("usage_summary", { filter })
-      .then(setSummary)
-      .catch((e) => setError(String(e)));
-    invoke<UsageSeriesPoint[]>("usage_series", { filter })
-      .then(setSeries)
-      .catch(() => setSeries([]));
-  }, []);
+  const refresh = useCallback(async () => {
+    const version = ++request.current;
+    try {
+      const filter = {
+        ...periodFilter(period, new Date(), dates.start, dates.end),
+        agent: agent || undefined,
+        sourceId: sourceId || undefined,
+        model: model || undefined,
+      };
+      const [nextSummary, nextSeries, nextOptions] = await Promise.all([
+        invoke<UsageSummary>("usage_summary", { filter }),
+        invoke<UsageSeriesPoint[]>("usage_series", { filter }),
+        invoke<UsageOptions>("usage_options"),
+      ]);
+      if (version !== request.current) return;
+      setSummary(nextSummary);
+      setSeries(nextSeries);
+      setOptions(nextOptions);
+      setError(null);
+    } catch (e) {
+      if (version === request.current) setError(String(e));
+    }
+  }, [period, dates.start, dates.end, agent, sourceId, model]);
 
-  useEffect(() => refresh(period), [period, refresh]);
-
-  const onSync = () => {
-    setSyncing(true);
-    setError(null);
-    invoke<SourceScanReport[]>("sync_start")
-      .then((reports) => {
-        setSyncReports(reports);
-        refresh(period);
+  useEffect(() => {
+    void refresh();
+    return () => {
+      request.current++;
+    };
+  }, [refresh]);
+  useEffect(() => {
+    if (refreshSeconds === 0) return;
+    const timer = window.setInterval(() => {
+      if (!document.hidden) void refresh();
+    }, refreshSeconds * 1000);
+    const onVisible = () => {
+      if (!document.hidden) void refresh();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [refreshSeconds, refresh]);
+  useEffect(() => {
+    let active = true;
+    let unlisten: (() => void) | undefined;
+    void listen<SyncStatus>("usage-sync-updated", ({ payload }) => {
+      if (!active) return;
+      setStatus(payload);
+      if (!payload.running) void refresh();
+    })
+      .then((stop) => {
+        if (active) unlisten = stop;
+        else stop();
       })
-      .catch((e) => setError(String(e)))
-      .finally(() => setSyncing(false));
+      .catch(() => {});
+    void invoke<SyncStatus>("usage_sync_status")
+      .then((value) => {
+        if (active) setStatus(value);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+      unlisten?.();
+    };
+  }, [refresh]);
+
+  const onSync = async () => {
+    setManualBusy(true);
+    setError(null);
+    try {
+      await invoke<SourceScanReport[]>("sync_start");
+      setStatus(await invoke<SyncStatus>("usage_sync_status"));
+      await refresh();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setManualBusy(false);
+    }
   };
-
-  const empty = summary !== null && summary.events === 0;
-  const maxSeries = series.reduce((m, [, v]) => Math.max(m, v ? Number(v) : 0), 0);
-
+  const busy = status.running || manualBusy;
+  const costs = summary?.costReported ?? [];
   return (
-    <section aria-label="用量页面">
-      <div className="page-head">
+    <section className="usage-page" aria-label="用量页面">
+      <div className="usage-heading">
         <div>
-          <h1>每一份用量，都有来源</h1>
-          <p className="muted">查看本机 Agent 消耗，追踪输入、输出与缓存。</p>
+          <h1>使用统计</h1>
+          <p className="muted">查看本机 AI Agent 的使用情况与成本统计</p>
         </div>
-        <div className="actions">
-          <button className={period === "today" ? "active" : ""} onClick={() => setPeriod("today")}>
-            今天
+        <details className="usage-monitor">
+          <summary>数据采集与调度</summary>
+          <MonitoringControls onChange={setMonitoring} />
+        </details>
+      </div>
+      <div className="usage-toolbar">
+        <div className="agent-tabs" role="group" aria-label="Agent 筛选">
+          <button
+            className={!agent ? "active" : ""}
+            aria-pressed={!agent}
+            onClick={() => {
+              setAgent("");
+              setSourceId("");
+            }}
+          >
+            全部
           </button>
-          <button className={period === "7d" ? "active" : ""} onClick={() => setPeriod("7d")}>
-            最近 7 天
-          </button>
-          <button className={period === "30d" ? "active" : ""} onClick={() => setPeriod("30d")}>
-            最近 30 天
-          </button>
-          <button className="primary" disabled={syncing} onClick={onSync}>
-            {syncing ? "同步中…" : "同步记录"}
-          </button>
+          {AGENTS.map(([id, label]) => (
+            <button
+              key={id}
+              className={agent === id ? "active" : ""}
+              aria-pressed={agent === id}
+              onClick={() => {
+                setAgent(id);
+                setSourceId("");
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="usage-selects">
+          <select
+            aria-label="数据源筛选"
+            value={sourceId}
+            onChange={(e) => setSourceId(e.target.value)}
+          >
+            <option value="">全部来源</option>
+            {options.sources
+              .filter((source) => !agent || source.agent === agent)
+              .map((source) => (
+                <option key={source.sourceId} value={source.sourceId}>
+                  {agentLabel(source.agent)} · {source.label}
+                </option>
+              ))}
+          </select>
+          <select aria-label="模型筛选" value={model} onChange={(e) => setModel(e.target.value)}>
+            <option value="">全部模型</option>
+            {options.models.map((model) => (
+              <option key={model}>{model}</option>
+            ))}
+          </select>
+          <select
+            aria-label="界面刷新周期"
+            title="只刷新统计显示，不改变每 60 秒的日志采集周期"
+            value={refreshSeconds}
+            onChange={(e) => setRefreshSeconds(Number(e.target.value))}
+          >
+            {[0, 5, 10, 30, 60].map((seconds) => (
+              <option key={seconds} value={seconds}>
+                {seconds ? `显示刷新 · ${seconds}s` : "显示刷新 · 关闭"}
+              </option>
+            ))}
+          </select>
+          <select
+            aria-label="日期范围"
+            value={period}
+            onChange={(e) => setPeriod(e.target.value as Period)}
+          >
+            <option value="today">当天</option>
+            <option value="7d">最近 7 天</option>
+            <option value="30d">最近 30 天</option>
+            <option value="all">全部时间</option>
+            <option value="custom">自定义日期</option>
+          </select>
         </div>
       </div>
-
-      <p className="muted small">
-        数据域：本地日志（网关与导入域单独统计，不混入）· 趋势按 UTC 日聚合
-      </p>
-
-      {error && (
+      {period === "custom" && (
+        <div className="actions usage-dates">
+          <label>
+            开始{" "}
+            <input
+              type="date"
+              value={dates.start}
+              onChange={(e) => setDates({ ...dates, start: e.target.value })}
+            />
+          </label>
+          <label>
+            结束{" "}
+            <input
+              type="date"
+              value={dates.end}
+              min={dates.start}
+              onChange={(e) => setDates({ ...dates, end: e.target.value })}
+            />
+          </label>
+        </div>
+      )}
+      <div className="usage-sync-line">
+        <span className="muted small" aria-live="polite">
+          {busy
+            ? "正在同步本机日志…"
+            : status.lastCompletedAt
+              ? `最近同步 ${new Date(status.lastCompletedAt).toLocaleString("zh-CN")}`
+              : "等待首次同步"}{" "}
+          · 本地日志账本
+          {monitoring &&
+            ` · ${monitoring.agentAutoSyncEnabled ? "每 60 秒自动同步" : "自动同步已关闭"}`}
+        </span>
+        <button disabled={busy} onClick={() => void onSync()}>
+          {busy ? "同步中…" : "立即同步"}
+        </button>
+      </div>
+      {(error || status.lastError) && (
         <div className="card" role="alert">
-          <p className="muted">查询失败：{error}</p>
+          {error ?? status.lastError}
         </div>
       )}
-
-      {syncReports !== null && (
-        <div className="card">
-          {syncReports.length === 0 ? (
-            <p className="muted">
-              未发现 Kimi Code / Codex 的默认目录。可在「数据源」页了解发现规则；其余六个 Agent
-              的适配器在后续任务接入。
-            </p>
-          ) : (
-            <ul className="report-list">
-              {syncReports.map((r) => (
-                <li key={r.sourceId}>
-                  <strong>{r.agent}</strong>：扫描 {r.filesScanned}/{r.filesSeen} 个文件，新增{" "}
-                  {r.eventsInserted} 条，已存在 {r.eventsAlreadyPresent} 条（重扫不重复计数）
-                  {r.filesDeferred > 0 && `，${r.filesDeferred} 个文件待父时间线`}
-                  {r.diagnostics.length > 0 && (
-                    <span className="muted small"> · {r.diagnostics.length} 条诊断</span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
-
-      {summary === null && !error && (
-        <div className="card">
-          <p className="muted">读取中…</p>
-        </div>
-      )}
-
-      {empty && (
-        <div className="card">
-          <p>
-            <strong>所选范围内没有计量记录。</strong>
-          </p>
-          <p className="muted small">
-            点击「同步记录」扫描本机 Kimi Code / Codex 日志。未知值显示为 —，不会当作 0。
-          </p>
-        </div>
-      )}
-
-      {summary !== null && summary.events > 0 && (
+      {summary === null && !error && <div className="card muted">正在读取统计…</div>}
+      {summary && (
         <>
-          <div className="hero">
-            <div className="stats">
-              <div className="stat">
-                <div className="muted small">总 Token</div>
-                <div className="num big">{formatTokenCompact(summary.total.value)}</div>
-                <div className="small muted">
-                  {summary.total.value === null
-                    ? "全部未知"
-                    : `${formatTokenFull(summary.total.value)} · 覆盖 ${summary.total.knownEvents}/${summary.events}`}
+          <div className="usage-overview card">
+            <div className="usage-hero-row">
+              <div className="usage-total">
+                <span className="usage-bolt" aria-hidden="true">
+                  ϟ
+                </span>
+                <div>
+                  <span className="muted">真实消耗 Tokens</span>
+                  <div className="usage-total-number">
+                    {formatTokenFull(summary.total.value)}{" "}
+                    <small>≈ {formatUsageCompact(summary.total.value)}</small>
+                  </div>
+                  <small className="muted">
+                    本机日志已知小计 · 覆盖 {summary.total.knownEvents}/{summary.events} 条记录
+                  </small>
                 </div>
               </div>
-              <div className="stat">
-                <div className="muted small">输入</div>
-                <div className="num">{formatTokenCompact(summary.inputTotal.value)}</div>
-                <div className="small muted">
-                  含缓存读写 · 覆盖 {summary.inputTotal.knownEvents}/{summary.events}
+              <div className="usage-mini-stats">
+                <div>
+                  <span className="muted">已知请求数</span>
+                  <strong>{formatTokenFull(summary.requestCount)}</strong>
+                  <small className="muted">
+                    覆盖 {summary.requestCountKnownEvents}/{summary.events}
+                  </small>
+                </div>
+                <div>
+                  <span className="muted">已报告成本</span>
+                  <strong className="usage-cost">
+                    {costs.length
+                      ? costs.map((cost) => `${cost.amount} ${cost.currency}`).join(" / ")
+                      : "未提供"}
+                  </strong>
                 </div>
               </div>
-              <div className="stat">
-                <div className="muted small">输出</div>
-                <div className="num">{formatTokenCompact(summary.outputTotal.value)}</div>
-                <div className="small muted">reasoning 不重复计入</div>
-              </div>
-              <div className="stat">
-                <div className="muted small">读缓存 Token 占比</div>
-                <div className="num">
-                  {summary.cacheReadRatio === null
-                    ? "—"
-                    : `${(Number(summary.cacheReadRatio) * 100).toFixed(1)}%`}
-                </div>
-                <div className="small muted">
-                  参与 {summary.cacheRatioEligibleEvents}/{summary.events} 条 · 加权分母为已知输入
-                </div>
-              </div>
-              <div className="stat">
-                <div className="muted small">计量记录</div>
-                <div className="num">{summary.events}</div>
-                <div className="small muted">
-                  已知请求数{" "}
-                  {summary.requestCount === null ? "—" : formatTokenFull(summary.requestCount)}
-                  {summary.timeUnknownEvents > 0 && ` · ${summary.timeUnknownEvents} 条时间未知`}
-                </div>
+            </div>
+            <div className="usage-metrics">
+              <Metric label="新增输入" metric={summary.inputFresh} events={summary.events} />
+              <Metric label="输出" metric={summary.outputTotal} events={summary.events} />
+              <Metric label="缓存创建" metric={summary.inputCacheWrite} events={summary.events} />
+              <Metric label="缓存命中" metric={summary.inputCacheRead} events={summary.events} />
+              <div className="usage-metric">
+                <span className="muted">缓存命中率</span>
+                <strong className="usage-cost">{percentage(summary.cacheReadRatio)}</strong>
+                <progress
+                  aria-label="缓存命中率"
+                  max="1"
+                  value={
+                    summary.cacheReadRatio === null ? undefined : Number(summary.cacheReadRatio)
+                  }
+                />
+                <small className="muted">
+                  加权输入分母 · 覆盖 {summary.cacheRatioEligibleEvents}/{summary.events}
+                </small>
               </div>
             </div>
           </div>
-
-          <div className="lower">
+          {summary.events === 0 && (
             <div className="card">
-              <div className="cardhead">
-                <h2>Token 趋势</h2>
-                <span className="badge">UTC · 每日</span>
-              </div>
-              {series.length === 0 ? (
-                <p className="muted small">范围内没有带时间戳的记录。</p>
-              ) : (
-                <div className="chart" role="img" aria-label="每日 Token 趋势">
-                  {series.map(([day, v]) => (
-                    <div className="barcol" key={day} title={`${day} · ${v ?? "未知"}`}>
-                      <small>{v === null ? "—" : formatTokenCompact(v)}</small>
-                      <div
-                        className="bar"
-                        style={{
-                          height: v && maxSeries > 0 ? `${(Number(v) / maxSeries) * 100}%` : "2%",
-                        }}
-                      />
-                      <small>{day.slice(5)}</small>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <strong>所选范围内没有计量记录。</strong>
+              <p className="muted">
+                可切换日期或筛选条件。自动同步开启时每 60 秒读取八种 Agent
+                的已发现日志，也可点击「立即同步」。
+              </p>
             </div>
+          )}
+          <div className="card">
+            <div className="cardhead">
+              <h2>使用趋势</h2>
+              <span className="muted small">Token · 按 UTC 日聚合</span>
+            </div>
+            {series.length ? (
+              <Trend series={series} />
+            ) : (
+              <p className="muted">该范围没有带时间戳的计量记录。</p>
+            )}
+          </div>
+          <div className="usage-bottom">
             <div className="card">
               <div className="cardhead">
                 <h2>Agent 分布</h2>
+                <span className="muted small">已知总 Token</span>
               </div>
-              {summary.byAgent.map((a) => (
-                <div className="rankline" key={a.agent}>
-                  <span>{a.agent}</span>
-                  <strong className="num">{formatTokenFull(a.total.value)}</strong>
-                  <span className="muted small">{a.events} 条</span>
+              {summary.byAgent.map((item) => (
+                <div className="rankline" key={item.agent}>
+                  <span>{agentLabel(item.agent)}</span>
+                  <strong>{formatTokenFull(item.total.value)}</strong>
+                  <span className="muted small">{item.events} 条</span>
                 </div>
               ))}
             </div>
-          </div>
-
-          {(summary.costReported.length > 0 || summary.costEstimated.length > 0) && (
             <div className="card">
-              <div className="cardhead">
-                <h2>费用</h2>
-                <span className="small muted">已报告与估算分列 · 币种不合并</span>
-              </div>
-              {summary.costReported.length > 0 && (
-                <p>
-                  已报告：
-                  {summary.costReported.map((c) => (
-                    <strong key={c.currency} className="num" style={{ marginRight: 12 }}>
-                      {c.amount} {c.currency}
-                    </strong>
-                  ))}
+              <h2>统计范围</h2>
+              <p className="muted">
+                本机记录不等于平台全部消费。未知值显示为 —；缓存读取、写入和 reasoning
+                按源协议计量。
+              </p>
+              <p className="muted">
+                输入总量 {formatTokenFull(summary.inputTotal.value)} · 计量记录 {summary.events} 条
+              </p>
+              {summary.costEstimated.map((cost) => (
+                <p key={cost.currency}>
+                  估算成本：{cost.amount} {cost.currency}
                 </p>
-              )}
-              {summary.costEstimated.length > 0 && (
-                <p className="muted">
-                  估算：
-                  {summary.costEstimated.map((c) => (
-                    <span key={c.currency} style={{ marginRight: 12 }}>
-                      {c.amount} {c.currency}
-                    </span>
-                  ))}
-                </p>
+              ))}
+              {summary.timeUnknownEvents > 0 && (
+                <p className="muted">{summary.timeUnknownEvents} 条记录缺少发生时间。</p>
               )}
             </div>
-          )}
+          </div>
         </>
       )}
+      <details className="card usage-reports">
+        <summary>最近采集结果 · {status.reports.length} 个数据源</summary>
+        {status.reports.length ? (
+          status.reports.map((report) => (
+            <p key={report.sourceId}>
+              <strong>{agentLabel(report.agent)}</strong>：扫描 {report.filesScanned}/
+              {report.filesSeen} 个文件，新增 {report.eventsInserted} 条，未变化{" "}
+              {report.filesUnchanged} 个
+              {report.filesDeferred > 0 && `，待处理 ${report.filesDeferred} 个`}
+              {report.diagnostics.length > 0 && `，${report.diagnostics.length} 条诊断`}
+            </p>
+          ))
+        ) : (
+          <p className="muted">尚无采集结果；未发现数据源时可在「数据源」页查看发现规则。</p>
+        )}
+      </details>
     </section>
   );
 }

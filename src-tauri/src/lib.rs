@@ -11,10 +11,12 @@ pub mod services;
 pub mod storage;
 pub mod vault;
 
-use ingestion::scanner::{discover_sources, scan_source, SourceScanReport};
+use ingestion::scanner::SourceScanReport;
 use serde::{Deserialize, Serialize};
+use services::{background::TaskHandle, usage_sync};
 use std::sync::{Arc, Mutex};
 use storage::Database;
+use tauri::Emitter;
 use tauri::Manager;
 use vault::Vault;
 
@@ -23,6 +25,8 @@ pub struct AppState {
     vault: Arc<dyn Vault>,
     /// 账户查询调度器句柄：Drop/`shutdown` 时取消后台任务。
     scheduler: Mutex<Option<services::account_scheduler::SchedulerHandle>>,
+    usage_sync: Arc<usage_sync::UsageSync>,
+    usage_scheduler: Mutex<Option<TaskHandle>>,
 }
 
 #[derive(Serialize)]
@@ -48,6 +52,8 @@ pub struct UsageFilterDto {
     pub to: Option<String>,
     pub agent: Option<String>,
     pub stream_domain: Option<String>,
+    pub source_id: Option<String>,
+    pub model: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -70,38 +76,138 @@ fn map_filter(f: UsageFilterDto) -> services::aggregate::UsageFilter {
         to: f.to,
         agent: f.agent,
         stream_domain: f.stream_domain,
+        source_id: f.source_id,
+        model: f.model,
     }
 }
 
 /// 触发一次全源扫描（后台线程；C03：重扫幂等，游标与事件同事务提交）。
 #[tauri::command]
-async fn sync_start(state: tauri::State<'_, AppState>) -> Result<Vec<SourceScanReport>, String> {
-    let db = Arc::clone(&state.db);
+async fn sync_start(
+    state: tauri::State<'_, AppState>,
+    app: tauri::AppHandle,
+) -> Result<Vec<SourceScanReport>, String> {
+    let sync = Arc::clone(&state.usage_sync);
     tauri::async_runtime::spawn_blocking(move || {
-        let sources = discover_sources();
-        let mut db = db.lock().map_err(|e| e.to_string())?;
-        let mut reports = Vec::new();
-        for src in &sources {
-            match scan_source(&mut db, src) {
-                Ok(r) => reports.push(r),
-                Err(e) => reports.push(SourceScanReport {
-                    source_id: src.source_id.clone(),
-                    agent: src.agent.as_str().into(),
-                    files_seen: 0,
-                    files_scanned: 0,
-                    files_unchanged: 0,
-                    files_deferred: 0,
-                    events_inserted: 0,
-                    events_replaced: 0,
-                    events_already_present: 0,
-                    diagnostics: vec![format!("scan_failed: {e}")],
-                }),
-            }
-        }
-        Ok(reports)
+        sync.run(
+            false,
+            || false,
+            |status| {
+                let _ = app.emit(usage_sync::SYNC_EVENT, status);
+            },
+        )
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+fn usage_sync_status(state: tauri::State<'_, AppState>) -> usage_sync::SyncStatus {
+    state.usage_sync.status()
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MonitoringSettings {
+    agent_auto_sync_enabled: bool,
+    account_auto_refresh_enabled: bool,
+    agent_interval_seconds: u64,
+    balance_interval_seconds: u64,
+    plan_interval_seconds: u64,
+}
+
+fn read_monitoring(db: &Database) -> MonitoringSettings {
+    let config = services::account_scheduler::load_config(db);
+    MonitoringSettings {
+        agent_auto_sync_enabled: usage_sync::enabled(db),
+        account_auto_refresh_enabled: config.enabled,
+        agent_interval_seconds: usage_sync::SYNC_INTERVAL_SECONDS,
+        balance_interval_seconds: config.balance_interval_seconds,
+        plan_interval_seconds: config.plan_interval_seconds,
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct MonitoringPatch {
+    agent_auto_sync_enabled: Option<bool>,
+    account_auto_refresh_enabled: Option<bool>,
+}
+
+#[tauri::command]
+async fn monitoring_settings(
+    state: tauri::State<'_, AppState>,
+) -> Result<MonitoringSettings, String> {
+    let db = Arc::clone(&state.db);
+    tauri::async_runtime::spawn_blocking(move || {
+        Ok(read_monitoring(&*db.lock().map_err(|e| e.to_string())?))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn monitoring_update(
+    state: tauri::State<'_, AppState>,
+    patch: MonitoringPatch,
+) -> Result<MonitoringSettings, String> {
+    let wake_usage = patch.agent_auto_sync_enabled.is_some();
+    let wake_accounts = patch.account_auto_refresh_enabled.is_some();
+    let db = Arc::clone(&state.db);
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let db = db.lock().map_err(|e| e.to_string())?;
+        let tx = db.conn().unchecked_transaction().map_err(|e| e.to_string())?;
+        for (key, value) in [(usage_sync::AUTO_SYNC_KEY, patch.agent_auto_sync_enabled), (services::account_scheduler::SCHEDULER_ENABLED_KEY, patch.account_auto_refresh_enabled)] {
+            if let Some(value) = value {
+                tx.execute("INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value", rusqlite::params![key, if value { "true" } else { "false" }]).map_err(|e| e.to_string())?;
+            }
+        }
+        tx.commit().map_err(|e| e.to_string())?;
+        Ok::<_, String>(read_monitoring(&db))
+    }).await.map_err(|e| e.to_string())??;
+    if wake_usage {
+        if let Some(handle) = state
+            .usage_scheduler
+            .lock()
+            .map_err(|e| e.to_string())?
+            .as_ref()
+        {
+            handle.wake();
+        }
+    }
+    if wake_accounts {
+        if let Some(handle) = state.scheduler.lock().map_err(|e| e.to_string())?.as_ref() {
+            handle.wake();
+        }
+    }
+    Ok(result)
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct UsageOptions {
+    sources: Vec<UsageSourceOption>,
+    models: Vec<String>,
+}
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct UsageSourceOption {
+    source_id: String,
+    agent: String,
+    label: String,
+}
+
+#[tauri::command]
+async fn usage_options(state: tauri::State<'_, AppState>) -> Result<UsageOptions, String> {
+    let db = Arc::clone(&state.db);
+    tauri::async_runtime::spawn_blocking(move || {
+        let db = db.lock().map_err(|e| e.to_string())?;
+        let mut sources = db.conn().prepare("SELECT source_id, agent, COALESCE(display_label, agent) FROM sources ORDER BY agent, source_id").map_err(|e| e.to_string())?;
+        let sources = sources.query_map([], |r| Ok(UsageSourceOption { source_id: r.get(0)?, agent: r.get(1)?, label: r.get(2)? })).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+        let mut models = db.conn().prepare("SELECT DISTINCT COALESCE(model_normalized, model_raw) FROM usage_events WHERE stream_domain = 'local_log' AND COALESCE(model_normalized, model_raw) IS NOT NULL ORDER BY 1").map_err(|e| e.to_string())?;
+        let models = models.query_map([], |r| r.get::<_, String>(0)).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+        Ok(UsageOptions { sources, models })
+    }).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -286,7 +392,7 @@ async fn account_save(
 ) -> Result<AccountSummaryDto, String> {
     let db = Arc::clone(&state.db);
     let vault = Arc::clone(&state.vault);
-    tauri::async_runtime::spawn_blocking(move || {
+    let result = tauri::async_runtime::spawn_blocking(move || {
         use services::accounts as acc;
         let db = db.lock().map_err(|e| e.to_string())?;
         let config_kind = acc::ConfigKind::parse(&input.config_kind)
@@ -345,7 +451,11 @@ async fn account_save(
         build_account_summary(&db, &account_id)
     })
     .await
-    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())??;
+    if let Some(handle) = state.scheduler.lock().map_err(|e| e.to_string())?.as_ref() {
+        handle.wake();
+    }
+    Ok(result)
 }
 
 #[derive(Debug, Deserialize)]
@@ -363,7 +473,7 @@ async fn account_rotate_credential(
 ) -> Result<CredentialDto, String> {
     let db = Arc::clone(&state.db);
     let vault = Arc::clone(&state.vault);
-    tauri::async_runtime::spawn_blocking(move || {
+    let result = tauri::async_runtime::spawn_blocking(move || {
         let mut db = db.lock().map_err(|e| e.to_string())?;
         let secret = vault::SecretString::new(input.secret);
         let rotated = services::accounts::credential_rotate(
@@ -377,7 +487,11 @@ async fn account_rotate_credential(
         Ok::<_, String>(CredentialDto::from(rotated))
     })
     .await
-    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())??;
+    if let Some(handle) = state.scheduler.lock().map_err(|e| e.to_string())?.as_ref() {
+        handle.wake();
+    }
+    Ok(result)
 }
 
 #[tauri::command]
@@ -387,13 +501,16 @@ async fn account_refresh(
 ) -> Result<services::account_query::SnapshotOutcome, String> {
     let db = Arc::clone(&state.db);
     let vault = Arc::clone(&state.vault);
-    tauri::async_runtime::spawn_blocking(move || {
-        let mut db = db.lock().map_err(|e| e.to_string())?;
-        services::account_query::query_account(&mut db, vault.as_ref(), &account_id)
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        services::account_query::query_account_shared(&db, vault.as_ref(), &account_id)
             .map_err(|e| e.to_string())
     })
     .await
-    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())??;
+    if let Some(handle) = state.scheduler.lock().map_err(|e| e.to_string())?.as_ref() {
+        handle.wake();
+    }
+    Ok(result)
 }
 
 #[derive(Debug, Deserialize)]
@@ -416,7 +533,7 @@ async fn account_delete(
 ) -> Result<services::cleanup::AccountDeleteResult, String> {
     let db = Arc::clone(&state.db);
     let vault = Arc::clone(&state.vault);
-    tauri::async_runtime::spawn_blocking(move || {
+    let result = tauri::async_runtime::spawn_blocking(move || {
         let mut db = db.lock().map_err(|e| e.to_string())?;
         services::cleanup::delete_account_fully(
             &mut db,
@@ -427,7 +544,11 @@ async fn account_delete(
         .map_err(|e| e.to_string())
     })
     .await
-    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())??;
+    if let Some(handle) = state.scheduler.lock().map_err(|e| e.to_string())?.as_ref() {
+        handle.wake();
+    }
+    Ok(result)
 }
 
 // ---------------------------------------------------------------------------
@@ -569,11 +690,19 @@ pub fn run() {
             let db = Arc::new(Mutex::new(db));
             let vault: Arc<dyn Vault> = Arc::new(vault::KeyringVault::new());
             // 默认开启的后台调度；失败静默降级（查询层记 stale/unavailable）。
-            let scheduler = services::account_scheduler::spawn(Arc::clone(&db), Arc::clone(&vault));
+            let scheduler = services::account_scheduler::spawn(
+                Arc::clone(&db),
+                Arc::clone(&vault),
+                app.handle().clone(),
+            );
+            let usage_sync = Arc::new(usage_sync::UsageSync::new(Arc::clone(&db)));
+            let usage_scheduler = usage_sync::spawn(Arc::clone(&usage_sync), app.handle().clone());
             app.manage(AppState {
                 db,
                 vault,
                 scheduler: Mutex::new(Some(scheduler)),
+                usage_sync,
+                usage_scheduler: Mutex::new(Some(usage_scheduler)),
             });
             Ok(())
         })
@@ -581,6 +710,11 @@ pub fn run() {
             // 关窗口即取消后台调度（ACCOUNT_ADAPTERS 第 5 节：关窗口后台策略可取消）。
             if let tauri::WindowEvent::CloseRequested { .. } = event {
                 if let Some(state) = window.app_handle().try_state::<AppState>() {
+                    if let Ok(mut guard) = state.usage_scheduler.lock() {
+                        if let Some(handle) = guard.as_mut() {
+                            handle.shutdown();
+                        }
+                    }
                     if let Ok(mut guard) = state.scheduler.lock() {
                         if let Some(handle) = guard.as_mut() {
                             handle.shutdown();
@@ -592,6 +726,10 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             app_info,
             sync_start,
+            usage_sync_status,
+            monitoring_settings,
+            monitoring_update,
+            usage_options,
             sources_list,
             usage_summary,
             usage_series,

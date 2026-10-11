@@ -7,3 +7,6 @@ pub mod export;
 pub mod pricing;
 pub mod redact;
 pub mod session_queries;
+
+pub mod background;
+pub mod usage_sync;

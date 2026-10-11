@@ -1,3 +1,4 @@
+import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type {
@@ -115,6 +116,23 @@ export default function AccountsPage() {
 
   useEffect(() => {
     void reload();
+  }, [reload]);
+
+  useEffect(() => {
+    let active = true;
+    let stop: (() => void) | undefined;
+    void listen("accounts-updated", () => {
+      if (active) void reload();
+    })
+      .then((unlisten) => {
+        if (active) stop = unlisten;
+        else unlisten();
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+      stop?.();
+    };
   }, [reload]);
 
   const filtered = useMemo(() => {
