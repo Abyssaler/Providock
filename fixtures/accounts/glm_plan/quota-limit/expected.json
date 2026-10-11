@@ -1,0 +1,28 @@
+{
+  "plan_level": "pro",
+  "windows": [
+    {
+      "window_id": "glm:coding_plan:account:5h:tokens",
+      "label": "Token usage (5h)",
+      "resource": "tokens",
+      "scope": "account",
+      "unit": "percent",
+      "used_ratio": "0.435",
+      "remaining_ratio": "0.565",
+      "raw_ratio": null,
+      "over_limit": null
+    },
+    {
+      "window_id": "glm:coding_plan:account:month:mcp",
+      "label": "MCP usage (1 month)",
+      "resource": "mcp",
+      "scope": "account",
+      "unit": "percent",
+      "used_ratio": "0.08",
+      "remaining_ratio": "0.92",
+      "raw_ratio": null,
+      "over_limit": null
+    }
+  ],
+  "diagnostics": []
+}

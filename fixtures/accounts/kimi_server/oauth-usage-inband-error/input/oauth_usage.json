@@ -1,0 +1,6 @@
+{
+  "code": 0,
+  "msg": "ok",
+  "data": { "kind": "error", "message": "upstream usage request failed", "status": 401 },
+  "request_id": "req-usage-3"
+}

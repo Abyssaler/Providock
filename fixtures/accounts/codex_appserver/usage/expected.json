@@ -1,0 +1,14 @@
+{
+  "metrics": [
+    { "name": "lifetime_tokens", "value": "123456789", "unit": "tokens" },
+    { "name": "peak_daily_tokens", "value": "5000000", "unit": "tokens" },
+    { "name": "longest_running_turn_sec", "value": "3600", "unit": "seconds" },
+    { "name": "current_streak_days", "value": "5", "unit": "days" },
+    { "name": "longest_streak_days", "value": "30", "unit": "days" }
+  ],
+  "daily_buckets": [
+    { "start_date": "2026-10-10", "tokens": "1200000" },
+    { "start_date": "2026-10-11", "tokens": "800000" }
+  ],
+  "thread_usage": null
+}

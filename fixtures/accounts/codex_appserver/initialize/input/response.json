@@ -1,0 +1,9 @@
+{
+  "id": 1,
+  "result": {
+    "userAgent": "codex_cli_rs/0.50.0 (Mac OS 15.0; arm64)",
+    "codexHome": "/synthetic/home/.codex",
+    "platformFamily": "unix",
+    "platformOs": "macos"
+  }
+}

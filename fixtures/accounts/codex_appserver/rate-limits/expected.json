@@ -1,0 +1,28 @@
+{
+  "plan_type": "plus",
+  "account_id": "acct-synthetic",
+  "ordinary_usage_allowed": true,
+  "credits": { "has_credits": true, "unlimited": false, "balance": "12.50" },
+  "windows": [
+    {
+      "window_id": "codex:account:codex:primary",
+      "label": "codex (primary)",
+      "unit": "percent",
+      "period_kind": "rolling",
+      "duration_seconds": 18000,
+      "resets_at": "2026-10-11T08:00:00Z",
+      "used_ratio": "0.25",
+      "remaining_ratio": "0.75"
+    },
+    {
+      "window_id": "codex:account:codex:secondary",
+      "label": "codex (secondary)",
+      "unit": "percent",
+      "period_kind": "rolling",
+      "duration_seconds": 604800,
+      "resets_at": "2026-10-18T08:00:00Z",
+      "used_ratio": "0.6",
+      "remaining_ratio": "0.4"
+    }
+  ]
+}

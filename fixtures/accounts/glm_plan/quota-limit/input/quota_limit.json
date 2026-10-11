@@ -1,0 +1,24 @@
+{
+  "code": 200,
+  "msg": "success",
+  "data": {
+    "level": "pro",
+    "limits": [
+      {
+        "type": "TOKENS_LIMIT",
+        "percentage": 43.5,
+        "nextResetTime": 1791705600000
+      },
+      {
+        "type": "TIME_LIMIT",
+        "percentage": 8.0,
+        "currentValue": 17,
+        "usage": 200,
+        "usageDetails": [
+          { "modelCode": "web-reader", "usage": 12 },
+          { "modelCode": "search-prime", "usage": 5 }
+        ]
+      }
+    ]
+  }
+}

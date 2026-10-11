@@ -1,0 +1,10 @@
+{
+  "metrics": [],
+  "daily_buckets": [],
+  "thread_usage": {
+    "thread_id": "019fc8ab-1fb2-7000-8000-000000000123",
+    "estimated_usage_credits_micros": "46000000",
+    "estimated_usage_usd_micros": null,
+    "groups": [{ "total_tokens": "140", "model": "gpt-5.4" }]
+  }
+}

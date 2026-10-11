@@ -1,0 +1,23 @@
+{
+  "code": 0,
+  "msg": "ok",
+  "data": {
+    "server_version": "0.38.0",
+    "capabilities": {
+      "websocket": true,
+      "file_upload": true,
+      "fs_query": true,
+      "mcp": true,
+      "tasks": true,
+      "terminal": true
+    },
+    "server_id": "srv-synthetic-1",
+    "started_at": "2026-10-11T07:00:00Z",
+    "open_in_apps": [],
+    "dangerous_bypass_auth": false,
+    "backend": "v2",
+    "experimental_flags": { "demo": false },
+    "features": [{ "name": "web-search", "state": "Active", "meta": {} }]
+  },
+  "request_id": "req-meta-1"
+}

@@ -1,0 +1,20 @@
+{
+  "plan_level": null,
+  "windows": [
+    {
+      "window_id": "glm:coding_plan:account:5h:tokens",
+      "unit": "percent",
+      "used_ratio": "0.125",
+      "remaining_ratio": "0.875",
+      "over_limit": null
+    },
+    {
+      "window_id": "glm:coding_plan:account:month:mcp",
+      "unit": "percent",
+      "used_ratio": "1",
+      "remaining_ratio": "0",
+      "over_limit": null
+    }
+  ],
+  "diagnostics": []
+}

@@ -1,0 +1,24 @@
+{
+  "code": 0,
+  "msg": "ok",
+  "data": {
+    "kind": "ok",
+    "quota": {
+      "usages": {
+        "limit5h": { "usedRatio": 0.42, "resetAt": "2026-10-11T15:00:00Z" },
+        "limit7d": { "usedRatio": 0.61, "resetAt": "2026-10-14T00:00:00Z" },
+        "monthTotal": { "usedRatio": 0.33 },
+        "monthCode": { "usedRatio": 0.12, "resetAt": "2026-11-01T00:00:00Z" }
+      },
+      "extraUsage": {
+        "balanceCents": 1234,
+        "totalCents": 5000,
+        "monthlyChargeLimitEnabled": true,
+        "monthlyChargeLimitCents": 10000,
+        "monthlyUsedCents": 3766,
+        "currency": "USD"
+      }
+    }
+  },
+  "request_id": "req-usage-1"
+}

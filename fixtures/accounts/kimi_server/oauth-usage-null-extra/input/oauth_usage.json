@@ -1,0 +1,14 @@
+{
+  "code": 0,
+  "msg": "ok",
+  "data": {
+    "kind": "ok",
+    "quota": {
+      "usages": {
+        "limit5h": { "usedRatio": 0.9 }
+      },
+      "extraUsage": null
+    }
+  },
+  "request_id": "req-usage-2"
+}

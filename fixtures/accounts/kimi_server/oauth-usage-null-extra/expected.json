@@ -1,0 +1,15 @@
+{
+  "windows": [
+    {
+      "window_id": "kimi:coding_plan:account:5h",
+      "unit": "percent",
+      "period_kind": "rolling",
+      "duration_seconds": 18000,
+      "used_ratio": "0.9",
+      "remaining_ratio": "0.1",
+      "resets_at": null
+    }
+  ],
+  "balances": [],
+  "diagnostics": []
+}

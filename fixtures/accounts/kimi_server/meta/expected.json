@@ -1,0 +1,6 @@
+{
+  "server_version": "0.38.0",
+  "backend": "v2",
+  "capabilities": ["file_upload", "fs_query", "mcp", "tasks", "terminal", "websocket"],
+  "features": ["web-search"]
+}

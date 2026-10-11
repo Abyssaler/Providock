@@ -1,0 +1,4 @@
+{
+  "id": 2,
+  "error": { "code": -32600, "message": "chatgpt authentication required to read rate limits" }
+}

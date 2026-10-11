@@ -1,0 +1,6 @@
+{
+  "limits": [
+    { "type": "TOKENS_LIMIT", "percentage": "12.5" },
+    { "type": "TIME_LIMIT", "percentage": 100 }
+  ]
+}
