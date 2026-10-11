@@ -19,6 +19,21 @@
 
 数据核心（T02）、凭据库/路径守卫/诊断脱敏（T03）、聚合服务与用量页纵线（T04）已实现并有测试。全部 Windows 行为未经实机验证。
 
+## 账户适配器实现状态（2026-10-11）
+
+| ID | 适配器 | 验证级别 | 备注 |
+| --- | --- | --- | --- |
+| B01 DeepSeek | ✅ deepseek.rs | 样本验证（夹具+mock listener） | 未真实凭据实测 |
+| B02 OpenRouter Key | ✅ openrouter.rs | 样本验证 | scope=key 预算非现金 |
+| B03 OpenRouter Credits | ✅ openrouter.rs | 样本验证 | 管理密钥要求已建模型 |
+| B04 Novita | ✅ novita.rs | 样本验证 | 新路径 + 1/10000 USD 精确换算 |
+| B05 GLM Coding Plan | ✅ glm_plan.rs | 样本验证 | E2；双 TOKENS_LIMIT 区分待官方证据 |
+| B06 Kimi 本机 Server | ✅ kimi_server.rs | 样本验证 | 需用户已运行 Server；meta 协商已实现 |
+| B07 Codex App Server | ✅ codex_appserver.rs | 样本验证（协议构造/响应解析） | 进程协议未接线，查询占位 unsupported |
+| 账户域服务 | services/{accounts,account_query,account_scheduler}.rs | 单测 + mock HTTP 实测（重定向剥 Auth 等） | 调度真实循环未起；DB 锁内 HTTP 待优化 |
+
+账户页 UI（T12）已接 IPC。全部账户结论均为样本验证，非 live_verified。
+
 证据文档（均为 2026-10-11 按固定提交核实，含逐行 URL）：
 
 - [A01–A04 cc-switch 导入器](evidence/a01-a04-ccswitch-importers.md)（cc-switch `df40d53c`）
