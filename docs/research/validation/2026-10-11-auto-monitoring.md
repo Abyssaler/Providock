@@ -71,3 +71,12 @@ Chrome + 模拟 IPC 检查通过：筛选参数、手动同步状态、两开关
 - 通用整源 parse_run 原子版本切换、截断/未知格式替换时历史保留、既有数据库升级路径。
 - 原生 Tauri 全流程、Windows 实机、睡眠唤醒矩阵、百万事件和空闲资源测量。
 - 其余 Agent 的实机验证、旧 Python Kimi 扫描接线、网关转发、隐私/导出/清理 UI，详见 CURRENT_STATUS。
+
+
+## 6. Windows CI 跟进
+
+首次运行 [38137942242](https://github.com/Abyssaler/providock/actions/runs/38137942242) 的 macOS 检查与测试安装包构建成功；Windows 前端检查、Rust fmt/Clippy 和编译成功，但 `codex_standard_date_depth_and_parser_upgrade_remove_only_proven_duplicates` 在升级后断言 2 条时得到 3 条。安装包步骤因此跳过。
+
+原因是测试使用 `root.join("sessions/2026/10/11")` 构造路径并直接转成事件身份，而扫描器逐层枚举后使用 Windows 原生分隔符。同一个文件的两种路径文本指向相同位置，却不能作为相同的稳定字符串身份；合成的“旧重复事件”由此没有命中应退休的身份。修复让测试读取首次扫描已保存的 `ingestion_cursors.file_identity`，准确模拟旧解析器使用同一身份的记录。
+
+断言保持并加强：首次 2 条/240 Token，插入合成重复后确为 3 条，升级后恢复 2 条/240 Token，重扫文件跳过。只改测试构造，不改变生产路径或去重规则。本机 monitoring_regressions 四项、Codex 夹具、fmt 与目标 Clippy 通过；Windows 的最终结果以该修复提交的 CI 为准。

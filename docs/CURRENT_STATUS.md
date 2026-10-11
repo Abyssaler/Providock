@@ -16,6 +16,8 @@ pnpm test && cargo test --manifest-path src-tauri/Cargo.toml
 
 自动监测、逐账户截止时间、持久化开关、用量页与 Codex v2 的行为和验证步骤详见 [验证记录](research/validation/2026-10-11-auto-monitoring.md)，版本变更见 [CHANGELOG](../CHANGELOG.md)。本机已通过前端 48 项测试、TypeScript/Prettier/Vite 构建、Rust 完整回归、fmt 与 Clippy；两个需主动读取真实环境/凭据库的测试仍为 ignored，Kimi/Codex 另用只读 usage-only 快照独立核对。Chrome 模拟 IPC 验证不等于原生桌面端到端，CI 构建不等于 Windows 实机验收。
 
+首轮 [GitHub CI](https://github.com/Abyssaler/providock/actions/runs/38137942242)：macOS 检查及测试安装包构建通过；Windows 编译/前端检查通过，但新增 Codex 升级回归测试因合成身份中的路径分隔符不一致失败（应 2 条、实际 3 条）。已修正测试为读取实际游标身份，保留全部计数断言，并通过本机相关回归与 Clippy；修复后的双平台结果以该修复提交的 CI 为准，仍不替代 Windows 实机验收。
+
 ## 逐任务状态
 
 ```text

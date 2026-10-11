@@ -48,12 +48,22 @@ fn codex_standard_date_depth_and_parser_upgrade_remove_only_proven_duplicates() 
             .as_deref(),
         Some("240")
     );
+    // Use the scanner's persisted identity: Windows paths may contain either separator,
+    // but event IDs must match the exact string used by the original scan.
+    let file_identity: String = db
+        .conn()
+        .query_row(
+            "SELECT file_identity FROM ingestion_cursors WHERE source_id = ?1",
+            [&source.source_id],
+            |row| row.get(0),
+        )
+        .unwrap();
     // Simulate an older parser having billed one known replay with its original offset identity.
     let parsed = codex_rollout::parse_rollout(
         &std::fs::read(&path).unwrap(),
         &codex_rollout::CodexParseConfig {
             source_id: source.source_id.clone(),
-            file_identity: path.to_string_lossy().into_owned(),
+            file_identity,
             generation: 0,
             observed_at: "2026-10-11T08:00:00Z".into(),
             filename_thread_id: Some("11111111-1111-4111-8111-111111111111".into()),
@@ -81,6 +91,10 @@ fn codex_standard_date_depth_and_parser_upgrade_remove_only_proven_duplicates() 
         .collect::<Vec<_>>()
         .join(", ");
     db.conn().execute(&format!("INSERT INTO usage_events SELECT {projection} FROM usage_events ORDER BY rowid LIMIT 1"), [old_id]).unwrap();
+    assert_eq!(
+        usage_summary(&db, &UsageFilter::default()).unwrap().events,
+        3
+    );
 
     db.conn()
         .execute(
