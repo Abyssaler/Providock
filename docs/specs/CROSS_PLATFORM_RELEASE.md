@@ -55,10 +55,12 @@ macOS 正式分发需要 Developer ID 签名与公证，Windows 代码签名用�
 当前应用标识固定为 io.providock.app，历史 v1.0.0 为 com.providock.desktop；不自动迁移旧数据，不使用旧 updater 协议，不发布旧版 latest.json。当前未接入应用内自动更新入口，更新包与签名是发布资产，不代表更新 UI 已实现。
 
 1. 统一 package.json、src-tauri/tauri.conf.json、src-tauri/Cargo.toml 和 Cargo.lock，新增 docs/releases/ 对应说明；同步 CHANGELOG、README、当前状态、决策及兼容表。
-2. macOS 显式构建 DMG，signingIdentity 为 -，使完整应用包 ad-hoc 签名；CI 用 codesign --verify --deep --strict 校验。Windows 显式构建 NSIS，不默认额外生成 MSI。
+2. macOS 显式构建 app,dmg（只构建 dmg 会清理中间 .app，且不会生成 .app.tar.gz 更新包），signingIdentity 为 -，使完整应用包 ad-hoc 签名；CI 用 codesign --verify --deep --strict 校验。Windows 显式构建 NSIS，不默认额外生成 MSI。
 3. 启用 createUpdaterArtifacts，通过已有 GitHub Secrets 提供 Tauri/minisign 私钥与密码，配置中只存公钥。PR 禁用更新包生成且不读取私钥；发布 push 要求安装包、更新包及签名齐全。密钥不是 Apple Developer ID 或 Windows Authenticode 证书。
 4. 推送版本提交到 main，确认该完整 SHA 的两个 CI job 成功。用 gh run download 下载同一次运行的两个平台产物，核对包内版本/架构/完整性、签名及 SHA-256，不混用旧构建。
 5. 在确切提交创建版本标签，先创建草稿并上传安装包、更新包、签名、公钥、许可证与 SHA256SUMS.txt；核对资产后，将 v2.0.0 设为非 prerelease、非 draft、latest=true。既有标签及资产不覆盖。
 6. 从新 Release 下载 Mac 包、核对 hash、保留已有应用数据、安装并检查启动。Windows CI 不等于 Windows 实机验收；后续结果在验证记录中补记。
 
 正式证书签名/公证、双平台完整实机、迁移/回滚与性能门槛仍按上文规划继续完成，不因本次发布决定省略验证事实。
+
+发布包只使用 CI 干净检出构建的白名单资产；本机数据库、日志、账户配置、私钥、密码及本机备份不得进入发行包。发布前检查 app/tar 文件清单与安装包来源，只有公钥用于公开验签。

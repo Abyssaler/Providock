@@ -46,7 +46,7 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ github.event_name == 'push' && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ github.event_name == 'push' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
-        run: pnpm tauri build --bundles dmg
+        run: pnpm tauri build --bundles app,dmg
 
       - name: 签名 macOS DMG 下载包
         if: runner.os == 'macOS' && github.event_name == 'push'
