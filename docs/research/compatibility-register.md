@@ -104,3 +104,7 @@ v2.0.0 固定提交 2662489 的 [双平台 CI](https://github.com/Abyssaler/Prov
 八源解析器版本未变。Agent 可见性 IPC 保存参数修复；多币种趋势选择恢复且保持未知断点。Kimi Code 与 GLM 局部真实验证沿用上表，不使用已删除的测试密钥重新查询。
 
 新增 Tauri updater 2.13.3 / process 2.4.0（JS/Rust 锁文件固定），支持 darwin-aarch64 与 windows-x86_64；使用 io.providock.app 及独立 providock-v2-latest.json，v1 更新协议不兼容。macOS/Windows 的构建、原生及更新验证范围见 [v2.0.3 记录](validation/2026-10-12-release-v2.0.3.md)。不引入 DB schema 变更，不改变凭据保存策略。
+
+## v2.0.3 发行与原生补验结果
+
+同 SHA 双平台 CI 成功（Mac Rust 349、Windows 344，各 4 ignored，前端各 77）；11 项公开资产回下载/摘要与签名核对通过。Mac 实测 Agent 设置保存与重启、双币种趋势切换、真实 GitHub 签名更新到 2.0.3 并自动重启、正式 DMG 安装及旧数据/六规则/凭据保留。Windows 只做 CI 与 NSIS 解包，不标实机完成；慢网络首次检查超时后重试成功。详见 v2.0.3 核验记录。

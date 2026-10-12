@@ -29,7 +29,7 @@ pnpm test && cargo test --manifest-path src-tauri/Cargo.toml
 
 ## v2.0.0 发布
 
-[正式 Release](https://github.com/Abyssaler/Providock/releases/tag/v2.0.0) 已公开（发布时为 Latest，当前最新版为 v2.0.2），固定提交 2662489 的 [双平台 CI](https://github.com/Abyssaler/Providock/actions/runs/38195092032) 全部成功；10 项公开资产的远端摘要匹配，实际包内清单未含本机数据或签名秘密。本机 Mac 已安装 v2.0.0，启动、数据库完整性、旧事件保留与自动扫描周期观察通过。完整来源、校验和及验收边界见 [发布核验记录](research/validation/2026-10-12-release-v2.0.0.md)。
+[正式 Release](https://github.com/Abyssaler/Providock/releases/tag/v2.0.0) 已公开（发布时为 Latest，当前最新版为 v2.0.3），固定提交 2662489 的 [双平台 CI](https://github.com/Abyssaler/Providock/actions/runs/38195092032) 全部成功；10 项公开资产的远端摘要匹配，实际包内清单未含本机数据或签名秘密。本机 Mac 已安装 v2.0.0，启动、数据库完整性、旧事件保留与自动扫描周期观察通过。完整来源、校验和及验收边界见 [发布核验记录](research/validation/2026-10-12-release-v2.0.0.md)。
 
 维护者在 2026-10-12 明确要求将当前实现以 **v2.0.0 正式 Release / Latest** 发布，替代尚未发布的 1.1.0-preview.1 候选。[发布说明](releases/v2.0.0.md) 保留八源矩阵、已知缺口和手动安装方式；正式发布标记不代表 T15/T16、真实账户或所有 P0 门槛已经验收。
 
@@ -89,8 +89,8 @@ Tauri/minisign 采用既有发布公钥及 CI Secrets，只给 push 构建签名
 下一步：实现 loopback 转发（随机令牌、目标白名单、断流标 partial）+ Desktop 演示。
 
 任务：T09+T10（账户域与 B01–B07）
-状态：服务层回归通过；适配器全部**样本验证**（mock listener + 合成夹具），
-      未做真实凭据实测。实现：services/accounts.rs、account_query.rs（逐跳重定向剥
+状态：服务层回归通过；适配器均有样本验证；Kimi Code 直连额度与 GLM 无套餐/401 状态
+      另有局部 macOS 真实凭据验证，其他平台不外推。实现：services/accounts.rs、account_query.rs（逐跳重定向剥
       Authorization 有 mock 验证）、account_scheduler.rs（已接后台循环与独立开关）、
       adapters/accounts/（common.rs 收口）+ fixtures/accounts/。
 缺口：Codex App Server 是进程协议只占位 unsupported；GLM 双 TOKENS_LIMIT 区分待官方证据；
@@ -98,10 +98,10 @@ Tauri/minisign 采用既有发布公钥及 CI Secrets，只给 push 构建签名
       credential/scope 级并发与手动限频仍待实现，当前只有同账户请求排重。
 新增：逐账户到期时间（余额 15 分钟/计划 5 分钟、失败及手动均计入尝试），关闭时跳过启动首轮；
       HTTP 已移出 DB 锁，提交复核删除/编辑/换凭据，同账户并发不重复发请求，刷新事件更新账户页。
-验证：截止时间/禁用首轮/无账户、锁外 HTTP、并发合并、请求期间删除均有回归；未真实账户联网。
+验证：截止时间/禁用首轮/无账户、锁外 HTTP、并发合并、请求期间删除均有回归；局部账户联网范围见 v2.0.3 记录。
 
 任务：T12（四页 UI）
-状态：四页与调度设置可用（前端 48 测试）。用量页参考所给 cc-switch 截图重排，加入来源/模型/日期
+状态：四页与调度设置可用（当前前端 77 测试，历史 48 项为早期基线）。用量页参考所给 cc-switch 截图重排，加入来源/模型/日期
       筛选、显示刷新选择、指标覆盖率和未知趋势断点。
 验证：Chrome + 模拟 IPC 检查筛选、手动同步、两开关刷新后保存、设置入口、浅/深色及 960px 无横向溢出；
       这是前端交互验证，非原生 Tauri/Windows 全流程验收。
@@ -113,7 +113,8 @@ Tauri/minisign 采用既有发布公钥及 CI Secrets，只给 push 构建签名
 缺口：其余源返回 UnsupportedSource；跨文件活跃链重建 TODO；Codex .zst 正文不支持。
 
 任务：T14（导出/清理/价格）
-状态：服务层样本验证（23 测试）；**未接 IPC/UI**（export_statistics 等在服务层待命令化）。
+状态：导出/清理服务层样本验证，尚未接 IPC/UI；模型定价已在 v2.0.2 接 UI/IPC，
+      v2.0.3 支持分时段和长上下文，当前价比较不覆盖历史估值。
 实现：services/{export,cleanup,pricing}.rs。
 
 任务：T15/T16（双平台实机/性能）
@@ -161,3 +162,9 @@ Tauri/minisign 采用既有发布公钥及 CI Secrets，只给 push 构建签名
 - 本次完整回归、CI、公开资产及安装核验进度以 [v2.0.3 核验记录](research/validation/2026-10-12-release-v2.0.3.md) 为准。此前 66/349 为接手基线，不是最终测试总数。
 
 GLM 无 Coding Plan 套餐在账户状态筛选中独立列出，不再归入暂时不可用；保留旧快照时仍优先显示最近的无套餐状态。
+
+### v2.0.3 正式交付完成
+
+[v2.0.3 Release](https://github.com/Abyssaler/Providock/releases/tag/v2.0.3) 已公开并设为 Latest，代码/标签固定 5e5c07a4c98d03e5babedd6f30ef4a1f0ac3f17e；[双平台 CI](https://github.com/Abyssaler/Providock/actions/runs/38232265204) 成功。11 项远端资产及公开回下载摘要匹配，三二进制独立验签、版本/架构与干净包清单核验完成。新增 v2 清单供应用内更新，旧标签/资产保持。
+
+Mac 真实签名更新链路和正式 DMG 换装完成，已安装并启动 v2.0.3；更新默认开启，显示当前最新版。全部 5843 个备份事件身份、6 条规则、4 个账户及凭据保留，采集继续。原生 Agent 勾选保存/重启持久化、双币种切换另有隔离测试；Windows 实机仍待验。后续只补记文档，不重建或混用其他提交资产。完整证据和慢网络重试边界见本版核验记录。
