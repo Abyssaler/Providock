@@ -115,12 +115,11 @@ pub fn commit_batch_retiring(
                 request_count,
                 input_fresh, input_cache_read, input_cache_write, input_total,
                 output_total, output_reasoning, total, tokens_quality, completeness,
-                cost_reported_amount, cost_reported_currency, cost_reported_completeness,
                 cost_estimated_amount, cost_estimated_currency, cost_estimated_price_version,
                 account_link, evidence_json
             ) VALUES (
                 ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16,
-                ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?32, ?33, ?34
+                ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31
             )",
         )?;
         let mut update_event = tx.prepare(
@@ -131,11 +130,9 @@ pub fn commit_batch_retiring(
                 input_fresh = ?18, input_cache_read = ?19, input_cache_write = ?20,
                 input_total = ?21, output_total = ?22, output_reasoning = ?23, total = ?24,
                 tokens_quality = ?25, completeness = ?26,
-                cost_reported_amount = ?27, cost_reported_currency = ?28,
-                cost_reported_completeness = ?29,
-                cost_estimated_amount = ?30, cost_estimated_currency = ?31,
-                cost_estimated_price_version = ?32,
-                account_link = ?33, evidence_json = ?34
+                cost_estimated_amount = ?27, cost_estimated_currency = ?28,
+                cost_estimated_price_version = ?29,
+                account_link = ?30, evidence_json = ?31
             WHERE event_id = ?1",
         )?;
         let mut insert_observation = tx.prepare(
@@ -260,14 +257,6 @@ fn event_params(event: &UsageEvent, run_id: i64) -> Result<Vec<rusqlite::types::
         })
     };
     let text = |v: &Option<String>| Value::from(v.clone());
-    let (cr_a, cr_c, cr_comp) = match &event.cost_reported {
-        Some(c) => (
-            Value::Text(c.money.amount.clone()),
-            Value::Text(c.money.currency.clone()),
-            Value::Text(c.completeness.as_str().to_string()),
-        ),
-        None => (Value::Null, Value::Null, Value::Null),
-    };
     let (ce_a, ce_c, ce_pv) = match &event.cost_estimated {
         Some(c) => (
             Value::Text(c.money.amount.clone()),
@@ -312,9 +301,6 @@ fn event_params(event: &UsageEvent, run_id: i64) -> Result<Vec<rusqlite::types::
         opt(t.total)?,
         Value::Text(t.quality.as_str().into()),
         Value::Text(event.completeness.as_str().into()),
-        cr_a,
-        cr_c,
-        cr_comp,
         ce_a,
         ce_c,
         ce_pv,
@@ -416,7 +402,6 @@ mod tests {
                 total: Some(170),
                 quality: Quality::Reported,
             },
-            cost_reported: None,
             cost_estimated: None,
             completeness: Completeness::Complete,
             account_link: None,

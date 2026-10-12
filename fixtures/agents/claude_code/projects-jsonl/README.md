@@ -20,7 +20,7 @@
   取舍「有 stop_reason 优先，否则 output_tokens 更大」。输出 `replace_existing = true`。
 - **不同 message.id 即使数值完全相同也分别计入**（不做按数值判重）。
 - 无 usage 的消息、usage 四项全零的消息都不产生事件。
-- 日志无自报费用，且本解析器不定价：`cost_reported`/`cost_estimated` 均为 null。
+- 日志无自报费用，且本解析器不定价：源费用不采集，`cost_estimated` 为 null。
 
 ## 用例
 

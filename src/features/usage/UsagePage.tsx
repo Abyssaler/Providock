@@ -1,3 +1,4 @@
+import { SelectField as Select } from "../../components/Select";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -20,6 +21,7 @@ import {
   normalizeVisibleAgents,
   percentage,
   periodFilter,
+  usageScopeText,
   visibleAgentTabs,
   type Period,
 } from "./usageDisplay";
@@ -209,7 +211,6 @@ export default function UsagePage() {
     }
   };
   const busy = status.running || manualBusy;
-  const costs = summary?.costReported ?? [];
   return (
     <section className="usage-page" aria-label="用量页面">
       <div className="usage-heading">
@@ -265,8 +266,8 @@ export default function UsagePage() {
         </div>
         <div className="usage-selects">
           <span className="usage-select">
-            <SourceIcon />
-            <select
+            <Select
+              icon={<SourceIcon />}
               aria-label="数据源筛选"
               value={sourceId}
               onChange={(e) => setSourceId(e.target.value)}
@@ -283,20 +284,24 @@ export default function UsagePage() {
                     {agentLabel(source.agent)} · {source.label}
                   </option>
                 ))}
-            </select>
+            </Select>
           </span>
           <span className="usage-select">
-            <ModelIcon />
-            <select aria-label="模型筛选" value={model} onChange={(e) => setModel(e.target.value)}>
+            <Select
+              icon={<ModelIcon />}
+              aria-label="模型筛选"
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+            >
               <option value="">全部模型</option>
               {options.models.map((model) => (
                 <option key={model}>{model}</option>
               ))}
-            </select>
+            </Select>
           </span>
           <span className="usage-select">
-            <ClockIcon />
-            <select
+            <Select
+              icon={<ClockIcon />}
               aria-label="界面刷新周期"
               title="只刷新统计显示，不改变每 60 秒的日志采集周期"
               value={refreshSeconds}
@@ -307,11 +312,11 @@ export default function UsagePage() {
                   {seconds ? `显示刷新 · ${seconds}s` : "显示刷新 · 关闭"}
                 </option>
               ))}
-            </select>
+            </Select>
           </span>
           <span className="usage-select">
-            <CalendarIcon />
-            <select
+            <Select
+              icon={<CalendarIcon />}
               aria-label="日期范围"
               value={period}
               onChange={(e) => setPeriod(e.target.value as Period)}
@@ -321,7 +326,7 @@ export default function UsagePage() {
               <option value="30d">最近 30 天</option>
               <option value="all">全部时间</option>
               <option value="custom">自定义日期</option>
-            </select>
+            </Select>
           </span>
         </div>
       </div>
@@ -401,16 +406,11 @@ export default function UsagePage() {
                     完整估算 {dashboard?.completeCostEvents ?? 0}/{summary.events} 条
                   </small>
                 </div>
-                <div>
-                  <span className="muted">已报告成本</span>
-                  <strong className="usage-cost">
-                    {costs.length
-                      ? costs.map((cost) => `${cost.amount} ${cost.currency}`).join(" / ")
-                      : "未提供"}
-                  </strong>
-                </div>
               </div>
             </div>
+            <p className="usage-metrics-scope muted small">
+              统计范围：{usageScopeText(detailFilter)} · 与上方筛选一致
+            </p>
             <div className="usage-metrics">
               <Metric
                 label="新增输入"
@@ -440,6 +440,16 @@ export default function UsagePage() {
                 tone="cacheRead"
                 icon={<CacheReadIcon />}
               />
+              <div className="usage-metric" data-tone="cost">
+                <span className="usage-metric-head">
+                  <PriceIcon />
+                  成本估算
+                </span>
+                <strong className="usage-cost">{moneyText(dashboard?.currentCost ?? [])}</strong>
+                <small className="muted">
+                  完整估算 {dashboard?.completeCostEvents ?? 0}/{summary.events} 条
+                </small>
+              </div>
               <div className="usage-metric" data-tone="ratio">
                 <span className="usage-metric-head">
                   <RatioIcon />
@@ -490,8 +500,7 @@ export default function UsagePage() {
           <div className="usage-scope-note">
             <span>ⓘ</span>
             <p>
-              本机日志不代表平台全部消费。当前定价估算与源已报告费用分别展示；未定价、未知 Token
-              均不补零。
+              按当前价格估算已知用量；未定价和未知 Token 保留为空。
               {dashboard &&
                 ` 已参与估算 ${dashboard.pricedEvents}/${summary.events} 条记录，其中 ${dashboard.completeCostEvents} 条价格与用量完整。`}
               {summary.timeUnknownEvents > 0 && ` ${summary.timeUnknownEvents} 条记录时间未知。`}
@@ -506,22 +515,6 @@ export default function UsagePage() {
           onSaved={() => void refresh()}
         />
       )}
-      <details className="card usage-reports">
-        <summary>最近采集结果 · {status.reports.length} 个数据源</summary>
-        {status.reports.length ? (
-          status.reports.map((report) => (
-            <p key={report.sourceId}>
-              <strong>{agentLabel(report.agent)}</strong>：扫描 {report.filesScanned}/
-              {report.filesSeen} 个文件，新增 {report.eventsInserted} 条，未变化{" "}
-              {report.filesUnchanged} 个
-              {report.filesDeferred > 0 && `，待处理 ${report.filesDeferred} 个`}
-              {report.diagnostics.length > 0 && `，${report.diagnostics.length} 条诊断`}
-            </p>
-          ))
-        ) : (
-          <p className="muted">尚无采集结果；未发现数据源时可在「数据源」页查看发现规则。</p>
-        )}
-      </details>
     </section>
   );
 }

@@ -26,10 +26,10 @@ describe("趋势曲线", () => {
     };
     const html = renderToStaticMarkup(<UsageTrend series={[point]} hourly />);
     expect(html).toContain('aria-label="趋势成本币种"');
-    expect(html).toContain('value="CNY"');
-    expect(html).toContain('value="USD"');
-    expect(tooltipRows(point, "CNY")[0].text).toBe("¥7.000000");
-    expect(tooltipRows(point, "USD")[0].text).toBe("$1.000000");
+    expect(html).toContain('role="combobox"');
+    expect(html).toContain('title="CNY"');
+    expect(tooltipRows(point, "CNY")[0].text).toBe("¥7.00");
+    expect(tooltipRows(point, "USD")[0].text).toBe("$1.00");
     expect(
       tooltipRows({ ...point, currentCost: [{ currency: "CNY", amount: "7" }] }, "USD"),
     ).toEqual([]);
@@ -117,7 +117,7 @@ describe("趋势曲线", () => {
     expect(html).toContain(">1000</text>");
     expect(html).toContain("估算成本（CNY）");
   });
-  it("轴刻度与提示格式：紧凑中文刻度、含年份标题、千分位 Token、6 位小数成本", () => {
+  it("轴刻度与提示格式：紧凑中文刻度、含年份标题、千分位 Token、两位小数成本", () => {
     expect(formatAxisTokens(0)).toBe("0");
     expect(formatAxisTokens(15000)).toBe("1.5万");
     expect(formatAxisTokens(120000000)).toBe("1.2亿");
@@ -137,7 +137,7 @@ describe("趋势曲线", () => {
     const rows = tooltipRows(point, "CNY");
     expect(rows.map((r) => r.key)).toEqual(["inputFresh", "outputTotal", "cost"]);
     expect(rows[0].text).toContain("12,345");
-    expect(rows[2].text).toBe("¥0.123457");
+    expect(rows[2].text).toBe("¥0.12");
     // 断档 bucket：全部未知 → 没有任何行，不伪造 0
     const gap = tooltipRows(
       {

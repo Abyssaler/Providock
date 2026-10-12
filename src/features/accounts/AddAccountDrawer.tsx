@@ -1,3 +1,4 @@
+import { SelectField as Select } from "../../components/Select";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type {
@@ -155,24 +156,32 @@ export default function AddAccountDrawer({ onClose, onSaved }: Props) {
             <legend>1. 平台与区域</legend>
             <label>
               <span>平台</span>
-              <select value={platform} onChange={(e) => onPlatformChange(e.target.value)}>
+              <Select
+                aria-label="账户平台"
+                value={platform}
+                onChange={(e) => onPlatformChange(e.target.value)}
+              >
                 {PLATFORM_TEMPLATES.map((t) => (
                   <option key={t.key} value={t.key}>
                     {t.label}
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
             <label>
               <span>区域</span>
-              <select value={region} onChange={(e) => setRegion(e.target.value)}>
+              <Select
+                aria-label="账户区域"
+                value={region}
+                onChange={(e) => setRegion(e.target.value)}
+              >
                 <option value="">未指定区域</option>
                 {template?.regions.map((r) => (
                   <option key={r.value} value={r.value}>
                     {r.label}
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
             <label>
               <span>账户别名</span>
@@ -220,7 +229,8 @@ export default function AddAccountDrawer({ onClose, onSaved }: Props) {
             <legend>3. 凭据类型与最小权限</legend>
             <label>
               <span>凭据类型</span>
-              <select
+              <Select
+                aria-label="凭据类型"
                 value={credentialType}
                 onChange={(e) => setCredentialType(e.target.value as CredentialType)}
               >
@@ -229,7 +239,7 @@ export default function AddAccountDrawer({ onClose, onSaved }: Props) {
                     {c.label}
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
             {credential && (
               <div className="acct-permission">

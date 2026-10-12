@@ -24,3 +24,13 @@ export function formatTokenFull(value: string | null): string {
   if (value === null || !/^\d+$/.test(value)) return "未提供";
   return value.replace(/^0+(?=\d)/, "").replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
+
+/** Round decimal text for display only; preserve exact backend amounts, including >2^53. */
+export function formatMoneyAmount(value: string): string {
+  const match = /^(-?)(\d+)(?:\.(\d+))?$/.exec(value);
+  if (!match) return "—";
+  const fraction = (match[3] ?? "").padEnd(3, "0");
+  const cents =
+    BigInt(match[2]) * 100n + BigInt(fraction.slice(0, 2)) + (fraction[2] >= "5" ? 1n : 0n);
+  return `${match[1] && cents ? "-" : ""}${cents / 100n}.${(cents % 100n).toString().padStart(2, "0")}`;
+}

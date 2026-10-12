@@ -35,8 +35,8 @@ CREATE TABLE message (
 | m4 | user | 5 | — | — | — | — | — | — | — | 跳过 |
 
 - m1：`reasoning=20 > 0` → tokens quality = `derived`。
-- m2：`reasoning=0` → `reported`；`cost = 0.0` 为**合法 0**，保留为 `"0"`（上游当未知是缺陷）。
-- m3：无 `cost` 字段 → `cost_reported = None`；`reasoning=100 > 0` → `derived`。
+- m2：`reasoning=0` → `reported`；源 `cost = 0.0` 忽略。
+- m3：源 `cost` 字段忽略；`reasoning=100 > 0` → `derived`。
 - m4：V1 仅取 `role == "assistant"`，跳过。
 
 ## 合计（3 事件）
@@ -49,7 +49,7 @@ CREATE TABLE message (
 - total = 1470 + 755 + 115 = **2340**（校验 2085+255 = 2340 ✓）
 - request_count = **3**
 
-费用：`m1 = "0.05"`、`m2 = "0"`、`m3 = None`。
+费用字段均忽略。
 
 ## 消息行更新后重读（expected.json `update_case`）
 
@@ -57,5 +57,5 @@ CREATE TABLE message (
 tokens 改为 `input 555 / output 55 / reasoning 5 / cache.read 5 / cache.write 5`、`cost 0.02`，
 再只读重读：
 
-- input_total = 555+5+5 = **565**、output_total = 55+5 = **60**、total = **625**、cost = **0.02**
+- input_total = 555+5+5 = **565**、output_total = 55+5 = **60**、total = **625**，cost 忽略
 - `event_id` 仍为 `opencode:ses-v1-a:m2`（同 message id 替换而非新增），事件总数不变（3）。

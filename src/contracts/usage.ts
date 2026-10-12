@@ -32,7 +32,6 @@ export interface UsageSummary {
   total: MetricTotal;
   cacheReadRatio: string | null;
   cacheRatioEligibleEvents: number;
-  costReported: MoneyTotal[];
   costEstimated: MoneyTotal[];
   byAgent: AgentBreakdown[];
 }

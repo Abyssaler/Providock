@@ -1,3 +1,4 @@
+import { SelectField as Select } from "../../components/Select";
 import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
@@ -258,7 +259,8 @@ export default function AccountsPage() {
         </div>
         <label className="acct-status-filter">
           <span className="small muted">状态</span>
-          <select
+          <Select
+            aria-label="账户状态"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as StatusBucket | "all")}
           >
@@ -267,7 +269,7 @@ export default function AccountsPage() {
                 {option.label}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <span className="small muted">额度是平台范围，不与本机 Token 求和</span>
       </div>
@@ -423,7 +425,12 @@ function AccountCard({ account, mode, now, busy, onRefresh, onRotate, onDelete }
           {region ? ` · ${region}` : ""} · {CONFIG_KIND_LABELS[account.configKind]}
         </p>
         <p className="small muted">{credentialSummary(account.credentials)}</p>
-        {evidence && <span className="badge">{evidence}</span>}
+        {evidence && (
+          <details className="acct-evidence">
+            <summary className="badge">{evidence}</summary>
+            <p className="small muted">{account.snapshot?.evidence}</p>
+          </details>
+        )}
       </div>
 
       <div className="acct-metric-slot">

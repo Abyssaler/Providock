@@ -46,6 +46,8 @@ pub struct ModelPrice {
     pub peak_windows: Option<PeakWindows>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub long_context: Option<LongContext>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<pricing::PriceSource>,
 }
 fn yes() -> bool {
     true
@@ -53,6 +55,13 @@ fn yes() -> bool {
 type Key = (String, Option<String>, String);
 
 pub fn list(db: &Database) -> Result<Vec<ModelPrice>, String> {
+    Ok(list_with_disabled(db)?
+        .into_iter()
+        .filter(|p| p.enabled)
+        .collect())
+}
+
+pub(crate) fn list_with_disabled(db: &Database) -> Result<Vec<ModelPrice>, String> {
     let mut latest: BTreeMap<Key, ModelPrice> = BTreeMap::new();
     // Existing service orders by effective_from then version within each price key.
     for p in pricing::price_versions_list(db).map_err(|e| e.to_string())? {
@@ -63,8 +72,10 @@ pub fn list(db: &Database) -> Result<Vec<ModelPrice>, String> {
             continue;
         };
         let strategy = p.rates.strategy;
+        let source = p.rates.source;
         let rule = ModelPrice {
             version: p.price_version,
+            source,
             agent: agent.into(),
             source_id: p.region,
             model: p.model_version,
@@ -87,10 +98,26 @@ pub fn list(db: &Database) -> Result<Vec<ModelPrice>, String> {
             rule,
         );
     }
-    Ok(latest.into_values().filter(|p| p.enabled).collect())
+    Ok(latest.into_values().collect())
 }
 
-pub fn save(db: &Database, mut rule: ModelPrice) -> Result<ModelPrice, String> {
+pub fn save(db: &Database, rule: ModelPrice) -> Result<ModelPrice, String> {
+    persist(db, rule, None)
+}
+pub(crate) fn save_imported(
+    db: &Database,
+    rule: ModelPrice,
+    source: pricing::PriceSource,
+) -> Result<ModelPrice, String> {
+    persist(db, rule, Some(source))
+}
+fn persist(
+    db: &Database,
+    mut rule: ModelPrice,
+    source: Option<pricing::PriceSource>,
+) -> Result<ModelPrice, String> {
+    rule.source = source;
+
     if ![
         "claude_code",
         "codex",
@@ -158,7 +185,12 @@ pub fn save(db: &Database, mut rule: ModelPrice) -> Result<ModelPrice, String> {
         long_context: rule.long_context.clone(),
     });
     rule.version = format!(
-        "manual-{}-{:08x}",
+        "{}-{}-{:08x}",
+        if rule.source.is_some() {
+            "aihot"
+        } else {
+            "manual"
+        },
         time::OffsetDateTime::now_utc().unix_timestamp_nanos(),
         rand::random::<u32>()
     );
@@ -180,6 +212,7 @@ pub fn save(db: &Database, mut rule: ModelPrice) -> Result<ModelPrice, String> {
                 cache_write: rule.cache_write.clone(),
                 unit: Some("per_million_tokens".into()),
                 strategy,
+                source: rule.source.clone(),
                 ..Default::default()
             },
         },

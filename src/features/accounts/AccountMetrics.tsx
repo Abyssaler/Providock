@@ -131,16 +131,16 @@ export default function AccountMetrics({ account, mode, now, onRotateCredential 
             return (
               <div className="acct-window" key={window.windowId}>
                 <div className="acct-window-head">
-                  <span>
-                    {display.title}
-                    {kindText}{" "}
-                    <strong className="num">
-                      {display.percent === null ? "—" : `${display.percent}%`}
-                    </strong>
-                    {display.resetText && <span className="muted"> · {display.resetText}</span>}
-                  </span>
+                  <span className="acct-window-title">{display.title}</span>
                   {display.overLimit && <span className="badge acct-badge-danger">超限</span>}
                 </div>
+                <div className="acct-window-value">
+                  <span className="small muted">{kindText}</span>
+                  <strong>{display.percent === null ? "—" : `${display.percent}%`}</strong>
+                </div>
+                {display.resetText && (
+                  <p className="acct-window-reset small muted">{display.resetText}</p>
+                )}
                 <div
                   className={`acct-progress${display.overLimit ? " danger" : ""}`}
                   role="presentation"

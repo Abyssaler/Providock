@@ -439,8 +439,9 @@ export function evidenceLabel(evidence: string | null): string | null {
   if (!evidence) return null;
   const lower = evidence.toLowerCase();
   if (lower.includes("not_wired") || lower.includes("unsupported")) return "进程协议未接入";
+  if (lower.startsWith("kimi:coding_direct:")) return "官方 Kimi Code 接口";
   if (lower.includes("plugin")) return "官方插件接口";
   if (lower.includes("experimental") || lower.includes("oauth")) return "官方实验接口";
   if (lower.startsWith("official")) return "官方公开接口";
-  return evidence;
+  return "查询来源";
 }

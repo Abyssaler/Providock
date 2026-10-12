@@ -138,30 +138,6 @@ fn fixture_cases() {
         }
 
         // 逐事件费用（null = 无 cost 字段 = 未知）。
-        if let Some(costs) = expected.get("cost").and_then(|c| c.as_object()) {
-            for (event_id, want) in costs {
-                let e = events
-                    .iter()
-                    .find(|e| &e.event_id == event_id)
-                    .unwrap_or_else(|| panic!("{case}: cost expectation for unknown {event_id}"));
-                match want {
-                    Value::Null => assert!(
-                        e.cost_reported.is_none(),
-                        "{case} {event_id} cost should be absent"
-                    ),
-                    Value::String(s) => {
-                        let c = e
-                            .cost_reported
-                            .as_ref()
-                            .unwrap_or_else(|| panic!("{case} {event_id} missing cost"));
-                        assert_eq!(&c.money.amount, s, "{case} {event_id} cost");
-                        assert_eq!(c.money.currency, "USD", "{case} {event_id} currency");
-                        assert_eq!(c.quality.as_str(), "reported", "{case} {event_id} quality");
-                    }
-                    other => panic!("{case} {event_id}: bad cost expectation {other}"),
-                }
-            }
-        }
 
         // 诊断包含
         for d in expected["diagnostics_include"].as_array().unwrap() {
@@ -233,14 +209,7 @@ fn run_update_case(
             );
         }
     }
-    if let Some(s) = want["cost"].as_str() {
-        let c = pe
-            .event
-            .cost_reported
-            .as_ref()
-            .unwrap_or_else(|| panic!("{case} updated cost missing"));
-        assert_eq!(c.money.amount, s, "{case} updated cost");
-    }
+
     // 同一 message id 是替换而非新增：事件总数不变。
     assert_eq!(
         out.events.len(),

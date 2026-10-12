@@ -3,7 +3,7 @@
 //! 依据 `docs/specs/DATA_CONTRACTS.md` 第 6 节：
 //! - 价格键含 provider/channel、model_version、currency、effective_from/to、区域、长上下文档位、
 //!   以及 input / output / cache read / cache write / TTL 等分量差异；不可只凭模型名选一个全球价格。
-//! - 未知价格**不计算**费用（未知 ≠ 免费）；源给出的合法 reported cost 不被估算覆盖。
+//! - 未知价格**不计算**费用（未知 ≠ 免费）；历史估值不被当前价比较覆盖。
 //! - 历史价格更新**不悄悄覆盖**历史估值；重算保存新估值版本（事件上带 `price_version`）。
 //!
 //! 本模块只读写 `price_versions` 表，并显式重算某一事件（[`recompute_event_estimate`]）。
@@ -90,12 +90,26 @@ pub struct RateStrategy {
     pub long_context: Option<LongContext>,
 }
 
+/// Provenance of a user-triggered catalogue import, stored with its immutable price version.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PriceSource {
+    pub source_url: String,
+    pub official_url: String,
+    pub retrieved_at: String,
+    pub source_updated_at: String,
+    pub fx_rate: String,
+    pub fx_date: String,
+}
+
 /// 各分量费率。数值为十进制字符串（每 1 个 token 的金额，单位见 [`Rates::unit`]）。
 ///
 /// TTL 分量（`cache_write_ttl_5m` / `cache_write_ttl_1h`）是 `cache_write` 的细分，
 /// 记录证据用；估算时只用 `cache_write` 基础费率，不再相加，避免重复计费。
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Rates {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<PriceSource>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub input: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

@@ -30,6 +30,14 @@ export interface ModelPrice {
   cacheRead: string | null;
   cacheWrite: string | null;
   enabled: boolean;
+  source?: {
+    sourceUrl: string;
+    officialUrl: string;
+    retrievedAt: string;
+    sourceUpdatedAt: string;
+    fxRate: string;
+    fxDate: string;
+  } | null;
   /** 分时段（高峰）费率；null/缺省 = 未配置。 */
   peak?: RateSet | null;
   peakWindows?: PeakWindowSpec | null;
@@ -73,7 +81,6 @@ export interface UsageEventRow {
   sourceId: string;
   granularity: string;
   tokens: UsageTokens;
-  costReported: MoneyTotal | null;
   costCalculated: (MoneyTotal & { complete: boolean; version: string }) | null;
 }
 export interface UsageEventPage {
@@ -81,4 +88,14 @@ export interface UsageEventPage {
   total: number;
   page: number;
   pageSize: number;
+}
+
+export interface PriceImportResult {
+  imported: number;
+  preserved: number;
+  unmatched: string[];
+  catalogueModels: number;
+  sourceUpdatedAt: string;
+  fxRate: string;
+  fxDate: string;
 }

@@ -11,8 +11,10 @@
     "total": "19",
     "request_count": "2"
   },
-  "granularity_counts": { "message": 1, "request": 1 },
-  "costs": [null, null],
+  "granularity_counts": {
+    "message": 1,
+    "request": 1
+  },
   "consumed": "all",
   "diagnostics_include": []
 }

@@ -27,3 +27,15 @@ describe("formatTokenFull", () => {
     expect(formatTokenFull(null)).toBe("未提供");
   });
 });
+
+describe("金额两位小数显示", () => {
+  it("只舍入显示，不丢失大整数精度", async () => {
+    const { formatMoneyAmount } = await import("../src/lib/format");
+    expect(formatMoneyAmount("180.8315768378")).toBe("180.83");
+    expect(formatMoneyAmount("9.995")).toBe("10.00");
+    expect(formatMoneyAmount("9007199254740993.125")).toBe("9007199254740993.13");
+    expect(formatMoneyAmount("0")).toBe("0.00");
+    expect(formatMoneyAmount("0.0049")).toBe("0.00");
+    expect(formatMoneyAmount("unknown")).toBe("—");
+  });
+});

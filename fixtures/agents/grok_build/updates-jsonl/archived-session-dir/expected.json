@@ -1,5 +1,7 @@
 {
-  "config": { "archived": true },
+  "config": {
+    "archived": true
+  },
   "events": 2,
   "totals": {
     "input_fresh": "3000",
@@ -12,9 +14,23 @@
     "request_count": "2"
   },
   "event_expect": [
-    { "turn_id": "019a1111-0000-7000-8000-000000000001", "model_raw": null, "occurred_at": "2026-10-10T10:00:00Z", "granularity": "turn_aggregate", "completeness": "complete", "cost": null },
-    { "turn_id": "019a1111-0000-7000-8000-000000000002", "model_raw": null, "occurred_at": "2026-10-10T10:01:00Z", "granularity": "turn_aggregate", "completeness": "complete", "cost": null }
+    {
+      "turn_id": "019a1111-0000-7000-8000-000000000001",
+      "model_raw": null,
+      "occurred_at": "2026-10-10T10:00:00Z",
+      "granularity": "turn_aggregate",
+      "completeness": "complete"
+    },
+    {
+      "turn_id": "019a1111-0000-7000-8000-000000000002",
+      "model_raw": null,
+      "occurred_at": "2026-10-10T10:01:00Z",
+      "granularity": "turn_aggregate",
+      "completeness": "complete"
+    }
   ],
   "consumed": "all",
-  "diagnostics_include": ["archived_sessions"]
+  "diagnostics_include": [
+    "archived_sessions"
+  ]
 }

@@ -65,7 +65,6 @@ pub struct UsageSummary {
     /// 读缓存 Token 占比（0..1 四位小数）与覆盖率
     pub cache_read_ratio: Option<String>,
     pub cache_ratio_eligible_events: u64,
-    pub cost_reported: Vec<MoneyTotal>,
     pub cost_estimated: Vec<MoneyTotal>,
     pub by_agent: Vec<AgentBreakdown>,
 }
@@ -81,7 +80,6 @@ struct Acc {
     cache_num: u128,
     cache_den: u128,
     cache_eligible: u64,
-    cost_reported: BTreeMap<String, String>,
     cost_estimated: BTreeMap<String, String>,
 }
 
@@ -121,7 +119,6 @@ pub fn usage_summary(db: &Database, filter: &UsageFilter) -> crate::storage::Res
     let mut sql = String::from(
         "SELECT input_fresh, input_cache_read, input_cache_write, input_total,
                 output_total, total, request_count, occurred_at,
-                cost_reported_amount, cost_reported_currency,
                 cost_estimated_amount, cost_estimated_currency, agent
          FROM usage_events WHERE 1=1",
     );
@@ -161,7 +158,7 @@ pub fn usage_summary(db: &Database, filter: &UsageFilter) -> crate::storage::Res
     let mut stmt = db.conn().prepare(&sql)?;
     let mut rows = stmt.query(rusqlite::params_from_iter(params.iter()))?;
     while let Some(row) = rows.next()? {
-        let agent: String = row.get(12)?;
+        let agent: String = row.get(10)?;
         let accs = [&mut overall, per_agent.entry(agent).or_default()];
         for acc in accs {
             acc.events += 1;
@@ -185,18 +182,16 @@ pub fn usage_summary(db: &Database, filter: &UsageFilter) -> crate::storage::Res
                 acc.cache_den += u128::from(input_total);
                 acc.cache_eligible += 1;
             }
-            for (amount_idx, currency_idx, map) in [
-                (8usize, 9usize, &mut acc.cost_reported),
-                (10usize, 11usize, &mut acc.cost_estimated),
-            ] {
-                if let (Some(amount), Some(currency)) = (
-                    row.get::<_, Option<String>>(amount_idx)?,
-                    row.get::<_, Option<String>>(currency_idx)?,
-                ) {
-                    let entry = map.entry(currency).or_insert_with(|| "0".to_string());
-                    if let Some(sum) = decimal_add(entry, &amount) {
-                        *entry = sum;
-                    }
+            if let (Some(amount), Some(currency)) = (
+                row.get::<_, Option<String>>(8)?,
+                row.get::<_, Option<String>>(9)?,
+            ) {
+                let entry = acc
+                    .cost_estimated
+                    .entry(currency)
+                    .or_insert_with(|| "0".to_string());
+                if let Some(sum) = decimal_add(entry, &amount) {
+                    *entry = sum;
                 }
             }
         }
@@ -223,14 +218,6 @@ pub fn usage_summary(db: &Database, filter: &UsageFilter) -> crate::storage::Res
             total: metric(acc, "total"),
             cache_read_ratio: ratio_decimal(acc.cache_num, acc.cache_den),
             cache_ratio_eligible_events: acc.cache_eligible,
-            cost_reported: acc
-                .cost_reported
-                .iter()
-                .map(|(currency, amount)| MoneyTotal {
-                    currency: currency.clone(),
-                    amount: amount.clone(),
-                })
-                .collect(),
             cost_estimated: acc
                 .cost_estimated
                 .iter()

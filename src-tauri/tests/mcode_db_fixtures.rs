@@ -216,30 +216,6 @@ fn fixture_cases() {
         }
 
         // 逐事件 cost_reported（金额+币种，或 null）
-        if let Some(costs) = expected.get("costs") {
-            let arr = costs.as_array().unwrap();
-            assert_eq!(arr.len(), out.events.len(), "{case} costs len");
-            for (i, want) in arr.iter().enumerate() {
-                let got = out.events[i].cost_reported.as_ref();
-                match want {
-                    Value::Null => assert!(got.is_none(), "{case} event {i} cost should be None"),
-                    Value::Object(o) => {
-                        let got = got.unwrap_or_else(|| panic!("{case} event {i} cost missing"));
-                        assert_eq!(
-                            got.money.amount,
-                            o["amount"].as_str().unwrap(),
-                            "{case} event {i} cost amount"
-                        );
-                        assert_eq!(
-                            got.money.currency,
-                            o["currency"].as_str().unwrap(),
-                            "{case} event {i} cost currency"
-                        );
-                    }
-                    other => panic!("{case}: bad cost expectation {other}"),
-                }
-            }
-        }
 
         if let Some(totals) = expected.get("totals") {
             check_totals(&case, "all", &out.events, totals);

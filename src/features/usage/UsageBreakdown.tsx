@@ -2,10 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { UsageDashboard, UsageEventPage, UsageGroup } from "../../contracts/pricing";
 import type { MoneyTotal, UsageFilter, UsageOptions } from "../../contracts/usage";
-import { formatTokenFull } from "../../lib/format";
+import { formatTokenFull, formatMoneyAmount } from "../../lib/format";
 import { agentLabel } from "./usageDisplay";
 export function moneyText(costs: MoneyTotal[]) {
-  return costs.length ? costs.map((c) => `${c.amount} ${c.currency}`).join(" / ") : "未定价";
+  return costs.length
+    ? costs.map((c) => `${formatMoneyAmount(c.amount)} ${c.currency}`).join(" / ")
+    : "未定价";
 }
 export function GroupTable({
   groups,
@@ -212,28 +214,21 @@ export default function UsageBreakdown({
                           </td>
                           <td>{formatTokenFull(row.tokens.total)}</td>
                           <td>
-                            {row.costReported && (
-                              <>
-                                <span>
-                                  {row.costReported.amount} {row.costReported.currency}
-                                </span>
-                                <small>源已报告</small>
-                              </>
-                            )}
                             {row.costCalculated && (
                               <>
                                 <span
                                   className="usage-cost"
                                   title={`价格版本 ${row.costCalculated.version}`}
                                 >
-                                  {row.costCalculated.amount} {row.costCalculated.currency}
+                                  {formatMoneyAmount(row.costCalculated.amount)}{" "}
+                                  {row.costCalculated.currency}
                                 </span>
                                 <small>
                                   {row.costCalculated.complete ? "当前定价估算" : "部分估算"}
                                 </small>
                               </>
                             )}
-                            {!row.costReported && !row.costCalculated && "未定价"}
+                            {!row.costCalculated && "未定价"}
                           </td>
                           <td>
                             {(

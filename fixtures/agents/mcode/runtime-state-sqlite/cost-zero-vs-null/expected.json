@@ -1,13 +1,15 @@
 {
-  "config": { "after_id": null, "overlap": 8 },
+  "config": {
+    "after_id": null,
+    "overlap": 8
+  },
   "status": "ok",
   "events": 3,
   "max_id": "3",
-  "event_ids": ["mcode:1", "mcode:2", "mcode:3"],
-  "costs": [
-    { "amount": "0", "currency": "USD" },
-    null,
-    { "amount": "0.0000125", "currency": "USD" }
+  "event_ids": [
+    "mcode:1",
+    "mcode:2",
+    "mcode:3"
   ],
   "totals": {
     "input_fresh": "30",

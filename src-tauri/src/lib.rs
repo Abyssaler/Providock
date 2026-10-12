@@ -607,6 +607,20 @@ async fn model_price_save(
     .map_err(|e| e.to_string())?
 }
 #[tauri::command]
+async fn model_prices_import(
+    state: tauri::State<'_, AppState>,
+    target: Option<services::price_import::ImportTarget>,
+) -> Result<services::price_import::ImportResult, String> {
+    let db = Arc::clone(&state.db);
+    tauri::async_runtime::spawn_blocking(move || {
+        let catalogue = services::price_import::fetch()?;
+        let db = db.lock().map_err(|e| e.to_string())?;
+        services::price_import::apply(&db, &catalogue, target)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+#[tauri::command]
 async fn usage_dashboard(
     state: tauri::State<'_, AppState>,
     filter: Option<UsageFilterDto>,
@@ -865,6 +879,7 @@ pub fn run() {
             accounts_list,
             model_prices_list,
             model_price_save,
+            model_prices_import,
             usage_dashboard,
             usage_events,
             agent_visibility,

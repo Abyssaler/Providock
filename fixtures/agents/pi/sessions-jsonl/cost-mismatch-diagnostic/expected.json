@@ -11,10 +11,9 @@
     "total": "120",
     "request_count": "1"
   },
-  "granularity_counts": { "message": 1 },
-  "costs": [
-    { "amount": "0.10", "currency": "USD", "quality": "reported", "completeness": "partial" }
-  ],
+  "granularity_counts": {
+    "message": 1
+  },
   "consumed": "all",
-  "diagnostics_include": ["cost_component_total_mismatch"]
+  "diagnostics_include": []
 }

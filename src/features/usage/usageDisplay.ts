@@ -103,3 +103,18 @@ export function formatUsageCompact(value: string | null): string {
     return "—";
   }
 }
+
+/** Describe the exact filter used for the last completed dashboard request. */
+export function usageScopeText(filter: UsageFilter): string {
+  const date = (value: string) =>
+    new Date(value).toLocaleString("zh-CN", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+  if (!filter.from && !filter.to) return "全部时间";
+  return `${filter.from ? date(filter.from) : "最早记录"} — ${filter.to ? date(filter.to) : "现在"}（本机时间）`;
+}

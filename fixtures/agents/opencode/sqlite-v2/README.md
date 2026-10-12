@@ -34,10 +34,10 @@ CREATE TABLE session_message (
 | c3 | compaction | completed | — | — | — | — | — | — | — | — | 跳过（无 tokens） |
 | u1 | user | — | 7 | — | — | — | — | — | — | — | SQL 排除 |
 
-- a1：`reasoning=10 > 0` → `derived`；cost 1.25 → reported USD。
-- a2：全零 token 行，按 **reported 0** 处理（不丢弃，见顶层 README 决策 1）；cost `0.0` 保留为 `"0"`。
+- a1：`reasoning=10 > 0` → `derived`；cost 1.25 忽略。
+- a2：全零 token 行，按 **reported 0** 处理（不丢弃，见顶层 README 决策 1）；cost `0.0` 忽略。
 - c1 / c2：compaction **有实际 token 值** → 计入；`completed` 与 `failed` 都可能有消耗。
-  诊断记 `compaction_counted:c1`、`compaction_counted:c2`。二者无 `cost` → `None`。
+  诊断记 `compaction_counted:c1`、`compaction_counted:c2`。二者无 cost 不影响 Token。
 - c3：compaction **无 `tokens` 字段** → 跳过，记诊断 `compaction_without_tokens:c3`。
 - u1：`type = 'user'`，SQL `type IN ('assistant','compaction')` 排除。
 
@@ -51,4 +51,4 @@ CREATE TABLE session_message (
 - total = 670 + 0 + 350 + 135 = **1155**（校验 1035+120 = 1155 ✓）
 - request_count = **4**
 
-费用：`a1 = "1.25"`、`a2 = "0"`、`c1 = None`、`c2 = None`。
+费用字段均忽略。

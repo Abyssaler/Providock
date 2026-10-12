@@ -37,7 +37,7 @@
 //! - `total = input_total + output_total`
 //! - `model_raw = model` **原样**：不复制上游 `split_once('/')` 丢首段的做法，保留全名，
 //!   归一化留给另一层。
-//! - `cost_reported`：`cost_usd` 有限且非负 → USD reported（**合法 0 保留**）；
+//! - v2.0.4 起忽略源 `cost_usd`，不采集自报费用；
 //!   `NULL` / 负数 / `NaN` / `Inf` → `None`（不落估算）。
 //! - 身份：`event_id = "mcode:{id}"`（原生行 id）；`granularity = request`；
 //!   `request_count = 1`（一行一次调用的投影语义）。
@@ -132,7 +132,6 @@ struct RawRow {
     reasoning_tokens: Option<i64>,
     cache_read_tokens: Option<i64>,
     cache_write_tokens: Option<i64>,
-    cost_usd: Option<f64>,
 }
 
 fn map_raw(row: &rusqlite::Row<'_>) -> rusqlite::Result<RawRow> {
@@ -146,7 +145,6 @@ fn map_raw(row: &rusqlite::Row<'_>) -> rusqlite::Result<RawRow> {
         reasoning_tokens: row.get(6)?,
         cache_read_tokens: row.get(7)?,
         cache_write_tokens: row.get(8)?,
-        cost_usd: row.get(9)?,
     })
 }
 
@@ -159,7 +157,7 @@ pub fn read_events(conn: &Connection, cfg: &McodeConfig) -> McodeOutcome {
 
     let mut sql = String::from(
         "SELECT id, session_id, model, ts, input_tokens, output_tokens, \
-         reasoning_tokens, cache_read_tokens, cache_write_tokens, cost_usd \
+         reasoning_tokens, cache_read_tokens, cache_write_tokens \
          FROM local_runtime_token_usage",
     );
     if lower.is_some() {
@@ -251,27 +249,6 @@ pub fn read_events(conn: &Connection, cfg: &McodeConfig) -> McodeOutcome {
             at
         });
 
-        let cost_reported = match raw.cost_usd {
-            None => None,
-            Some(c) if !c.is_finite() || c < 0.0 => {
-                row_diag.push(format!("invalid_cost:id={id}:{c}"));
-                None
-            }
-            Some(c) => match Money::new(c.to_string(), "USD") {
-                Ok(money) => Some(CostInfo {
-                    money,
-                    quality: Quality::Reported,
-                    completeness: Completeness::Complete,
-                    price_version: None,
-                    scope: None,
-                }),
-                Err(_) => {
-                    row_diag.push(format!("unrepresentable_cost:id={id}:{c}"));
-                    None
-                }
-            },
-        };
-
         let tokens_all_present = fresh.is_some()
             && cache_read.is_some()
             && cache_write.is_some()
@@ -314,7 +291,6 @@ pub fn read_events(conn: &Connection, cfg: &McodeConfig) -> McodeOutcome {
                 total,
                 quality,
             },
-            cost_reported,
             cost_estimated: None,
             completeness,
             account_link: None,
@@ -414,10 +390,6 @@ mod tests {
         assert_eq!(e.tokens.total, Some(155));
         assert_eq!(e.model_raw.as_deref(), Some("MiniMax-M2"));
         assert_eq!(e.occurred_at.as_deref(), Some("2026-10-11T08:00:00.078Z"));
-        let cost = e.cost_reported.as_ref().unwrap();
-        assert_eq!(cost.money.amount, "0.5");
-        assert_eq!(cost.money.currency, "USD");
-        assert_eq!(out.max_id, Some(1));
     }
 
     #[test]
@@ -451,26 +423,6 @@ mod tests {
         let out3 = read_events(&conn, &cfg(Some(6), 0));
         assert!(out3.events.is_empty());
         assert_eq!(out3.max_id, Some(6));
-    }
-
-    #[test]
-    fn mcode_cost_zero_preserved_null_is_absent() {
-        let conn = Connection::open_in_memory().unwrap();
-        create_table(&conn);
-        conn.execute_batch(
-            "INSERT INTO local_runtime_token_usage
-               (id, session_id, model, ts, input_tokens, output_tokens, reasoning_tokens,
-                cache_read_tokens, cache_write_tokens, cost_usd)
-             VALUES (1, 's1', 'm', 1791705600000, 10, 1, 0, 0, 0, 0.0),
-                    (2, 's1', 'm', 1791705600000, 10, 1, 0, 0, 0, NULL);",
-        )
-        .unwrap();
-        let out = read_events(&conn, &cfg(None, 0));
-        assert_eq!(out.events.len(), 2);
-        let zero = out.events[0].cost_reported.as_ref().unwrap();
-        assert_eq!(zero.money.amount, "0");
-        assert_eq!(zero.money.currency, "USD");
-        assert!(out.events[1].cost_reported.is_none(), "NULL 是未知，不是 0");
     }
 
     #[test]

@@ -169,7 +169,9 @@ describe("AccountMetrics 展示规则", () => {
       "values",
     );
     const body = text(html);
-    expect(body).toContain("5 小时剩余 42% · 2 小时 0 分钟后重置");
+    expect(body).toContain("5 小时");
+    expect(body).toContain("剩余42%");
+    expect(body).toContain("2 小时 0 分钟后重置");
     expect(body).toContain("110.00");
     expect(body).toContain("CNY");
     expect(body).toContain("5.00");

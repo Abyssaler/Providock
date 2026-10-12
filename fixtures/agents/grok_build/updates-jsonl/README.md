@@ -16,9 +16,7 @@
   `outputTokens` → `output_total`；`reasoningTokens ⊂ outputTokens` → `output_reasoning`
   （**不另加**）；`total = input_total + outputTotal`。
 - `request_count = modelCalls`（缺失为 null，不强赋 1）。
-- 费用：`costUsdTicks`，1 tick = 10^-10 USD，即 值 = ticks ÷ 10_000_000_000（整数换算，无浮点）；
-  `costIsPartial=true` → `cost_reported.completeness = partial` 且事件 `completeness = partial`
-  （部分计价下界）；无 `costUsdTicks` → `cost_reported = null`（无价不等于免费）。
+- 费用：v2.0.4 起 `costIsPartial` / `costUsdTicks` 均忽略，不影响 Token 完整性。
 - 身份：`grok_build:{file_identity}:g{generation}:{会话目录名}:{prompt_id 或 o字节偏移}`。
 - 尾行未换行不消费；`consumed_bytes` 停在尾行起点。
 - `archived=true` 仅标记来源（`archived_sessions`），身份按会话目录名建立，归档/活跃副本收敛不双算。
@@ -38,21 +36,21 @@
 - 合计：fresh 1300，read 500，input_total 1800，output 230，reasoning 50，total 2030，请求 3
 
 ### cost-ticks-precision（2 事件）
-- 轮1：ticks 338_880_000 ÷ 10_000_000_000 = **0.033888 USD**；
+- 轮1：源 ticks 338_880_000 忽略；
   13793/13696/21/7 → fresh 13793，read 13696，input_total 13793+13696=27489，output 21，total 27510
-- 轮2：ticks 1 ÷ 10_000_000_000 = **0.0000000001 USD**；
+- 轮2：源 ticks 1 忽略；
   1/0/1/0 → fresh 1，read 0，input_total 1，output 1，total 2
 - 合计：fresh 13794，read 13696，input_total 27489+1=27490，output 22，reasoning 7，total 27512，请求 2
 
 ### cost-partial（2 事件）
-- 轮1：ticks 5_000_000_000 → **0.5 USD**，`costIsPartial=true` → cost.completeness=partial、事件 partial；
+- 轮1：源 ticks 和 `costIsPartial=true` 忽略，Token 仍完整；
   100/20/10/0/1 → fresh 100，read 20，input_total 120，output 10，total 130
-- 轮2：ticks 250_000_000 → **0.025 USD**，完整；
+- 轮2：源 ticks 忽略，Token 完整；
   200/0/20/0/2 → fresh 200，read 0，input_total 200，output 20，total 220
 - 合计：fresh 300，read 20，input_total 320，output 30，reasoning 0，total 350，请求 3
 
 ### no-cost-null（2 事件）
-两轮都无任何费用字段：`cost_reported=null`（不是 0），事件 completeness=complete。
+两轮无费用字段不影响 Token，事件 completeness=complete。
 - 轮1 1000/0/100/0/1 → fresh 1000，input_total 1000，output 100，total 1100
 - 轮2 2000/500/200/10/3 → fresh 2000，read 500，input_total 2500，output 200，total 2700
 - 合计：fresh 3000，read 500，input_total 3500，output 300，reasoning 10，total 3800，请求 4
@@ -89,8 +87,7 @@
 - `events`：事件数。
 - `totals`：各 Token 分量、`request_count` 的已知值合计（null = 全部事件该字段未知）。
 - `event_expect[]`：逐事件断言（`turn_id`、`model_raw`、`occurred_at`、`granularity`、
-  `completeness`、`cost`）。`cost` 为 null 表示 `cost_reported = None`，否则含
-  `amount`/`currency`/`quality`/`completeness`。
+  `completeness`）。旧 cost 输入保留以验证被忽略。
 - `consumed`：`all` 或 `before_marker:<标记>`（消费字节停在标记处）。
 - `diagnostics_include[]`：诊断必须包含的子串。
 - `diagnostics_count{}`（可选）：诊断子串出现次数。

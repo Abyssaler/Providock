@@ -133,40 +133,6 @@ fn fixture_cases() {
             if let Some(c) = exp["completeness"].as_str() {
                 assert_eq!(e.completeness.as_str(), c, "{case}[{i}] completeness");
             }
-            match &exp["cost"] {
-                Value::Null => {
-                    assert!(
-                        e.cost_reported.is_none(),
-                        "{case}[{i}] cost should be null (无价不等于免费)"
-                    )
-                }
-                c => {
-                    let cost = e
-                        .cost_reported
-                        .as_ref()
-                        .unwrap_or_else(|| panic!("{case}[{i}] missing cost_reported"));
-                    assert_eq!(
-                        cost.money.amount,
-                        c["amount"].as_str().unwrap(),
-                        "{case}[{i}] amount"
-                    );
-                    assert_eq!(
-                        cost.money.currency,
-                        c["currency"].as_str().unwrap(),
-                        "{case}[{i}] currency"
-                    );
-                    assert_eq!(
-                        cost.quality.as_str(),
-                        c["quality"].as_str().unwrap(),
-                        "{case}[{i}] quality"
-                    );
-                    assert_eq!(
-                        cost.completeness.as_str(),
-                        c["completeness"].as_str().unwrap(),
-                        "{case}[{i}] cost completeness"
-                    );
-                }
-            }
         }
 
         match expected["consumed"].as_str().unwrap() {

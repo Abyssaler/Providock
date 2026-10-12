@@ -470,7 +470,6 @@ fn push_event(
             total: Some(u.total),
             quality: Quality::Reported,
         },
-        cost_reported: None,
         cost_estimated: None,
         // 旧版没有会话级累计快照，逐 step 绝对值本身即完整记录。
         completeness: Completeness::Complete,

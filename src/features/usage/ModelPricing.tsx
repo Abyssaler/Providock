@@ -1,6 +1,7 @@
+import { SelectField as Select } from "../../components/Select";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import type { ModelPrice } from "../../contracts/pricing";
+import type { ModelPrice, PriceImportResult } from "../../contracts/pricing";
 import type { UsageOptions } from "../../contracts/usage";
 import { AGENTS, agentLabel } from "./usageDisplay";
 import {
@@ -80,6 +81,8 @@ export default function ModelPricing({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [importResult, setImportResult] = useState<PriceImportResult | null>(null);
+  const [importing, setImporting] = useState(false);
   const reload = useCallback(async () => {
     try {
       const [prices, opts] = await Promise.all([
@@ -109,6 +112,26 @@ export default function ModelPricing({
       setError(String(e));
     } finally {
       setBusy(false);
+    }
+  };
+  const importPrices = async () => {
+    setBusy(true);
+    setImporting(true);
+    setError(null);
+    setImportResult(null);
+    setSaved(false);
+    try {
+      const result = await invoke<PriceImportResult>("model_prices_import", {
+        target: draft.model.trim() ? { agent: draft.agent, model: draft.model.trim() } : null,
+      });
+      setImportResult(result);
+      await reload();
+      onSaved();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+      setImporting(false);
     }
   };
   const update = (patch: Partial<StrategyForm>) => {
@@ -143,8 +166,43 @@ export default function ModelPricing({
         </button>
       </div>
       <p className="muted">
-        按每百万 Token 填写价格。保存后，用量页会按当前价格估算所选范围，保留原始费用和旧价格版本。
+        按每百万 Token 填写价格，用量页按当前价格估算所选范围；旧价格版本保留。
       </p>
+      <div className="pricing-import">
+        <div>
+          <strong>导入 AIHOT 模型价格</strong>
+          <p className="small muted">
+            为本机已使用的模型及当前填写的模型匹配人民币价格。保留手动、分档和已停用规则；缓存创建等未提供的价格留空。
+          </p>
+          <a href="https://aihot.news/leaderboard" target="_blank" rel="noreferrer">
+            查看价格来源 ↗
+          </a>
+        </div>
+        <button
+          type="button"
+          className="primary"
+          disabled={busy}
+          onClick={() => void importPrices()}
+        >
+          {importing ? "正在获取价格…" : "一键导入价格"}
+        </button>
+      </div>
+      {importResult && (
+        <div className="pricing-import-result" role="status">
+          已导入 {importResult.imported} 条，保留 {importResult.preserved} 条已有规则。人民币汇率{" "}
+          {importResult.fxRate} · {importResult.fxDate}；来源更新{" "}
+          {new Date(importResult.sourceUpdatedAt).toLocaleString("zh-CN")}。
+          {importResult.unmatched.length > 0 && (
+            <details>
+              <summary>未匹配 {importResult.unmatched.length} 个模型</summary>
+              <p>{importResult.unmatched.join("、")}</p>
+              <p className="muted small">
+                请手动配置准确模型名与价格。网站未提供的模型和计费分档不会自动推断。
+              </p>
+            </details>
+          )}
+        </div>
+      )}
       <form
         noValidate
         onSubmit={(e) => {
@@ -164,7 +222,8 @@ export default function ModelPricing({
         <div className="pricing-grid">
           <label>
             Agent
-            <select
+            <Select
+              aria-label="定价 Agent"
               value={draft.agent}
               onChange={(e) => {
                 setDraft({ ...draft, agent: e.target.value, sourceId: null });
@@ -176,11 +235,12 @@ export default function ModelPricing({
                   {label}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
           <label>
             适用来源
-            <select
+            <Select
+              aria-label="定价适用来源"
               value={draft.sourceId ?? ""}
               onChange={(e) => setDraft({ ...draft, sourceId: e.target.value || null })}
             >
@@ -192,7 +252,7 @@ export default function ModelPricing({
                     {s.label}
                   </option>
                 ))}
-            </select>
+            </Select>
           </label>
           <label className="pricing-model">
             模型名称
@@ -212,13 +272,14 @@ export default function ModelPricing({
           </label>
           <label>
             币种
-            <select
+            <Select
+              aria-label="定价币种"
               value={draft.currency}
               onChange={(e) => setDraft({ ...draft, currency: e.target.value as "USD" | "CNY" })}
             >
               <option value="USD">USD · 美元</option>
               <option value="CNY">CNY · 人民币</option>
-            </select>
+            </Select>
           </label>
         </div>
         <RateFields
@@ -362,6 +423,22 @@ export default function ModelPricing({
           <div className="pricing-rule" key={rule.version}>
             <div>
               <strong>{rule.model}</strong>
+              {rule.source && (
+                <details className="pricing-provenance">
+                  <summary className="badge">AIHOT 导入 · CNY</summary>
+                  <p className="small muted">
+                    抓取 {new Date(rule.source.retrievedAt).toLocaleString("zh-CN")} · 汇率{" "}
+                    {rule.source.fxRate}（{rule.source.fxDate}）<br />
+                    <a href={rule.source.sourceUrl} target="_blank" rel="noreferrer">
+                      AIHOT 来源
+                    </a>{" "}
+                    ·{" "}
+                    <a href={rule.source.officialUrl} target="_blank" rel="noreferrer">
+                      厂商价格
+                    </a>
+                  </p>
+                </details>
+              )}
               {(rule.peak || rule.peakWindows) && <span className="badge">分时段</span>}
               {rule.longContext && <span className="badge">长上下文分档</span>}
               <p className="small muted">

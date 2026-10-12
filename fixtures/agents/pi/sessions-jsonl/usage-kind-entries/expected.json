@@ -11,8 +11,13 @@
     "total": "50017",
     "request_count": "4"
   },
-  "granularity_counts": { "message": 1, "request": 3 },
-  "costs": [null, null, null, null],
+  "granularity_counts": {
+    "message": 1,
+    "request": 3
+  },
   "consumed": "all",
-  "diagnostics_include": ["usage_kind:cache_warm", "usage_kind_unknown:future_kind"]
+  "diagnostics_include": [
+    "usage_kind:cache_warm",
+    "usage_kind_unknown:future_kind"
+  ]
 }

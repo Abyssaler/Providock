@@ -51,6 +51,7 @@ fn quoted(rule: &ModelPrice, at: Option<&str>, input_total: Option<u64>) -> Opti
 /// DeepSeek 风格：基础费率为低谷价，peak 为高峰价。
 fn deepseek() -> ModelPrice {
     ModelPrice {
+        source: None,
         version: String::new(),
         agent: "codex".into(),
         source_id: None,
@@ -79,6 +80,7 @@ fn deepseek() -> ModelPrice {
 /// OpenAI 风格：基础费率为短上下文价，longContext 为整请求升档。
 fn openai_style() -> ModelPrice {
     ModelPrice {
+        source: None,
         version: String::new(),
         agent: "codex".into(),
         source_id: None,

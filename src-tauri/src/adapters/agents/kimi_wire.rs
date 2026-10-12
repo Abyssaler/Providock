@@ -238,7 +238,6 @@ fn build_event(
         granularity: Granularity::Request,
         request_count: Some(1),
         tokens,
-        cost_reported: None,
         cost_estimated: None,
         completeness,
         account_link: None,

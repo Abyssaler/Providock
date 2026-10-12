@@ -158,40 +158,6 @@ fn fixture_cases() {
         }
 
         // 费用（与事件一一对应）
-        if let Some(costs) = expected.get("costs") {
-            let costs = costs.as_array().unwrap();
-            assert_eq!(costs.len(), out.events.len(), "{case} costs length");
-            for (i, want) in costs.iter().enumerate() {
-                let got = out.events[i].cost_reported.as_ref();
-                match want {
-                    Value::Null => assert!(got.is_none(), "{case} event {i} cost should be None"),
-                    Value::Object(_) => {
-                        let got = got.unwrap_or_else(|| panic!("{case} event {i} cost missing"));
-                        assert_eq!(
-                            got.money.amount,
-                            want["amount"].as_str().unwrap(),
-                            "{case} event {i}"
-                        );
-                        assert_eq!(
-                            got.money.currency,
-                            want["currency"].as_str().unwrap(),
-                            "{case} event {i}"
-                        );
-                        assert_eq!(
-                            got.quality.as_str(),
-                            want["quality"].as_str().unwrap(),
-                            "{case} event {i} cost quality"
-                        );
-                        assert_eq!(
-                            got.completeness.as_str(),
-                            want["completeness"].as_str().unwrap(),
-                            "{case} event {i} cost completeness"
-                        );
-                    }
-                    other => panic!("{case}: bad cost expectation {other}"),
-                }
-            }
-        }
 
         // 消费边界
         match expected["consumed"].as_str().unwrap() {

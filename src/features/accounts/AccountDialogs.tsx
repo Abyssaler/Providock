@@ -1,3 +1,4 @@
+import { SelectField as Select } from "../../components/Select";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type {
@@ -223,13 +224,17 @@ export function RotateCredentialDialog({ account, onClose, onRotated }: RotatePr
           {active.length > 1 && (
             <label>
               <span>要替换的凭据</span>
-              <select value={credentialId} onChange={(e) => setCredentialId(e.target.value)}>
+              <Select
+                aria-label="要替换的凭据"
+                value={credentialId}
+                onChange={(e) => setCredentialId(e.target.value)}
+              >
                 {active.map((c) => (
                   <option key={c.credentialId} value={c.credentialId}>
                     {CREDENTIAL_TYPE_LABELS[c.credentialType]} {c.mask}
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
           )}
           <label>

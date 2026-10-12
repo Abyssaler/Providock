@@ -20,6 +20,7 @@ fn event(db: &Database, id: &str, source: &str, agent: &str, model: Option<&str>
 }
 fn rule(agent: &str, model: &str) -> ModelPrice {
     ModelPrice {
+        source: None,
         version: String::new(),
         agent: agent.into(),
         source_id: None,
@@ -186,6 +187,22 @@ fn model_groups_filters_event_pagination_and_multi_currency_agree() {
     };
     let d = usage_details::dashboard(&db, &filter, true).unwrap();
     let summary = aggregate::usage_summary(&db, &filter).unwrap();
+    assert!(serde_json::to_value(&summary)
+        .unwrap()
+        .get("costReported")
+        .is_none());
+    let legacy: String = db
+        .conn()
+        .query_row(
+            "SELECT cost_reported_amount FROM usage_events WHERE event_id='e1'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(
+        legacy, "0",
+        "legacy column remains untouched for upgrade compatibility"
+    );
     assert_eq!(d.models.len(), 1);
     assert_eq!(d.models[0].tokens.total, summary.total.value);
     assert_eq!(d.priced_events, 2);
@@ -193,7 +210,10 @@ fn model_groups_filters_event_pagination_and_multi_currency_agree() {
     let second = usage_details::events(&db, &filter, 2, 1).unwrap();
     assert_eq!(first.total, 2);
     assert_ne!(first.rows[0].event_id, second.rows[0].event_id);
-    assert_eq!(first.rows[0].cost_reported.as_ref().unwrap().amount, "0");
+    assert!(serde_json::to_value(&first.rows[0])
+        .unwrap()
+        .get("costReported")
+        .is_none());
     assert_eq!(
         first.rows[0].cost_calculated.as_ref().unwrap().amount,
         "0.00555"

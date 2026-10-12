@@ -29,7 +29,7 @@ total              = input_total + output_total
 model_raw          = model 原样（保留全名，含 '/'）
 event_id           = "mcode:{id}"；granularity=request；request_count=1
 occurred_at        = ts 毫秒 → RFC3339 UTC
-cost_reported      = cost_usd 有限且非负 → USD reported；NULL/负数/NaN/Inf → 未知(None)
+源 cost_usd        = v2.0.4 起忽略，不影响 Token 完整性
 ```
 
 - `ts` 单位取**毫秒**：上游 `created_at = ts / 1000`（`session_usage_mcode.rs:79`）。
@@ -46,7 +46,7 @@ cost_reported      = cost_usd 有限且非负 → USD reported；NULL/负数/NaN
 2. **model 全名保留**：上游 `split_once('/')` 丢首段（`:44-46`）。本适配器不复制。
 3. **event_id**：上游 `mcode:{session_id}:{id}`（`:67`）；本适配器 `mcode:{id}`（按任务口径）。
    同库只采一次的规则由调用方保证（`source_instance = 规范化库路径`），故身份只需行 id。
-4. **cost 合法 0 保留**：与上游一致（`:57-58`，三适配器中唯一保留合法零者）；本适配器亦不做定价回退。
+4. **cost 字段忽略**：不读取源费用，不做定价回退。
 5. **不丢弃全零行**：上游无零值过滤（`:40-83`），本适配器亦保留（区别于 Kimi `emptyUsage` 兜底）。
 
 ## 用例与算术
@@ -61,8 +61,8 @@ cost_reported      = cost_usd 有限且非负 → USD reported；NULL/负数/NaN
 
 逐行（fresh=in；input_total=in+cr+cw；output_total=out；total=input_total+out）：
 - id1：fresh 1000，read 300，write 100，input_total 1400，output_total 200，reasoning 50，total 1600
-- id2：fresh 500，input_total 500，output_total 80，total 580，cost reported `0` USD
-- id3：全零保留：fresh 0，input_total 0，output_total 0，total 0；cost NULL → None
+- id2：fresh 500，input_total 500，output_total 80，total 580，源 cost 忽略
+- id3：全零保留：fresh 0，input_total 0，output_total 0，total 0；源 cost 忽略
 
 合计：fresh **1500**，read **300**，write **100**，input_total **1900**，output_total **280**，
 reasoning **50**，total **2180**，requests **3**。
@@ -107,9 +107,9 @@ id1：in 100，out 20，reason 7。
 
 | id | cost_usd | 期望 |
 | -- | -------- | ---- |
-| 1 | 0.0 | reported USD `0`（合法零保留） |
-| 2 | NULL | None（未知） |
-| 3 | 0.0000125 | reported USD `0.0000125` |
+| 1 | 0.0 | 忽略，Token 不变 |
+| 2 | NULL | 忽略，Token 不变 |
+| 3 | 0.0000125 | 忽略，Token 不变 |
 
 token 均为 in 10 / out 1。合计：fresh **30**，input_total **30**，output_total **3**，total **33**。
 

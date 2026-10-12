@@ -329,8 +329,6 @@ pub struct UsageEvent {
     pub request_count: Option<u64>,
     pub tokens: TokenSet,
     #[serde(default)]
-    pub cost_reported: Option<CostInfo>,
-    #[serde(default)]
     pub cost_estimated: Option<CostInfo>,
     #[serde(default = "default_unknown_completeness")]
     pub completeness: Completeness,
@@ -475,7 +473,6 @@ mod tests {
                 total: Some(2300),
                 quality: Quality::Reported,
             },
-            cost_reported: None,
             cost_estimated: None,
             completeness: Completeness::Complete,
             account_link: None,

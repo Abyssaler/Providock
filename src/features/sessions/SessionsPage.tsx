@@ -1,3 +1,4 @@
+import { SelectField as Select } from "../../components/Select";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type {
@@ -132,24 +133,28 @@ export default function SessionsPage() {
         </label>
         <label>
           <span className="muted small">Agent</span>
-          <select value={agent} onChange={(e) => setAgent(e.target.value)}>
+          <Select aria-label="会话 Agent" value={agent} onChange={(e) => setAgent(e.target.value)}>
             <option value="">全部 Agent</option>
             {AGENT_OPTIONS.map((id) => (
               <option key={id} value={id}>
                 {agentLabel(id)}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <label>
           <span className="muted small">最后活跃</span>
-          <select value={period} onChange={(e) => setPeriod(e.target.value as Period)}>
+          <Select
+            aria-label="会话活跃范围"
+            value={period}
+            onChange={(e) => setPeriod(e.target.value as Period)}
+          >
             {PERIODS.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.label}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <div className="actions">
           <button type="submit">搜索</button>

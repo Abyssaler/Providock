@@ -1,5 +1,7 @@
 {
-  "config": { "archived": false },
+  "config": {
+    "archived": false
+  },
   "events": 1,
   "totals": {
     "input_fresh": "100",
@@ -12,7 +14,13 @@
     "request_count": "1"
   },
   "event_expect": [
-    { "turn_id": "019a0000-0000-7000-8000-000000000001", "model_raw": null, "occurred_at": "2026-10-10T10:00:00Z", "granularity": "turn_aggregate", "completeness": "complete", "cost": null }
+    {
+      "turn_id": "019a0000-0000-7000-8000-000000000001",
+      "model_raw": null,
+      "occurred_at": "2026-10-10T10:00:00Z",
+      "granularity": "turn_aggregate",
+      "completeness": "complete"
+    }
   ],
   "consumed": "all",
   "diagnostics_include": []

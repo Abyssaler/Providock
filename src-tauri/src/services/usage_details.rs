@@ -56,7 +56,6 @@ pub struct Event {
     pub source_id: String,
     pub granularity: String,
     pub tokens: Tokens,
-    pub cost_reported: Option<Amount>,
     pub cost_calculated: Option<Estimate>,
 }
 #[derive(Debug, Serialize)]
@@ -170,7 +169,7 @@ fn predicate(f: &UsageFilter) -> (String, Vec<rusqlite::types::Value>) {
     push_agents_clause(f, &mut sql, &mut params);
     (sql, params)
 }
-const COLUMNS:&str="event_id, occurred_at, agent, COALESCE(model_normalized,model_raw), source_id, granularity, input_fresh, input_cache_read, input_cache_write, input_total, output_total, total, cost_reported_amount, cost_reported_currency";
+const COLUMNS:&str="event_id, occurred_at, agent, COALESCE(model_normalized,model_raw), source_id, granularity, input_fresh, input_cache_read, input_cache_write, input_total, output_total, total";
 fn row(row: &rusqlite::Row<'_>, rules: &[ModelPrice]) -> Result<(Event, [Option<u64>; 6]), String> {
     let get_string = |i| row.get::<_, Option<String>>(i).map_err(|e| e.to_string());
     let agent: String = row.get(2).map_err(|e| e.to_string())?;
@@ -208,10 +207,6 @@ fn row(row: &rusqlite::Row<'_>, rules: &[ModelPrice]) -> Result<(Event, [Option<
             version: c.price_version.unwrap_or_default(),
         }
     });
-    let cost_reported = match (get_string(12)?, get_string(13)?) {
-        (Some(amount), Some(currency)) => Some(Amount { amount, currency }),
-        _ => None,
-    };
     Ok((
         Event {
             event_id: row.get(0).map_err(|e| e.to_string())?,
@@ -221,7 +216,6 @@ fn row(row: &rusqlite::Row<'_>, rules: &[ModelPrice]) -> Result<(Event, [Option<
             source_id: source,
             granularity: row.get(5).map_err(|e| e.to_string())?,
             tokens: Tokens::from_sums(&counts.map(|n| n.map(u128::from))),
-            cost_reported,
             cost_calculated,
         },
         counts,

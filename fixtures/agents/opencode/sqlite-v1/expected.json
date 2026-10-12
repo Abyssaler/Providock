@@ -1,6 +1,8 @@
 {
   "version": "v1",
-  "config": { "session_id": null },
+  "config": {
+    "session_id": null
+  },
   "events": 3,
   "granularity": "message",
   "totals": {
@@ -12,26 +14,28 @@
     "total": "2340",
     "request_count": "3"
   },
-  "cost": {
-    "opencode:ses-v1-a:m1": "0.05",
-    "opencode:ses-v1-a:m2": "0",
-    "opencode:ses-v1-a:m3": null
-  },
-  "diagnostics_include": ["schema:v1"],
+  "diagnostics_include": [
+    "schema:v1"
+  ],
   "update_case": {
     "update_sql": "UPDATE message SET data = ?1 WHERE id = ?2",
     "message_id": "m2",
     "new_data": {
       "role": "assistant",
       "modelID": "free-model",
-      "cost": 0.02,
       "tokens": {
         "input": 555,
         "output": 55,
         "reasoning": 5,
-        "cache": { "read": 5, "write": 5 }
+        "cache": {
+          "read": 5,
+          "write": 5
+        }
       },
-      "time": { "created": 1760000060000, "completed": 1760000061000 }
+      "time": {
+        "created": 1760000060000,
+        "completed": 1760000061000
+      }
     },
     "expect": {
       "event_id": "opencode:ses-v1-a:m2",
@@ -41,7 +45,6 @@
       "input_total": "565",
       "output_total": "60",
       "total": "625",
-      "cost": "0.02",
       "replace_existing": true
     }
   }

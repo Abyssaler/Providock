@@ -25,9 +25,7 @@
 //! - reasoningTokens ⊂ outputTokens：output_reasoning = reasoningTokens，
 //!   output_total = outputTokens（**不另加** reasoning）。
 //! - request_count = modelCalls（源给出的本轮模型调用次数；缺失为 null，不强赋 1）。
-//! - costUsdTicks 精确换算 1 tick = 10^-10 USD → 十进制字符串（整数运算，无浮点）；
-//!   costIsPartial=true → 费用为部分计价下界（CostInfo.completeness=partial；事件 Token 仍为 complete）；无 costUsdTicks → cost 为
-//!   None（无价不等于免费，禁止写 0）。
+//! - v2.0.4 起忽略 costUsdTicks/costIsPartial，Token 完整性独立判断。
 //!
 //! 身份（契约第 4 节）：`grok_build:{file_identity}:g{generation}:{会话目录名}:{turn_key}`，
 //! turn_key 优先取事件 `prompt_id`（上游 rewind 截断改写前缀导致行序前移时不双算），
@@ -41,9 +39,6 @@ use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 
 pub const PARSER_VERSION: &str = "grok-build-updates-1";
-
-/// 1 tick = 10^-10 USD。
-const TICKS_PER_USD: u128 = 10_000_000_000;
 
 pub struct GrokParseConfig {
     pub source_id: String,
@@ -202,28 +197,6 @@ pub fn parse_updates(bytes: &[u8], cfg: &GrokParseConfig) -> GrokParseOutcome {
             _ => None,
         };
 
-        let cost_partial = src
-            .get("costIsPartial")
-            .and_then(Value::as_bool)
-            .or_else(|| usage.get("costIsPartial").and_then(Value::as_bool))
-            .unwrap_or(false);
-        let cost_reported = read("costUsdTicks").and_then(|ticks| {
-            Money::new(ticks_to_usd(ticks), "USD")
-                .ok()
-                .map(|money| CostInfo {
-                    money,
-                    quality: Quality::Reported,
-                    completeness: if cost_partial {
-                        Completeness::Partial
-                    } else {
-                        Completeness::Complete
-                    },
-                    price_version: None,
-                    scope: None,
-                })
-        });
-        // costIsPartial 只影响费用覆盖范围（CostInfo.completeness=partial）；
-        // 事件级 completeness 描述 Token 计量完整性，此处 Token 齐全 → complete。
         let completeness = Completeness::Complete;
 
         out.events.push(UsageEvent {
@@ -253,7 +226,6 @@ pub fn parse_updates(bytes: &[u8], cfg: &GrokParseConfig) -> GrokParseOutcome {
                 total,
                 quality: Quality::Reported,
             },
-            cost_reported,
             cost_estimated: None,
             completeness,
             account_link: None,
@@ -288,18 +260,6 @@ fn find_prompt_id(v: &Value) -> Option<String> {
     })
 }
 
-/// 整数 tick → USD 十进制字符串，精确无浮点。1 tick = 10^-10 USD。
-pub fn ticks_to_usd(ticks: u64) -> String {
-    let v = u128::from(ticks);
-    let int = v / TICKS_PER_USD;
-    let frac = v % TICKS_PER_USD;
-    if frac == 0 {
-        return int.to_string();
-    }
-    let frac = format!("{frac:010}");
-    format!("{int}.{}", frac.trim_end_matches('0'))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -313,18 +273,6 @@ mod tests {
             archived: false,
             observed_at: "2026-10-11T08:00:00Z".into(),
         }
-    }
-
-    #[test]
-    fn ticks_convert_without_float() {
-        assert_eq!(ticks_to_usd(338_880_000), "0.033888");
-        assert_eq!(ticks_to_usd(44_288_000), "0.0044288");
-        assert_eq!(ticks_to_usd(10_000_000_000), "1");
-        assert_eq!(ticks_to_usd(5_000_000_000), "0.5");
-        assert_eq!(ticks_to_usd(25_000_000), "0.0025");
-        assert_eq!(ticks_to_usd(1), "0.0000000001");
-        assert_eq!(ticks_to_usd(0), "0");
-        assert_eq!(ticks_to_usd(12_345_678_901), "1.2345678901");
     }
 
     fn line(prompt: &str, usage: &str, ts: i64) -> String {

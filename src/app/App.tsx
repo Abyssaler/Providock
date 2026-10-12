@@ -115,7 +115,6 @@ export default function App() {
         </PageBoundary>
         <footer className="foot">
           <span>Providock · 本地用量与账户管理</span>
-          <span>本机记录 ≠ 平台全部消费 · 未提供 ≠ 0</span>
         </footer>
       </main>
     </div>

@@ -1,82 +1,84 @@
 # Providock
 
-本地优先的 Agent 用量监测与 AI 账户额度管理桌面应用。
+本地优先的 AI Agent 用量统计与账户额度管理桌面应用。读取电脑上已有的 Agent 日志，查看 Token、缓存、模型成本估算和会话；API 余额与 Coding Plan 独立管理，账户无需绑定 Agent。
 
-**当前状态：核心链路已实现并通过样本级验证（2026-10-12）。** 八个本地 Agent 的解析器、采集入库、聚合与用量/账户/会话/数据源四页 UI 均已落地；macOS 实机只读验证了 Kimi Code、Codex 与 OpenCode。Kimi Code 直连额度查询、GLM 无套餐/认证错误状态已做 macOS 真实凭据验证；其余账户能力仍以样本验证为主；Windows 实机、Claude Desktop 网关演示、正文查看的实机联调尚未完成。**准确的逐项状态见 [CURRENT_STATUS.md](docs/CURRENT_STATUS.md)，不要把本文的功能描述当作已实机验收。**
+[下载 v2.0.4](https://github.com/Abyssaler/Providock/releases/tag/v2.0.4) · [发布说明](docs/releases/v2.0.4.md) · [当前状态](docs/CURRENT_STATUS.md) · [变更记录](CHANGELOG.md)
 
-## 下载 v2.0.3
+## 安装与更新
 
-正式版 **v2.0.3** 下载见 [GitHub Release](https://github.com/Abyssaler/Providock/releases/tag/v2.0.3)，变更、安装与兼容边界见 [发布说明](docs/releases/v2.0.3.md)。安装包有 Tauri/minisign 签名；Mac 应用另有 ad-hoc 完整性签名，但没有 Apple Developer ID 公证或 Windows 代码签名。Windows 实机、多数账户平台真实联网及完整产品验收仍未完成，详见当前状态。
+| 系统                    | 安装包                                            |
+| ----------------------- | ------------------------------------------------- |
+| Apple Silicon macOS 13+ | `Providock_2.0.4_aarch64.dmg`，打开后拖入应用程序 |
+| Windows x64             | `Providock_2.0.4_x64-setup.exe`，每用户安装       |
 
-旧 v1.0.0 是重建前的实现，不包含本次自动监测改动。新版采用独立的应用标识和数据目录，需要手动安装，不使用旧版自动更新协议，也不自动迁移旧账户或统计数据。v2.0.3 新增应用内更新通知和签名安装：启动及每 6 小时检查 GitHub 正式 Release，可在设置关闭或手动检查，用户点击后才下载、安装并重启。关闭应用后不检查更新；不发布旧版 latest.json，v2 使用独立 providock-v2-latest.json。v2.0.2 及更早版本需要手动替换应用包一次；同为 v2 时保留应用数据。CI 产出安装包，Release 按 [人工发布步骤](docs/specs/CROSS_PLATFORM_RELEASE.md#7-当前人工发布流程) 单独发布。
+v2.0.3 起支持应用内更新：在「设置 → 软件更新」检查，点击「下载、安装并重启」完成升级，保留本机统计、账户与价格规则。默认启动及运行每 6 小时检查 GitHub 正式 Release，可关闭自动检查。应用完全退出后不检查。
 
-发行资产来自同一次成功的双平台 CI，已检查包内清单、独立验签和远端摘要；不包含本机数据库、日志、账户配置或签名秘密。发布核验与 Mac 原生验证边界见 [v2.0.3 核验记录](docs/research/validation/2026-10-12-release-v2.0.3.md)。
+v2.0.2 及更早版本需要退出旧应用，手动替换应用包一次。v1 使用独立标识和数据目录，不自动迁移。Release 同时提供 SHA-256 摘要、公钥及 minisign 签名；Mac 应用有 ad-hoc 完整性签名，尚无 Apple Developer ID 公证和 Windows Authenticode。
 
-## 开发命令
+## 用量统计
+
+支持 Claude Code、Codex、Gemini CLI、Grok Build、OpenCode、Pi、MCode（MiniMax Code）、Kimi Code 八个本地数据源。设置中可选择用量页展示的 Agent。
+
+- 按 Agent、来源、精确模型名和日期筛选，查看输入、输出、缓存创建、缓存命中、加权缓存命中率与成本估算。
+- **默认范围为本机当天零点至最近一次统计刷新**。摘要、六张指标卡、趋势和明细使用同一筛选，页面直接显示起止时间；不是滚动一小时。macOS 菜单栏另用最近 24 小时。
+- 趋势包含分量曲线、渐变、独立成本右轴、提示与图例；提供模型/Agent 汇总和分页计量明细。
+- 金额显示两位小数，底层精确十进制计算。没有价格或未知 Token 保留为空，部分估算显示覆盖率，不把未知当免费；不同币种分别统计。
+
+应用默认启动同步一次，之后每 60 秒扫描，跳过未变化内容。用量页「显示刷新」只重新查询统计库，不改变采集周期。「数据采集与调度」和设置可分别关闭 Agent 自动同步、账户自动刷新，重启保持选择。
+
+macOS 关闭窗口后驻留菜单栏，⌘Q 或菜单栏退出才停止。Windows 关闭主窗口退出。采集只读，不改 Agent 配置、不调用模型做测试补全。
+
+## 模型价格
+
+在用量页打开「模型定价」，或从模型行点击「设置价格」。规则按 Agent、精确模型名和可选来源保存，输入/输出/缓存读取/缓存创建均为每百万 Token 价格。支持 CNY、USD、北京时间工作日分时段和长上下文整请求升档；空白表示未知，0 表示明确免费。
+
+**一键导入**：[AIHOT 模型排行榜](https://aihot.news/leaderboard) 是当前价格来源。点击「一键导入价格」，为本机已使用的模型和表单当前填写的模型匹配人民币价格，显示导入/保留/未匹配数量、来源更新时间和折算汇率日期。每条导入规则可查看来源与官方定价链接。
+
+已有手动、特定来源、分时段、长上下文和停用规则优先保留。再次导入可刷新未手动修改的 AIHOT 规则，旧版本保留。匹配只处理可确认的名称、分隔符和已知厂商前缀，不猜模型版本或上下文后缀。来源未给出的缓存创建价、时段、长上下文和订阅费用不补零。网页变化或网络失败时不改已有价格。
+
+导入只下载公开价格页，不上传模型列表、日志或 Key。AIHOT 的人民币价格可能包含按其公布日期折算的美元价格，可能与厂商特定区域或渠道不同；可用手动规则覆盖。估算用于比较所选历史用量，不是平台账单，不改写 Token 或历史估值。v2.0.4 已移除源「已报告成本」采集、统计和展示。
+
+## 账户与隐私
+
+账户页分别展示 API 余额、Coding Plan 各窗口剩余比例和重置时间。长来源信息折叠显示；每个额度窗口独立排列。账户按自身最近查询时间刷新：API 余额默认 15 分钟，Coding Plan 默认 5 分钟，带少量抖动。
+
+Key 按用户选择**明文保存在本机**独立 `credentials/keys.sqlite3`，重启直接使用，不访问系统钥匙串。Unix 目录/文件权限为 0700/0600，Windows 使用用户目录 ACL。完整复制应用数据目录会包含 Key，备份需要保护；普通统计库、前端响应及 Release 不包含明文 Key。
+
+默认无遥测、不上传日志、不复制保存对话正文。可选正文查看按需读取源文件，禁用脚本和远程资源。日志只代表本机保留的记录；平台额度可能覆盖其他设备或成员，两者不相加。
+
+## 验证范围
+
+八源解析器均有合成样本回归；Codex、Kimi Code、OpenCode 已有 macOS 真实日志核对，Kimi Code 直连与 GLM 无套餐/认证错误已有局部真实验证，其余账户能力以样本验证为主。AIHOT 读取、匹配和导入已用隔离数据库及 macOS 原生 UI 实测。
+
+Windows 有 CI 构建和测试，尚未完成 Windows 实机安装、更新与缩放验收。可选网关只有 usage 解析层，转发本体未实现；导出/清理尚无 UI，更多正文读取和完整性能/休眠验收待完成。逐项事实以[当前状态](docs/CURRENT_STATUS.md)和[本版核验记录](docs/research/validation/2026-10-12-release-v2.0.4.md)为准。
+
+## 本地开发
+
+工具链：Node 24、pnpm 12.11.2、Rust 1.99.0，版本文件已固定。
 
 ```bash
 pnpm install --frozen-lockfile
-pnpm dev          # 仅前端浏览器预览
+pnpm dev          # 前端预览，原生能力不可用
 pnpm tauri dev    # 桌面联调
-pnpm typecheck && pnpm lint && pnpm test
+pnpm typecheck
+pnpm lint
+pnpm test
 cargo fmt --manifest-path src-tauri/Cargo.toml --check
 cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path src-tauri/Cargo.toml
-pnpm tauri build  # 在目标 OS 构建安装包
+pnpm tauri build
 ```
 
-工具链：Node 24（.node-version）、pnpm 12.11.2（packageManager 字段）、Rust 1.99.0（rust-toolchain.toml）。CI 在 macos-15（ARM64）与 windows-2022（x64）双平台执行上述检查并产出安装包及 Tauri/minisign 签名更新包；Mac 完整应用包有 ad-hoc 签名。
+CI 在 macos-15 ARM64 和 windows-2022 x64 检查并产出签名安装包；发布按[人工流程](docs/specs/CROSS_PLATFORM_RELEASE.md#7-当前人工发布流程)。真实价格只读核验可运行 `cargo run --manifest-path src-tauri/Cargo.toml --example verify_aihot_prices`，仅写内存测试库。
 
-Providock 聚合电脑上的 Agent Token 用量、输入输出、缓存读写及会话信息；独立管理 API Key、平台余额和 Coding Plan 额度。账户无需绑定 Agent，也不负责替用户切换模型或改写 Agent 配置。
+| 文档                                                                                                        | 内容                 |
+| ----------------------------------------------------------------------------------------------------------- | -------------------- |
+| [开发手册](docs/DEVELOPMENT_HANDBOOK.md) / [AGENTS](AGENTS.md)                                              | 接手流程与工程约定   |
+| [产品需求](docs/PRODUCT_REQUIREMENTS.md) / [路线图](docs/ROADMAP_AND_ACCEPTANCE.md)                         | 用户决定与待验收任务 |
+| [架构](docs/ARCHITECTURE.md) / [架构决策](docs/adr/0001-core-decisions.md)                                  | 模块、IPC 与取舍     |
+| [数据契约](docs/specs/DATA_CONTRACTS.md) / [界面设计](docs/specs/UI_UX.md)                                  | 统计口径与交互       |
+| [Agent 规范](docs/specs/AGENT_ADAPTERS.md) / [账户规范](docs/specs/ACCOUNT_ADAPTERS.md)                     | 来源与适配边界       |
+| [兼容登记](docs/research/compatibility-register.md) / [AIHOT 证据](docs/research/evidence/aihot-pricing.md) | 样本、实机与价格依据 |
+| [安全隐私](docs/specs/SECURITY_PRIVACY.md) / [软件更新](docs/specs/APP_UPDATES.md)                          | 凭据、网络及更新策略 |
 
-首个稳定版本目标：Claude Code、Codex、Gemini CLI、Grok Build、OpenCode、Pi、MiniMax Code、Kimi Code；另以默认关闭的可选采集网关覆盖 cc-switch 已有的 Claude Desktop 模型映射请求范围。界面参考 cc-switch **v3.20.4** 的布局和视觉风格，监测能力对齐研究时的当前源码基线。
-
-首版语言为简体中文，正式平台为 Apple Silicon macOS 和 Windows x64 普通安装包。可选查看原始对话，默认只保存统计元数据。
-
-## 自动监测
-
-应用启动后默认同步一次本机 Agent 日志，随后每 60 秒扫描；通过文件游标/变化检测跳过未变化内容，不启用文件监听。用量页「数据采集与调度」和设置页提供独立的「Agent 自动同步」「账户自动刷新」开关，保存到本机，关闭后重启也不会执行自动首轮；手动同步/刷新仍可用。macOS 关闭窗口后隐藏到菜单栏，继续按开关运行；⌘Q 或菜单栏「退出 Providock」才停止调度。Windows 关闭主窗口退出。休眠期间的周期不会积压补发。
-
-账户按各自最近查询时间判断到期：纯 API 余额默认 15 分钟，Coding Plan/两者兼有默认 5 分钟，含 ±10% 抖动。用量页的「显示刷新」只更新数据库统计，不改变采集或账户请求频率。
-
-详细行为、核对结果、格式限制和未验证边界见 [自动监测验证记录](docs/research/validation/2026-10-11-auto-monitoring.md)；各次变更见 [CHANGELOG](CHANGELOG.md)。
-
-本机 Kimi Code / Codex 数字核对：`python3 scripts/verify_local_usage.py`。脚本只读源日志，在临时目录提取不含正文的计量快照，以内存数据库扫描并与独立计算比较，结束后删除快照。它不查询平台订阅额度，也不触发推理；遇到不支持的格式会停止并说明原因。
-
-## 模型定价与账户凭据
-
-v2.0.2 已修复账户快照 IPC 字段不一致导致的白屏，并加入模型统计、Agent 统计、多分量趋势与分页计量明细。用量页「模型定价」或模型行「设置价格」支持按 Agent、精确模型名与可选来源填写每百万 Token 的输入/输出/缓存读写价格；USD/CNY 分开统计，留空表示未知，0 表示明确免费。保存后按当前价格比较所选历史用量，不覆盖源费用或已保存的历史估算，不代表平台实际账单。
-
-用户明确选择参考 CC Switch 的本地明文保存：Key 存在应用数据目录的独立 `credentials/keys.sqlite3`，重启后直接使用，不访问系统钥匙串。macOS 目录 0700、文件 0600；Windows 使用用户目录继承 ACL（未实机验证）。完整复制应用数据目录会包含明文 Key。旧 v2.0.0 的 Keychain 条目不会自动读取、迁移或删除，已有账户须重新输入一次 Key；账户和快照保留。
-
-上述能力已随 v2.0.2 发布。v2.0.3 另支持北京时间工作日分时段与长上下文整请求升档，分币种成本可在趋势图切换；设置页可选择用量页展示的 Agent。六条本机人民币规则属于用户本地数据，不随安装包分发；人民币折算和限时优惠需按规则备注复核。验证见 [账户与定价改进记录](docs/research/validation/2026-10-12-accounts-model-pricing.md)。
-
-## 阅读入口
-
-| 文档                                               | 用途                                             |
-| -------------------------------------------------- | ------------------------------------------------ |
-| [当前状态](docs/CURRENT_STATUS.md)                 | 逐任务交接事实表（最先读）                       |
-| [开发手册](docs/DEVELOPMENT_HANDBOOK.md)           | 开发者和 AI Agent 的统一入口、实施顺序及交接要求 |
-| [产品需求](docs/PRODUCT_REQUIREMENTS.md)           | 已确认需求、功能边界、用户流程                   |
-| [架构设计](docs/ARCHITECTURE.md)                   | 模块、数据流、目录、IPC 与任务调度               |
-| [Agent 采集规范](docs/specs/AGENT_ADAPTERS.md)     | 逐项采集来源、格式、去重与精度验证               |
-| [账户适配规范](docs/specs/ACCOUNT_ADAPTERS.md)     | 余额、计划额度、官方证据和接入状态               |
-| [数据契约](docs/specs/DATA_CONTRACTS.md)           | Token、缓存、费用、配额和存储语义                |
-| [界面设计](docs/specs/UI_UX.md)                    | 页面、组件、状态与 v3.20.4 参考边界              |
-| [离线交互原型](docs/prototypes/dashboard.html)     | 下载后用浏览器打开；全部为演示数据               |
-| [隐私与凭据](docs/specs/SECURITY_PRIVACY.md)       | 密钥、正文查看、网络和导出规则                   |
-| [跨平台发布](docs/specs/CROSS_PLATFORM_RELEASE.md) | macOS / Windows 路径、构建及安装验收             |
-| [路线图与验收](docs/ROADMAP_AND_ACCEPTANCE.md)     | 任务编号、发布门槛和验收场景                     |
-| [上游研究](docs/research/UPSTREAM_AUDIT.md)        | 固定提交、源码证据、已知缺口                     |
-| [架构决策](docs/adr/0001-core-decisions.md)        | 决策理由与变更条件                               |
-| [AGENTS.md](AGENTS.md)                             | 后续 AI Agent 的执行约定                         |
-
-## 数据边界
-
-本机日志只能反映本机保留下来的记录；平台额度可能覆盖其他设备和团队成员。两者分别展示。没有官方文档或官方客户端源码依据的余额接口暂不接入；未知值显示“未提供”，不显示零。费用估算与真实账单明确区分。
-
-许可证沿用 MIT。上游参考与版权处理见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
-
-## v2.0.2 界面与 macOS 菜单栏
-
-全应用采用纯黑底、白字和黄绿强调色，应用及菜单栏使用原创矢量标识。趋势图的新增输入/输出/缓存命中/缓存创建分别为蓝/绿/紫/橙色，采用保持数据区间的平滑曲线；未知仍保留断点。macOS 菜单栏展示滚动最近 24 小时的本地日志已知小计、输入/输出/缓存命中、八个 Agent 小计和同步状态，每 30 秒及采集状态变化时刷新。支持打开窗口、立即同步 Agent 用量和退出。菜单只读统计库，不触发平台余额查询；没有自动登录启动项。
+MIT 许可证；上游参考与版权说明见 [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES.md)。

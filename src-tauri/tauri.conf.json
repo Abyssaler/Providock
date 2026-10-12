@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Providock",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "identifier": "io.providock.app",
   "build": {
     "beforeDevCommand": "pnpm dev",
@@ -19,7 +19,10 @@
         "minHeight": 640,
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
-        "trafficLightPosition": { "x": 16, "y": 22 },
+        "trafficLightPosition": {
+          "x": 16,
+          "y": 22
+        },
         "backgroundColor": "#000000"
       }
     ],
@@ -55,8 +58,12 @@
   "plugins": {
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEZDMkE2OERCQUMyMDM2N0UKUldSK05pQ3MyMmdxL0xYTEZHTk82MWxPU1BsSkIyQ2VyS1VxOVpxUFN2dDZReUVXa21wbjAva2QK",
-      "endpoints": ["https://github.com/Abyssaler/Providock/releases/latest/download/providock-v2-latest.json"],
-      "windows": { "installMode": "passive" }
+      "endpoints": [
+        "https://github.com/Abyssaler/Providock/releases/latest/download/providock-v2-latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
     }
   }
 }

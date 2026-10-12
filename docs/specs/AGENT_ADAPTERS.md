@@ -72,7 +72,7 @@ P0 必须对官方版本源码核实 input 是否已含 cached、output 是否�
 
 `turn_completed` 的 Token 是**单个用户回合内多次模型推理的聚合**，不是会话累计。两个连续回合数字相同也必须分别计入。以 session+turn identity 或可靠事件序号建立身份，granularity=turn_aggregate。
 
-modelCalls / numTurns 仅在源语义确认后填写 request_count，不用一条回合记录替代一个请求。reasoning 是输出子集时不另加。`costUsdTicks` 用 1 tick = 10^-10 USD 精确转换；部分调用没费用时标记 reported cost 下界/partial。归档与活跃目录移动不能重复计。
+modelCalls / numTurns 仅在源语义确认后填写 request_count，不用一条回合记录替代一个请求。reasoning 是输出子集时不另加。v2.0.4 起忽略 `costUsdTicks` 及其部分计价标记；计量完整性只由 Token 字段决定。归档与活跃目录移动不能重复计。
 
 ### A05 OpenCode
 

@@ -76,7 +76,6 @@ fn sample_event(id: &str, project_ref: Option<&str>, model_raw: Option<&str>) ->
             total: Some(170),
             quality: Quality::Reported,
         },
-        cost_reported: None,
         cost_estimated: None,
         completeness: Completeness::Complete,
         account_link: None,
@@ -138,11 +137,11 @@ fn csv_text_is_prefixed_against_formula_injection_and_numeric_is_raw() {
         Some("/Users/realuser/Secret Project"),
         Some("=cmd()"),
     );
-    ev.cost_reported = Some(providock_lib::domain::CostInfo {
+    ev.cost_estimated = Some(providock_lib::domain::CostInfo {
         money: providock_lib::domain::Money::new("-0.05", "USD").unwrap(),
-        quality: Quality::Reported,
+        quality: Quality::Estimated,
         completeness: Completeness::Complete,
-        price_version: None,
+        price_version: Some("synthetic-v1".into()),
         scope: None,
     });
     // 通过 ingestion 真实提交（cost 字段由 commit_batch 落库）
@@ -221,11 +220,11 @@ fn preview_reports_fields_range_and_redaction_without_secret_columns() {
 fn json_export_anonymizes_project_path_and_keeps_currencies_separate() {
     let mut db = new_db();
     let mut ev_usd = sample_event("e-usd", Some("/Users/realuser/usd"), Some("m"));
-    ev_usd.cost_reported = Some(providock_lib::domain::CostInfo {
+    ev_usd.cost_estimated = Some(providock_lib::domain::CostInfo {
         money: providock_lib::domain::Money::new("1.25", "USD").unwrap(),
-        quality: Quality::Reported,
+        quality: Quality::Estimated,
         completeness: Completeness::Complete,
-        price_version: None,
+        price_version: Some("synthetic-v1".into()),
         scope: None,
     });
     let run = start_parse_run(&db, "src1", "kimi-wire-1.5").unwrap();
@@ -245,11 +244,11 @@ fn json_export_anonymizes_project_path_and_keeps_currencies_separate() {
     .unwrap();
     // 第二个事件：不同币种
     let mut ev2 = sample_event("e-cny", Some("/Users/realuser/cny"), Some("m"));
-    ev2.cost_reported = Some(providock_lib::domain::CostInfo {
+    ev2.cost_estimated = Some(providock_lib::domain::CostInfo {
         money: providock_lib::domain::Money::new("7.5", "CNY").unwrap(),
-        quality: Quality::Reported,
+        quality: Quality::Estimated,
         completeness: Completeness::Complete,
-        price_version: None,
+        price_version: Some("synthetic-v1".into()),
         scope: None,
     });
     let run = start_parse_run(&db, "src1", "kimi-wire-1.5").unwrap();

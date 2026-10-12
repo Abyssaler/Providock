@@ -72,13 +72,12 @@
 
 ### zero-cost-preserved（1 事件）
 - usage: 50/0/0，out 10；`cost` 五项全 0。
-- 合法 0 保留：cost_reported = 0 USD，quality=reported，completeness=complete。
+- 源 cost 五项均忽略；Token completeness=complete。
 - 合计 fresh 50，input_total 50，output 10，total 60，请求数 1。
 
 ### cost-mismatch-diagnostic（1 事件）
 - usage: 100/0/0，out 20；`cost={input:"0.01",output:"0.02",cacheRead:"0",cacheWrite:"0",total:"0.10"}`。
-- 分项和 0.03 ≠ 总额 0.10 → 记诊断 `cost_component_total_mismatch`，保留源总额 0.10（不挑大值），
-  completeness=partial。
+- 源费用分项与总额矛盾均忽略；不记费用诊断、不改变 Token completeness。
 - 合计 fresh 100，input_total 100，output 20，total 120，请求数 1。
 
 ### truncated-tail（2 事件）

@@ -1,4 +1,4 @@
-# 数据契约 v0.1
+# 数据契约 v0.2（v2.0.4）
 
 这是统计语义的唯一规范。适配器、数据库、IPC、UI 和导出必须使用同一口径。字段为设计名称，具体 Rust 类型可在搭建时调整，但不得改变含义。
 
@@ -6,7 +6,7 @@
 
 Token 为非负整数。Rust 使用检查溢出的整数；IPC/JSON 用十进制字符串，避免超过 JavaScript 2^53 后失真。SQLite 单值可使用检查范围的 INTEGER，聚合必须处理 SUM 溢出；超出 i64 的值使用十进制文本及 Rust 整数运算，不转 REAL。UI 可显示 1.2M，详情/导出保留原值。
 
-Money 为 `{amount: decimal_string, currency: ISO_currency_or_vendor_unit}`。金额不使用二进制浮点累计；保留源精度及单位转换规则，费用 tick 用整数转换。不同货币分开展示；不默认按汇率合并。Credits、请求数、Token 和货币是不同单位。
+Money 为 `{amount: decimal_string, currency: ISO_currency_or_vendor_unit}`。金额不使用二进制浮点累计；保留源精度及单位转换规则，历史估值及当前价估算使用精确十进制。不同货币分开展示；不默认按汇率合并。Credits、请求数、Token 和货币是不同单位。
 
 `null` 表示源未提供、无法可靠推导或不适用；0 只表示明确的零。每个核心字段有 `quality = reported | derived | estimated | unknown`，事件还有 `completeness = complete | partial | unknown`。未知原因至少包括 absent、unsupported、format_unknown、truncated、disconnected、permission_denied。
 
@@ -25,7 +25,7 @@ Money 为 `{amount: decimal_string, currency: ISO_currency_or_vendor_unit}`。�
 | granularity | request / turn_aggregate / message / session_delta / unknown |
 | request_count | 确认的模型调用次数；聚合源未提供时为 null，不能强行赋值 1 |
 | tokens | 下文定义的互斥分量及附属字段 |
-| cost_reported、cost_estimated | 可分别存在；带币种、质量、价格版本和范围 |
+| cost_estimated | 可空的历史估值，带币种、质量、价格版本和范围；不采集源自报费用 |
 | account_link | 可空；包含 confirmed / explicit_identifier / unknown 的依据 |
 | evidence_refs | 一个或多个源定位、解析器版本和字段映射引用 |
 
@@ -52,7 +52,6 @@ Money 为 `{amount: decimal_string, currency: ISO_currency_or_vendor_unit}`。�
     "total": "2300"
   },
   "completeness": "complete",
-  "cost_reported": null,
   "cost_estimated": null
 }
 ```
@@ -99,7 +98,7 @@ turn_aggregate 是独立回合计量，不做差分。例如 Grok 连续两轮�
 
 ## 6. 费用
 
-源明确给出的合法 cost=0 具有意义，不能用估算覆盖。源 reported cost 可能是某个聚合范围或部分计价，必须标记 complete / partial 与覆盖。默认显示已报告费用小计；有些事件只有估算时显示“估算”分项和混合范围说明，不把混合数字叫实际花费。
+v2.0.4 按用户决定移除源自报费用采集与展示，只提供明确标记的当前模型价格估算及既有历史估值能力。输入的费率 0 表示明确免费，未知不补零。不同币种独立累计，部分估算显示覆盖率，不称实际花费。显示四舍五入到两位小数，底层与导出保持精确十进制。
 
 估算价格键包含 provider/channel、model_version、currency、effective_from/to、区域、长上下文档位、输入/输出/cache read/cache write/TTL 等差异。不可只凭模型名字选一个全球价格。未知价格不计算费用。历史价格更新不悄悄覆盖历史估值；重算保存新估值版本，允许查看采用的版本。
 
@@ -107,7 +106,7 @@ Coding Plan 包含消费不自动乘公开 API 价格当账单；如用户选择
 
 ## 7. 账户领域
 
-`Account` 包含平台、区域、显示名、可选官方用户 ID、组织/项目 scope、配置类型和 credential_ref。`Credential` 有独立身份、类型、掩码、系统凭据库引用和能力；多个 Key 可以属于同一账户。`Wallet`、`Subscription` 和 `KeyBudget` 分开，平台可同时返回现金与计划。
+`Account` 包含平台、区域、显示名、可选官方用户 ID、组织/项目 scope、配置类型和 credential_ref。`Credential` 有独立身份、类型、掩码、本地独立凭据文件引用和能力；多个 Key 可以属于同一账户。`Wallet`、`Subscription` 和 `KeyBudget` 分开，平台可同时返回现金与计划。
 
 没有官方账户身份时不要因为两个余额相同就自动合并钱包。用户可确认“共享钱包”；只对确认同一 wallet_id 的额度做分组。账户页不自动把多 Key 的共享余额相加。
 
@@ -147,7 +146,7 @@ Coding Plan 包含消费不自动乘公开 API 价格当账单；如用户选择
 
 ModelPrice 键为 Agent + 精确模型名 + 可选 source_id，source_id 必须属于该 Agent；精确来源优先于 Agent 通用规则，不凭同名模型跨 Agent 猜测厂商。USD/CNY 分币种，输入为每百万 Token 的 fresh/output/cache read/cache write 四项非负十进制费率。使用已有 price_versions 追加新版本及停用版本，旧行不覆盖。
 
-当前定价估算是只读比较：以最新启用规则计算筛选事件，不修改 usage_events 中 cost_reported、cost_estimated 或 Token。互斥分量只计一次；未知数量不当零，未知费率仅在数量明确为零时不影响完整性。部分估算与完整覆盖率分别显示，金额保持精确十进制，模型统计的 Token 标为已知小计。
+当前定价估算是只读比较：以最新启用规则计算筛选事件，不修改 usage_events 中的历史估值或 Token。互斥分量只计一次；未知数量不当零，未知费率仅在数量明确为零时不影响完整性。部分估算与完整覆盖率分别显示，金额保持精确十进制，模型统计的 Token 标为已知小计。
 
 ModelPrice 可选两种计费策略，随 rates_json 的 `strategy` 键追加存储（tier 字符串不变，旧行无该键照常读取）：
 
@@ -157,3 +156,11 @@ ModelPrice 可选两种计费策略，随 rates_json 的 `strategy` 键追加存
 解析顺序：longContext 优先——配置了升档的规则不再叠加 peak（档位无高峰变体），未超阈值回到基础费率；peak 只在未配置 longContext 时参与。判定所需上下文未知时不臆造：配置了 peak 而 occurred_at 缺失/不可解析，或配置了 longContext 而 input_total 未知，该事件估算整体为未知（不是 0，也不回落基础费率）。选中档位内某分量费率为空时该分量按未知处理（部分估算）。USD/CNY 仍分币种统计。
 
 账户列表/刷新响应的嵌套 SnapshotDto/OutcomeDto 统一 camelCase，并通过共享合成夹具验证真实 DB→IPC→前端；领域对象与原适配器样本命名保持不变。credentialReady 仅表示本地凭据是否存在，不代表平台鉴权成功。用户已明确选择明文持久化，Key 存在独立 credentials/keys.sqlite3；普通 providock.db 和 IPC 不含明文秘密。
+
+## v2.0.4 统计范围、移除字段与价格来源
+
+用量摘要、六张指标卡、趋势、模型/Agent 汇总、计量明细均使用同一 `UsageFilter`。默认本机当天零点到最近成功查询的截止时刻，按 [from,to)；页面标实际完成查询的范围，失败不会把旧数字误标成新范围。「全部」包含时间未知事件，限时范围不伪造其时间。菜单栏滚动 24h 单独标示。
+
+领域 UsageEvent、UsageSummary/EventRow IPC 及新统计导出无 `cost_reported`/`costReported`。旧 SQLite 的同名三列保留且不再读写，不删用户数据；统计导出契约为 `providock.statistics.v2`，只保留历史估值字段，不伪装兼容旧导出列集合。
+
+ModelPrice 可选 `source`：sourceUrl、officialUrl、retrievedAt、sourceUpdatedAt、fxRate、fxDate，存于 rates_json.source。手动保存清除导入来源。AIHOT 导入只使用 inputCny/outputCny/cachedCny 每百万 Token；cached 为缓存读，缓存创建保持未知。费率最多九位小数，极小正数若不能保持非零则留未知。价格变化追加版本，重复同价不追加；任意人工、复杂、特定来源或停用规则阻止该 Agent+模型的自动覆盖。

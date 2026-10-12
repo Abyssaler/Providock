@@ -413,7 +413,6 @@ fn build_event(
             total: Some(total),
             quality: Quality::Derived,
         },
-        cost_reported: None,
         cost_estimated: None,
         completeness: Completeness::Complete,
         account_link: None,

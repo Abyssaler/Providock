@@ -362,7 +362,6 @@ mod tests {
                 total: Some(170),
                 quality: crate::domain::Quality::Reported,
             },
-            cost_reported: None,
             cost_estimated: None,
             completeness: crate::domain::Completeness::Complete,
             account_link: None,

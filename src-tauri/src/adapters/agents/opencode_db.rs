@@ -51,10 +51,7 @@
 //! `time.created`，不是表列 `time_created`（后者仅用于 `ORDER BY`）。缺时间保持 `None`。
 //!
 //! ## 费用
-//! `data.cost` 存在且有限、非负 → `cost_reported`（quality = reported，币种 USD，
-//! 依据 cc-switch 的 `total_cost_usd` 口径）；**合法的 0 保留为 0**。
-//! 上游把 `cost <= 0` 当未知并回退估算（证据 1.6），这是缺陷，不复制。
-//! 无 `cost` 字段 → `None`；负数 / `NaN` / 非数字 → 记诊断并置 `None`。
+//! v2.0.4 起不读取源 cost 字段；费用仅由用户配置的模型价格估算。
 //!
 //! 纯查询函数：不读文件系统、不访问网络与凭据。
 
@@ -358,8 +355,6 @@ fn process_row(
         }
     };
 
-    let cost_reported = parse_cost(&v, id, &mut row_diag);
-
     let event = UsageEvent {
         schema_version: USAGE_EVENT_SCHEMA_VERSION,
         event_id: format!("opencode:{session_id}:{id}"),
@@ -387,7 +382,6 @@ fn process_row(
             total,
             quality,
         },
-        cost_reported,
         cost_estimated: None,
         completeness: Completeness::Complete,
         account_link: None,
@@ -466,40 +460,6 @@ fn parse_occurred_at(v: &Value) -> Option<String> {
 }
 
 /// 证据 1.3/1.6：`data.cost` 为聚合 f64。有值且有限、非负 → USD reported（0 保留）。
-fn parse_cost(v: &Value, id: &str, diag: &mut Vec<String>) -> Option<CostInfo> {
-    let cost = v.get("cost")?;
-    if cost.is_null() {
-        return None;
-    }
-    let Some(f) = cost.as_f64() else {
-        diag.push(format!("non_numeric_cost:{id}:{cost}"));
-        return None;
-    };
-    if !f.is_finite() || f < 0.0 {
-        diag.push(format!("invalid_cost:{id}:{f}"));
-        return None;
-    }
-    // f64 的 Display 不使用科学计数法；±0 归一为 "0"。
-    let amount = if f == 0.0 {
-        "0".to_string()
-    } else {
-        f.to_string()
-    };
-    match Money::new(amount, "USD") {
-        Ok(money) => Some(CostInfo {
-            money,
-            quality: Quality::Reported,
-            completeness: Completeness::Complete,
-            price_version: None,
-            scope: None,
-        }),
-        Err(_) => {
-            diag.push(format!("unrepresentable_cost:{id}:{f}"));
-            None
-        }
-    }
-}
-
 /// 证据 1.3：V1 `modelID`（字符串）；V2 `model.id` 或 `model` 字符串。
 fn model_id(v: &Value, schema: OpenCodeSchema) -> Option<String> {
     match schema {
@@ -594,7 +554,6 @@ mod tests {
         assert_eq!(e.tokens.quality, Quality::Derived);
         assert_eq!(e.model_raw.as_deref(), Some("claude-sonnet-4"));
         assert_eq!(e.occurred_at.as_deref(), Some("2025-10-09T08:53:20Z"));
-        assert_eq!(e.cost_reported.as_ref().unwrap().money.amount, "0.05");
         assert!(out.events[0].replace_existing);
     }
 
@@ -647,40 +606,6 @@ mod tests {
                 .any(|d| d.contains("compaction_without_tokens:c2")),
             "{:?}",
             out.diagnostics
-        );
-    }
-
-    #[test]
-    fn cost_zero_preserved_and_absent_is_none() {
-        let conn = Connection::open_in_memory().unwrap();
-        conn.execute_batch(V1_DDL).unwrap();
-        insert_v1(
-            &conn,
-            "z",
-            "s1",
-            r#"{"role":"assistant","cost":0,"tokens":{"input":0}}"#,
-        );
-        insert_v1(
-            &conn,
-            "n",
-            "s1",
-            r#"{"role":"assistant","tokens":{"input":5,"output":1}}"#,
-        );
-        let out = read_events(&conn, &cfg());
-        assert_eq!(out.events.len(), 2);
-        assert_eq!(
-            out.events[0]
-                .event
-                .cost_reported
-                .as_ref()
-                .unwrap()
-                .money
-                .amount,
-            "0"
-        );
-        assert!(
-            out.events[1].event.cost_reported.is_none(),
-            "无 cost 字段 = 未知"
         );
     }
 

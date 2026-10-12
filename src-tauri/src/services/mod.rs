@@ -16,3 +16,5 @@ pub mod model_prices;
 pub mod usage_details;
 
 pub mod menu_usage;
+
+pub mod price_import;

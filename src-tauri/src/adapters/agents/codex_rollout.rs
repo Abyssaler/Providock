@@ -462,7 +462,6 @@ pub fn parse_rollout(bytes: &[u8], cfg: &CodexParseConfig) -> CodexParseOutcome 
                     Quality::Derived
                 },
             },
-            cost_reported: None,
             cost_estimated: None,
             completeness: Completeness::Complete,
             account_link: None,

@@ -1,6 +1,8 @@
 {
   "version": "v2",
-  "config": { "session_id": null },
+  "config": {
+    "session_id": null
+  },
   "events": 2,
   "granularity": "message",
   "event_id_prefix": "opencode:ses-both:",
@@ -13,9 +15,7 @@
     "total": "195",
     "request_count": "2"
   },
-  "cost": {
-    "opencode:ses-both:b1": "0.5",
-    "opencode:ses-both:b2": null
-  },
-  "diagnostics_include": ["schema:v2"]
+  "diagnostics_include": [
+    "schema:v2"
+  ]
 }

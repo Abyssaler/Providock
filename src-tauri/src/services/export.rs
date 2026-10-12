@@ -23,7 +23,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
 /// 导出契约版本（JSON 顶层字段 `contract_version`）。
-pub const CONTRACT_VERSION: &str = "providock.statistics.v1";
+pub const CONTRACT_VERSION: &str = "providock.statistics.v2";
 
 #[derive(Debug, thiserror::Error)]
 pub enum ExportError {
@@ -241,18 +241,6 @@ const COLUMNS: &[Column] = &[
         quality: "complete_partial_unknown",
     },
     Column {
-        name: "cost_reported_amount",
-        kind: ColKind::Decimal,
-        unit: "currency",
-        quality: "reported",
-    },
-    Column {
-        name: "cost_reported_currency",
-        kind: ColKind::Text,
-        unit: "currency",
-        quality: "reported",
-    },
-    Column {
         name: "cost_estimated_amount",
         kind: ColKind::Decimal,
         unit: "currency",
@@ -366,8 +354,6 @@ pub struct ExportRow {
     pub total: Option<String>,
     pub tokens_quality: String,
     pub completeness: String,
-    pub cost_reported_amount: Option<String>,
-    pub cost_reported_currency: Option<String>,
     pub cost_estimated_amount: Option<String>,
     pub cost_estimated_currency: Option<String>,
     pub cost_estimated_price_version: Option<String>,
@@ -400,8 +386,6 @@ impl ExportRow {
             self.total.clone(),
             Some(self.tokens_quality.clone()),
             Some(self.completeness.clone()),
-            self.cost_reported_amount.clone(),
-            self.cost_reported_currency.clone(),
             self.cost_estimated_amount.clone(),
             self.cost_estimated_currency.clone(),
             self.cost_estimated_price_version.clone(),
@@ -418,7 +402,6 @@ struct Coverage {
     events_with_unknown_time: u64,
     events_with_known_tokens: u64,
     events_with_unknown_tokens: u64,
-    events_with_reported_cost: u64,
     events_with_estimated_cost: u64,
     events_without_cost: u64,
 }
@@ -476,7 +459,7 @@ const SELECT_COLUMNS: &str = "event_id, agent, source_id, stream_domain, session
      granularity, occurred_at, observed_at, project_ref, model_raw, model_normalized,
      request_count, input_fresh, input_cache_read, input_cache_write, input_total,
      output_total, output_reasoning, total, tokens_quality, completeness,
-     cost_reported_amount, cost_reported_currency, cost_estimated_amount,
+     cost_estimated_amount,
      cost_estimated_currency, cost_estimated_price_version, account_link";
 
 fn effective_domain(filter: &UsageFilter) -> String {
@@ -517,7 +500,6 @@ fn collect(db: &Database, filter: &UsageFilter, keep_project_paths: bool) -> Res
         events_with_unknown_time: 0,
         events_with_known_tokens: 0,
         events_with_unknown_tokens: 0,
-        events_with_reported_cost: 0,
         events_with_estimated_cost: 0,
         events_without_cost: 0,
     };
@@ -535,10 +517,8 @@ fn collect(db: &Database, filter: &UsageFilter, keep_project_paths: bool) -> Res
             Some(path) if !keep_project_paths => Some(format!("<file:{}>", anon_file_id(&path))),
             other => other,
         };
-        let cost_reported_amount: Option<String> = r.get(22)?;
-        let cost_reported_currency: Option<String> = r.get(23)?;
-        let cost_estimated_amount: Option<String> = r.get(24)?;
-        let cost_estimated_currency: Option<String> = r.get(25)?;
+        let cost_estimated_amount: Option<String> = r.get(22)?;
+        let cost_estimated_currency: Option<String> = r.get(23)?;
 
         coverage.events_total += 1;
         let occurred_at: Option<String> = r.get(7)?;
@@ -553,23 +533,18 @@ fn collect(db: &Database, filter: &UsageFilter, keep_project_paths: bool) -> Res
         } else {
             coverage.events_with_unknown_tokens += 1;
         }
-        let reported = cost_reported_amount.is_some();
         let estimated = cost_estimated_amount.is_some();
-        if reported {
-            coverage.events_with_reported_cost += 1;
-        }
+
         if estimated {
             coverage.events_with_estimated_cost += 1;
         }
-        if !reported && !estimated {
+        if !estimated {
             coverage.events_without_cost += 1;
         }
-        if reported || estimated {
+        if estimated {
             contains_cost = true;
         }
-        if let Some(c) = &cost_reported_currency {
-            currencies.insert(c.clone());
-        }
+
         if let Some(c) = &cost_estimated_currency {
             currencies.insert(c.clone());
         }
@@ -599,12 +574,10 @@ fn collect(db: &Database, filter: &UsageFilter, keep_project_paths: bool) -> Res
             total,
             tokens_quality,
             completeness: r.get(21)?,
-            cost_reported_amount,
-            cost_reported_currency,
             cost_estimated_amount,
             cost_estimated_currency,
-            cost_estimated_price_version: r.get(26)?,
-            account_link: r.get(27)?,
+            cost_estimated_price_version: r.get(24)?,
+            account_link: r.get(25)?,
         });
     }
 
@@ -823,7 +796,7 @@ mod tests {
                     session_id, occurred_at, observed_at, project_ref, model_raw,
                     granularity, request_count, input_fresh, input_cache_read, input_cache_write,
                     input_total, output_total, total, tokens_quality, completeness,
-                    cost_reported_amount, cost_reported_currency
+                    cost_estimated_amount, cost_estimated_currency
                  ) VALUES (
                     ?1, 1, 1, 'src1', 'kimi_code', 'local_log',
                     'sess', '2026-10-11T06:00:00Z', '2026-10-11T06:00:01Z', ?2, ?3,
@@ -877,10 +850,8 @@ mod tests {
             total: Some("100".into()),
             tokens_quality: "reported".into(),
             completeness: "complete".into(),
-            cost_reported_amount: Some("-0.05".into()),
-            cost_reported_currency: Some("USD".into()),
-            cost_estimated_amount: None,
-            cost_estimated_currency: None,
+            cost_estimated_amount: Some("-0.05".into()),
+            cost_estimated_currency: Some("USD".into()),
             cost_estimated_price_version: None,
             account_link: None,
         }];
@@ -977,7 +948,7 @@ mod tests {
         assert!(doc["quality"]["tokens_quality_counts"]["reported"].is_number());
         assert_eq!(doc["coverage"]["events_total"], 1);
         assert_eq!(doc["coverage"]["events_with_known_time"], 1);
-        assert_eq!(doc["coverage"]["events_with_reported_cost"], 1);
+        assert_eq!(doc["coverage"]["events_with_estimated_cost"], 1);
         // 记录里项目路径已脱敏
         assert!(!text.contains("SecretProject"));
         assert!(doc["records"][0]["project_ref"]

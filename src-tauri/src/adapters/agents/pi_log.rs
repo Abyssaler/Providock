@@ -33,22 +33,15 @@
 //! - 同一文件内重复出现的同一 entry（compaction / branch_summary / usage 同 `id`）只计一次。
 //!   跨文件复制/分叉不在本层归并，由扫描层按可证实祖先处理（契约第 4 节）。
 //!
-//! 费用：`usage.cost{input,output,cacheRead,cacheWrite,total}`，金额单位为十进制字符串。
-//! - 分项与总额都有时核对；矛盾记诊断并保留源给的总额（不挑较大值），completeness=partial。
-//! - `total==0` 是合法零，保留（quality=reported）。
-//! - 无 `cost` 为 None；未知价格不估算（估算属后续层）。
+//! v2.0.4 起忽略 usage.cost，不以费用矛盾改变 Token 完整性；估算由模型定价层负责。
 //!
 //! 边界：尾行未换行不消费；畸形行记诊断；纯函数，不读文件系统、不访问网络与凭据。
 
-use crate::domain::decimal::decimal_add;
 use crate::domain::*;
 use serde_json::Value;
 use std::collections::HashSet;
 
 pub const PARSER_VERSION: &str = "pi-session-1";
-
-/// Pi 归一化 cost 的金额单位。上游列名 `total_cost_usd` 指向美元；官方单位待核实。
-pub const COST_CURRENCY: &str = "USD";
 
 /// 上游 `MAX_TREE_ID_BYTES`。
 const MAX_SESSION_ID_BYTES: usize = 256;
@@ -206,7 +199,6 @@ pub fn parse_session(bytes: &[u8], cfg: &PiParseConfig) -> PiParseOutcome {
         if let Some(kind) = kind {
             record_usage_kind(kind, &mut seen_kinds, &mut out.diagnostics);
         }
-        let cost_reported = build_cost(usage, *offset, &mut out.diagnostics);
         let occurred_at = v
             .get("timestamp")
             .and_then(|t| t.as_str())
@@ -241,7 +233,6 @@ pub fn parse_session(bytes: &[u8], cfg: &PiParseConfig) -> PiParseOutcome {
             },
             request_count: Some(1),
             tokens,
-            cost_reported,
             cost_estimated: None,
             completeness,
             account_link: None,
@@ -339,175 +330,6 @@ fn token_field(usage: &Value, key: &str, offset: u64, diags: &mut Vec<String>) -
     }
 }
 
-/// 解析 `usage.cost`。分项与总额都有时核对；矛盾记诊断并保留源总额（不挑大值）。
-fn build_cost(usage: &Value, offset: u64, diags: &mut Vec<String>) -> Option<CostInfo> {
-    let cost = usage.get("cost")?.as_object()?;
-
-    let mut components: Vec<String> = Vec::new();
-    for key in ["input", "output", "cacheRead", "cacheWrite"] {
-        if let Some(v) = cost_decimal(cost.get(key), key, offset, diags) {
-            components.push(v);
-        }
-    }
-    let total = cost_decimal(cost.get("total"), "total", offset, diags);
-
-    if total.is_none() && components.is_empty() {
-        diags.push(format!("cost_without_recognized_fields@{offset}"));
-        return None;
-    }
-
-    let (amount, quality, completeness) = match &total {
-        Some(total) => {
-            let mut completeness = Completeness::Complete;
-            if components.len() == 4 {
-                if let Some(sum) = sum_decimals(&components) {
-                    if !decimal_eq(&sum, total) {
-                        diags.push(format!(
-                            "cost_component_total_mismatch:components={sum},total={total}@{offset}"
-                        ));
-                        completeness = Completeness::Partial;
-                    }
-                }
-            }
-            (total.clone(), Quality::Reported, completeness)
-        }
-        None => {
-            let sum = sum_decimals(&components)?;
-            let completeness = if components.len() == 4 {
-                Completeness::Complete
-            } else {
-                Completeness::Partial
-            };
-            (sum, Quality::Derived, completeness)
-        }
-    };
-
-    let money = match Money::new(amount.clone(), COST_CURRENCY) {
-        Ok(money) => money,
-        Err(_) => {
-            diags.push(format!("cost_amount_invalid:{amount}@{offset}"));
-            return None;
-        }
-    };
-    Some(CostInfo {
-        money,
-        quality,
-        completeness,
-        price_version: None,
-        scope: None,
-    })
-}
-
-/// 单个 cost 字段 → 规范化十进制字符串。接受 JSON 数字或字符串；负值按上游钳制为 0。
-fn cost_decimal(
-    value: Option<&Value>,
-    key: &str,
-    offset: u64,
-    diags: &mut Vec<String>,
-) -> Option<String> {
-    let raw = match value? {
-        Value::Number(n) => n.to_string(),
-        Value::String(s) => s.clone(),
-        Value::Null => return None,
-        _ => {
-            diags.push(format!("cost_field_invalid:{key}@{offset}"));
-            return None;
-        }
-    };
-    let plain = match plain_decimal(&raw) {
-        Some(p) => p,
-        None => {
-            diags.push(format!("cost_field_invalid:{key}@{offset}"));
-            return None;
-        }
-    };
-    if plain.starts_with('-') {
-        diags.push(format!("cost_negative_clamped:{key}@{offset}"));
-        return Some("0".into());
-    }
-    Some(plain)
-}
-
-fn sum_decimals(parts: &[String]) -> Option<String> {
-    let mut acc = "0".to_string();
-    for part in parts {
-        acc = decimal_add(&acc, part)?;
-    }
-    Some(acc)
-}
-
-/// 十进制相等（按值，忽略尾零与写法差异），不引入浮点。
-fn decimal_eq(a: &str, b: &str) -> bool {
-    let neg_b = match b.strip_prefix('-') {
-        Some(rest) => rest.to_string(),
-        None => format!("-{b}"),
-    };
-    decimal_add(a, &neg_b).as_deref() == Some("0")
-}
-
-/// 把 JSON 数字/字符串的十进制写法规范化为无指数的普通十进制字符串。
-/// 例：`1.55e-5` → `0.0000155`；`100` → `100`；`-0` → `0`。非法输入返回 None。
-fn plain_decimal(raw: &str) -> Option<String> {
-    let raw = raw.trim();
-    if raw.is_empty() {
-        return None;
-    }
-    let (neg, raw) = match raw.strip_prefix('-') {
-        Some(rest) => (true, rest),
-        None => (false, raw),
-    };
-    let raw = raw.strip_prefix('+').unwrap_or(raw);
-
-    let (mantissa, exp) = match raw.find(['e', 'E']) {
-        Some(i) => (&raw[..i], raw[i + 1..].parse::<i64>().ok()?),
-        None => (raw, 0),
-    };
-    let (int_part, frac_part) = match mantissa.find('.') {
-        Some(i) => (&mantissa[..i], &mantissa[i + 1..]),
-        None => (mantissa, ""),
-    };
-    if int_part.is_empty() && frac_part.is_empty() {
-        return None;
-    }
-    if !int_part.chars().all(|c| c.is_ascii_digit())
-        || !frac_part.chars().all(|c| c.is_ascii_digit())
-    {
-        return None;
-    }
-
-    let digits = format!("{int_part}{frac_part}");
-    let point = int_part.len() as i64 + exp;
-    let n_digits = digits.len() as i64;
-    let (int_out, frac_out) = if point <= 0 {
-        (
-            "0".to_string(),
-            format!("{}{digits}", "0".repeat((-point) as usize)),
-        )
-    } else if point >= n_digits {
-        (
-            format!("{digits}{}", "0".repeat((point - n_digits) as usize)),
-            String::new(),
-        )
-    } else {
-        let p = point as usize;
-        (digits[..p].to_string(), digits[p..].to_string())
-    };
-
-    let int_out = int_out.trim_start_matches('0');
-    let int_out = if int_out.is_empty() { "0" } else { int_out };
-    // 不去尾零：保留源给的小数位（契约「保留源精度」）；等值比较由 decimal_eq 处理。
-    let body = if frac_out.is_empty() {
-        int_out.to_string()
-    } else {
-        format!("{int_out}.{frac_out}")
-    };
-    if body.trim_end_matches('0').trim_end_matches('.').is_empty() {
-        return Some("0".into());
-    }
-    Some(if neg { format!("-{body}") } else { body })
-}
-
-/// 上游 `is_valid_tree_id`：非空、≤256 字节、首尾 ASCII 字母数字、字符集 [A-Za-z0-9._-]。
 fn is_valid_session_id(s: &str) -> bool {
     let alpha_num = |c: char| c.is_ascii_alphanumeric();
     !s.is_empty()
@@ -529,20 +351,6 @@ mod tests {
             generation: 0,
             observed_at: "2026-10-11T08:00:00Z".into(),
         }
-    }
-
-    #[test]
-    fn plain_decimal_expands_exponent() {
-        assert_eq!(plain_decimal("1.55e-5").as_deref(), Some("0.0000155"));
-        assert_eq!(plain_decimal("100").as_deref(), Some("100"));
-        // 无指数时保留源小数位（契约「保留源精度」）
-        assert_eq!(plain_decimal("0.10").as_deref(), Some("0.10"));
-        assert_eq!(plain_decimal("0.000").as_deref(), Some("0.000"));
-        assert_eq!(plain_decimal("-0").as_deref(), Some("0"));
-        assert_eq!(plain_decimal("1e3").as_deref(), Some("1000"));
-        assert_eq!(plain_decimal("1.5e1").as_deref(), Some("15"));
-        assert_eq!(plain_decimal("nope"), None);
-        assert_eq!(plain_decimal(""), None);
     }
 
     #[test]

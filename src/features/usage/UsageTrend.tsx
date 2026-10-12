@@ -1,3 +1,5 @@
+import { formatMoneyAmount } from "../../lib/format";
+import { SelectField as Select } from "../../components/Select";
 import { useState, type MouseEvent as ReactMouseEvent } from "react";
 import { smoothPath } from "./smoothPath";
 import type { UsagePoint, UsageTokens } from "../../contracts/pricing";
@@ -25,10 +27,9 @@ export function currencySymbol(currency: string): string {
   return `${currency} `;
 }
 
-/** 成本固定 6 位小数展示；非有限数值原样返回（未知不冒充 0）。 */
+/** Presentation only; backend decimal amounts remain unchanged. */
 export function formatCostFull(amount: string): string {
-  const n = Number(amount);
-  return Number.isFinite(n) ? n.toFixed(6) : amount;
+  return formatMoneyAmount(amount);
 }
 
 /** 右轴成本刻度：与 Token 轴相互独立。 */
@@ -159,7 +160,7 @@ export default function UsageTrend({ series, hourly }: { series: UsagePoint[]; h
         {currencies.length > 1 && (
           <label className="small muted">
             成本币种 · 分别查看
-            <select
+            <Select
               aria-label="趋势成本币种"
               value={costCurrency}
               onChange={(event) => setSelectedCurrency(event.target.value)}
@@ -169,7 +170,7 @@ export default function UsageTrend({ series, hourly }: { series: UsagePoint[]; h
                   {currency}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
         )}
       </div>

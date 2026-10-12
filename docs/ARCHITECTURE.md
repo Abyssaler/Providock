@@ -114,3 +114,9 @@ macOS 原生 TrayIcon 与窗口 WebView 分离，模板图标随系统菜单栏�
 ## v2.0.3 软件更新
 
 前端 features/updates 的控制器只维护检查/通知/下载进度与失败重试，官方 Tauri updater 负责固定 HTTPS 端点、版本比较、签名验证和安装；process 插件仅授权重启。开关保存在本机 WebView localStorage，独立于账本调度。更新清单、平台键及发布规则见 specs/APP_UPDATES.md，本版无 schema 变更。
+
+## v2.0.4 定价导入与共享选择器
+
+`model_prices_import` IPC → blocking 线程固定 HTTPS 读取 AIHOT → 有界参考表解析 → 获取 DB 锁 → `price_import::apply` 批量 savepoint 追加规则。网络发生在锁外；已有规则保护、精确匹配和失败回滚集中在服务层。导入来源存于兼容的 `rates_json.source`，旧规则无此键照常读取，不新增表或依赖。
+
+`src/components/Select.tsx` 为共享 combobox/listbox，覆盖筛选和表单，弹出层位于当前 dialog 或 body。用量卡片明确显示实际筛选范围；金额共用精确字符串格式化。自报成本业务已移除，历史 SQLite 列仅保留兼容，详见数据契约。

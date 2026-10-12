@@ -35,7 +35,7 @@
 //!
 //! 其他：
 //! - 无 `message.usage` 的消息不产生事件；usage 四项全零也不产生事件（不制造零消耗事件）。
-//! - 日志无上游自报费用，日志内也不做定价：cost_reported / cost_estimated 均为 None
+//! - 解析器不采集自报费用，也不定价：cost_estimated 为 None
 //!   （没有价格不等于免费）。
 //! - 尾行未以换行结尾视为未写完，不消费；畸形行记诊断、继续，不崩溃。
 //!
@@ -294,7 +294,6 @@ pub fn parse_projects(bytes: &[u8], cfg: &ClaudeParseConfig) -> ClaudeParseOutco
                     total: Some(total),
                     quality: Quality::Reported,
                 },
-                cost_reported: None,
                 cost_estimated: None,
                 completeness: Completeness::Complete,
                 account_link: None,

@@ -13,7 +13,7 @@
 
 | 目录 | 布局 | 覆盖 |
 | --- | --- | --- |
-| `sqlite-v1/` | V1（`session` + `message`） | 常规多消息、cache 分列、reasoning 相加、cost 0 保留、非 assistant 跳过、消息行更新后重读 |
+| `sqlite-v1/` | V1（`session` + `message`） | 常规多消息、cache 分列、reasoning 相加、cost 忽略、非 assistant 跳过、消息行更新后重读 |
 | `sqlite-v2/` | V2（`session_v2` + `session_message`） | 常规消息、全零 token 行（reported 0）、compaction（completed/failed 有 token 计入、无 token 跳过） |
 | `sqlite-v1v2-both/` | V1 冻结行 + V2 并存 | 探测优先 V2，冻结的 V1 行必须被忽略 |
 
@@ -32,8 +32,7 @@
 - **粒度**：`granularity = message`，`request_count = 1`。
 - **时间**：`occurred_at = data.time.created`，**epoch 毫秒**（证据 1.3 `:386-390`）。
   上游只 SELECT `id, data, type`，时间只能取自 `data`，不是表列 `time_created`。
-- **费用**：`data.cost` 有限且非负 → `cost_reported`（quality=reported，USD）；
-  **合法的 0 保留为 0**（不复制上游「≤0 当未知」的缺陷）；无 `cost` 字段 → `None`。
+- **费用**：v2.0.4 起忽略 `data.cost`，不影响 Token 完整性。
 - 删除检测不做：V1 冻结后不重复导入即可。
 
 ## 决策与存疑记录
@@ -50,8 +49,7 @@
    `tokens` 对象存在且至少一个分量非零才计入（`completed` / `failed` 都可能有消耗）；
    `tokens` 缺失或全零则跳过并记诊断。若官方口径为「有 `tokens` 字段即计入」，
    需调整此处（`c3` 用例）。
-4. **费用币种取 USD**：证据 1.6 落库列名为 `total_cost_usd`，据此认定原生 `cost` 为 USD；
-   官方单位未单独获取。
+4. **费用字段不再读取**：源 cost 保留在合成输入，验证其不影响 Token。
 5. **单条 usage 记录的粒度**：`granularity = message`、`request_count = 1`
    （一条消息一次模型调用的 usage），与 A05 任务口径一致。
 
