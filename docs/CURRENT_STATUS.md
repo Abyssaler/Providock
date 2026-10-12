@@ -12,7 +12,7 @@ pnpm test && cargo test --manifest-path src-tauri/Cargo.toml
 
 实机只读冒烟（不写任何文件、不输出正文）：`cargo test --manifest-path src-tauri/Cargo.toml --test live_smoke -- --ignored --nocapture`
 
-## 本次交付验证
+## v2.0.0 交付验证
 
 自动监测、逐账户截止时间、持久化开关、用量页与 Codex v2 的行为和验证步骤详见 [验证记录](research/validation/2026-10-11-auto-monitoring.md)，版本变更见 [CHANGELOG](../CHANGELOG.md)。本机已通过前端 48 项测试、TypeScript/Prettier/Vite 构建、Rust 完整回归、fmt 与 Clippy；两个需主动读取真实环境/凭据库的测试仍为 ignored，Kimi/Codex 另用只读 usage-only 快照独立核对。Chrome 模拟 IPC 验证不等于原生桌面端到端，CI 构建不等于 Windows 实机验收。
 
@@ -29,7 +29,7 @@ pnpm test && cargo test --manifest-path src-tauri/Cargo.toml
 
 ## v2.0.0 发布
 
-[正式 Release](https://github.com/Abyssaler/Providock/releases/tag/v2.0.0) 已公开并设为 Latest，固定提交 2662489 的 [双平台 CI](https://github.com/Abyssaler/Providock/actions/runs/38195092032) 全部成功；10 项公开资产的远端摘要匹配，实际包内清单未含本机数据或签名秘密。本机 Mac 已安装 v2.0.0，启动、数据库完整性、旧事件保留与自动扫描周期观察通过。完整来源、校验和及验收边界见 [发布核验记录](research/validation/2026-10-12-release-v2.0.0.md)。
+[正式 Release](https://github.com/Abyssaler/Providock/releases/tag/v2.0.0) 已公开（发布时为 Latest，当前最新版为 v2.0.2），固定提交 2662489 的 [双平台 CI](https://github.com/Abyssaler/Providock/actions/runs/38195092032) 全部成功；10 项公开资产的远端摘要匹配，实际包内清单未含本机数据或签名秘密。本机 Mac 已安装 v2.0.0，启动、数据库完整性、旧事件保留与自动扫描周期观察通过。完整来源、校验和及验收边界见 [发布核验记录](research/validation/2026-10-12-release-v2.0.0.md)。
 
 维护者在 2026-10-12 明确要求将当前实现以 **v2.0.0 正式 Release / Latest** 发布，替代尚未发布的 1.1.0-preview.1 候选。[发布说明](releases/v2.0.0.md) 保留八源矩阵、已知缺口和手动安装方式；正式发布标记不代表 T15/T16、真实账户或所有 P0 门槛已经验收。
 
@@ -142,3 +142,7 @@ Tauri/minisign 采用既有发布公钥及 CI Secrets，只给 push 构建签名
 账户白屏/本地明文 Key、模型定价和模型/Agent/明细统计随 v2.0.2 一起交付。全局纯黑白字、黄绿强调和原创黑底图标已实现；修复旧 trend-line 样式覆盖所有 stroke 为紫色，蓝/绿/紫/橙四分量使用平滑曲线，缺失保留断点。macOS 原生菜单栏提供最近 24 小时计量小计和八 Agent、同步状态、打开/同步/退出，关窗隐藏后台运行，退出时取消调度；Windows 保持原关窗退出。
 
 本机自动化验证：52 项前端测试及 322 项 Rust 测试通过（2 项真实环境测试忽略），类型检查、格式、Clippy 与本地包构建通过。Mac 原生界面验证因电脑控制权限未授予而未完成；本次双平台 CI/发行包核验进度见 [v2.0.2 核验记录](research/validation/2026-10-12-release-v2.0.2.md)。
+
+### v2.0.2 正式发行已完成
+
+[v2.0.2](https://github.com/Abyssaler/Providock/releases/tag/v2.0.2) 已公开并设为 Latest，代码与标签固定 d6c1a72286807e1a78045218c7c8f23bde7ab228，[双平台 CI](https://github.com/Abyssaler/Providock/actions/runs/38207790571) 全部成功。10 项远端资产摘要与公开回下载均匹配；Mac 完整 ad-hoc 签名、版本/架构、DMG/更新包一致性与新图标、Windows x64 PE/NSIS 清单均已核验。未替换本机已安装应用；Mac 原生 GUI 交互受电脑控制权限限制未实测，Windows 实机和真实账户边界保留。发行后仅补记文档，不改变上述代码提交或历史 v2.0.0 标签。详见本版验证记录。
