@@ -2,12 +2,12 @@
 
 本文是交接事实表：每块工作按 [开发手册](DEVELOPMENT_HANDBOOK.md) 第 10 节的格式给出，并遵守 [AGENTS.md](../AGENTS.md) 的交付约定。状态分级：`样本验证`（合成夹具+独立预期值通过）< `macOS 实测` < `live_verified`（真实凭据/双平台）。**尚未完成双平台完整验收；局部 macOS 真实账户验证见下文，不外推到整个账户域。各版本发行依据与验证边界分别记录。**
 
-## v2.1.0 改进与发布准备（2026-10-13）
+## v2.1.0 已发布（2026-10-13）
 
-本轮以 v2.0.4 后 main `bad4942` 为基线，开发在独立本地副本；初期只做本地验证；用户已随后授权推送、发布 v2.1.0 和清理本地测试残余。发行核验另见 [v2.1.0 记录](research/validation/2026-10-13-release-v2.1.0.md)。详见[本地验证记录](research/validation/2026-10-13-local-redesign.md)和[实施计划](research/2026-10-13-local-redesign-plan.md)。以下状态优先于下方历史版本记录。
+本轮以 v2.0.4 后 main `bad4942` 为基线，开发在独立本地副本；初期只做本地验证；用户已随后授权推送、发布 v2.1.0 和清理本地测试残余。发行核验另见 [v2.1.0 记录](research/validation/2026-10-13-release-v2.1.0.md)。详见[本地验证记录](research/validation/2026-10-13-local-redesign.md)和[实施计划](research/2026-10-13-local-redesign-plan.md)。[正式 Release](https://github.com/Abyssaler/Providock/releases/tag/v2.1.0) 已公开设为 Latest，代码/标签固定 `fcebe85`；[同提交双平台 CI](https://github.com/Abyssaler/Providock/actions/runs/38285861608)、11 项公开回下载摘要与独立验签通过。用户明确自行安装，本机仍为 v2.0.4，本轮未安装或替换。开发测试残余已清理，正式源码、数据及受限恢复备份保留。以下状态优先于下方历史版本记录。
 
 - T12：保留顶部主导航；设置改为左侧采集/Agent 显示/更新/关于分组；统一页面操作、压缩摘要，常规覆盖说明移至少量提示或详情，错误/过期/未知/部分覆盖保留。用量增加滚动 1/3/6 小时和本机自定义日期时间，汇总/趋势/明细共用已应用区间；48 小时内小时桶。
-- A10 DeepSeek Harness：官方固定提交证据 + 合成独立预期 + parser/scanner/UI；session v3/v4、JSONL/.zstd、多代择高、重试、摘要、父分叉、重复副本回归。未知版本、无法核对的父链暂缓且不删历史；旧 v0–2、自定义 sessionsDir、真实 Harness 日志与 Windows 尚未验证。
+- A10 DeepSeek Harness：官方固定提交证据 + 合成独立预期 + parser/scanner/UI；session v3/v4、JSONL/.zstd、多代择高、重试、摘要、父分叉、重复副本回归。未知版本、无法核对的父链暂缓且不删历史；旧 v0–2、自定义 sessionsDir、真实 Harness 日志与 Windows 实机尚未验证；本版 Windows CI 已通过。
 - B07：官方 stdio 已接线，添加账户支持本机 ChatGPT 登录，无 Key；实际 macOS 只读查询返回 5h/7d 窗口。认证由官方进程持有。未接 account/usage/read 写入、未做 Windows 实测。
 - T14：AIHOT 从批量写库改为选定 Agent/模型后仅获取候选报价，用户保存；官网公开 HTTPS 静态表程序解析 + 主动选择 DeepSeek/GLM/OpenRouter API 模型的一次辅助解析。无工具循环，结果校验后填表；付费推理仅合成验证，未使用真实 Key 验证。
 - 数据 schema 不变，发行版本升为 2.1.0；真实用户账本/账户/凭据不参与写入测试。新兼容状态见兼容登记；本轮测试和原生验证结果单独记录，不外推历史 Windows CI。
@@ -39,7 +39,7 @@ pnpm test && cargo test --manifest-path src-tauri/Cargo.toml
 
 ## v2.0.0 发布
 
-[正式 Release](https://github.com/Abyssaler/Providock/releases/tag/v2.0.0) 已公开（发布时为 Latest，当前最新版为 v2.0.4），固定提交 2662489 的 [双平台 CI](https://github.com/Abyssaler/Providock/actions/runs/38195092032) 全部成功；10 项公开资产的远端摘要匹配，实际包内清单未含本机数据或签名秘密。本机 Mac 已安装 v2.0.0，启动、数据库完整性、旧事件保留与自动扫描周期观察通过。完整来源、校验和及验收边界见 [发布核验记录](research/validation/2026-10-12-release-v2.0.0.md)。
+[正式 Release](https://github.com/Abyssaler/Providock/releases/tag/v2.0.0) 已公开（发布时为 Latest，当前最新版为 v2.1.0），固定提交 2662489 的 [双平台 CI](https://github.com/Abyssaler/Providock/actions/runs/38195092032) 全部成功；10 项公开资产的远端摘要匹配，实际包内清单未含本机数据或签名秘密。本机 Mac 已安装 v2.0.0，启动、数据库完整性、旧事件保留与自动扫描周期观察通过。完整来源、校验和及验收边界见 [发布核验记录](research/validation/2026-10-12-release-v2.0.0.md)。
 
 维护者在 2026-10-12 明确要求将当前实现以 **v2.0.0 正式 Release / Latest** 发布，替代尚未发布的 1.1.0-preview.1 候选。[发布说明](releases/v2.0.0.md) 保留八源矩阵、已知缺口和手动安装方式；正式发布标记不代表 T15/T16、真实账户或所有 P0 门槛已经验收。
 
@@ -111,7 +111,7 @@ Tauri/minisign 采用既有发布公钥及 CI Secrets，只给 push 构建签名
 验证：截止时间/禁用首轮/无账户、锁外 HTTP、并发合并、请求期间删除均有回归；局部账户联网范围见 v2.0.3 记录。
 
 任务：T12（四页 UI）
-状态：四页与调度设置可用（当前前端 78 测试，历史 48 项为早期基线）。用量页参考所给 cc-switch 截图重排，加入来源/模型/日期
+状态：四页与调度设置可用（当前前端 80 测试，历史 48 项为早期基线）。用量页参考所给 cc-switch 截图重排，加入来源/模型/日期
       筛选、显示刷新选择、指标覆盖率和未知趋势断点。
 验证：Chrome + 模拟 IPC 检查筛选、手动同步、两开关刷新后保存、设置入口、浅/深色及 960px 无横向溢出；
       这是前端交互验证，非原生 Tauri/Windows 全流程验收。

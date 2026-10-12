@@ -7,7 +7,7 @@
 - 新增 DeepSeek Harness session v3/v4 只读采集与 .zstd 支持，稳定身份、重试/压缩摘要/分叉去重和未知格式保留历史回归。
 - 接通官方 Codex App Server 的 ChatGPT 额度窗口；本机登录，无需 API Key，macOS 真实只读查询通过。
 - AIHOT 改为所选 Agent/模型报价预填；支持公开官网链接程序解析和主动选择已有 API 模型的一次辅助解析，核对后保存。
-- 用户验收后授权推送、发布和清理测试残余；本地验证见[记录](docs/research/validation/2026-10-13-local-redesign.md)，发行核验见[v2.1.0 记录](docs/research/validation/2026-10-13-release-v2.1.0.md)。
+- v2.1.0 已公开设为 Latest；同提交双平台 CI、11 项公开资产回下载摘要和独立验签通过。按用户要求清理测试残余并保留正式数据，由用户自行安装；本地验证见[记录](docs/research/validation/2026-10-13-local-redesign.md)，发行核验见[v2.1.0 记录](docs/research/validation/2026-10-13-release-v2.1.0.md)。
 
 ## v2.0.4 — 2026-10-12
 

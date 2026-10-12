@@ -125,3 +125,7 @@ Grok/OpenCode/Pi/MCode 不再读取源自报成本，其 Token、身份、游标
 ## 2026-10-13 本地价格解析边界
 
 AIHOT 当前 UI 只取选定模型报价，不批量写库；程序官网解析限明确单位/单币种/唯一模型行静态表。DeepSeek/GLM/OpenRouter 单次模型辅助的凭据隔离、无工具、原文校验有合成回归；未做真实付费推理或所有官网结构验收。详见[依据](evidence/2026-10-13-codex-and-price-parsing.md)。
+
+## v2.1.0 发行核验（2026-10-13）
+
+固定代码 `fcebe85` 的[双平台 CI](https://github.com/Abyssaler/Providock/actions/runs/38285861608) 已通过；11 项公开资产回下载摘要、三个二进制独立验签、Mac DMG/更新归档一致性与 Windows NSIS/PE 清单核验完成。新增 DSH 仍为 fixture_verified，真实 Harness 日志未验；B07 仅 macOS 当前登录只读额度接线实测，未扩大为 Windows 实机。用户明确自行安装，本轮没有执行正式 2.1.0 安装/更新；开发测试残余已清理，正式源码、应用、数据和恢复备份保留。详见[本版核验记录](validation/2026-10-13-release-v2.1.0.md)。

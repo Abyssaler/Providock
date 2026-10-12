@@ -84,4 +84,4 @@ T12：统一下拉、账户长来源与窗口布局、移除指定冗余面板�
 
 ## 2026-10-13 本地扩展验收
 
-本轮本地改进覆盖 T12/T14、A10 DeepSeek Harness 与 B07 stdio，范围和结果见 [验证记录](research/validation/2026-10-13-local-redesign.md)。九源而非缩减既有八源；UI 提示精简仍保留未知与过期。新增小时/自定义区间要求所有视图一致，报价获取不写 DB、单次辅助不引入工具。用户要求先本地验证再考虑推送，本轮不触发 GitHub CI/发行。Windows 与旧 Harness 格式边界保留，不因 Mac 通过提前销项。
+本轮本地改进覆盖 T12/T14、A10 DeepSeek Harness 与 B07 stdio，范围和结果见 [验证记录](research/validation/2026-10-13-local-redesign.md)。九源而非缩减既有八源；UI 提示精简仍保留未知与过期。新增小时/自定义区间要求所有视图一致，报价获取不写 DB、单次辅助不引入工具。用户最初要求先本地验证，随后授权推送和发行；v2.1.0 已完成同提交双平台 CI、签名及 11 项公开资产核验，见[发行记录](research/validation/2026-10-13-release-v2.1.0.md)。用户自行安装，本轮不替换正式应用。Windows 与旧 Harness 格式边界保留，不因 Mac 通过提前销项。
