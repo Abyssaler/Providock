@@ -16,3 +16,6 @@ Thumbs.db
 .env.*
 *.pem
 *.key
+
+# 本机发布密钥目录（密码及私钥）
+.providock-keys/

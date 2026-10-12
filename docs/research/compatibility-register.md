@@ -19,7 +19,7 @@
 
 数据核心（T02）、凭据库/路径守卫/诊断脱敏（T03）、聚合服务与用量页纵线（T04）已实现并有测试。全部 Windows 行为未经实机验证。
 
-CI 补记：自动监测首轮 macOS CI 通过；Windows 在 Codex 升级回归测试中暴露测试构造的 `/` 与 `\` 文件身份差异。测试已改用实际入库游标的身份并保留原计数断言，本机相关回归通过；生产 parser/扫描器未变更，[修复提交 d9f11f9 的双平台 CI](https://github.com/Abyssaler/Providock/actions/runs/38138488820) 检查、测试及安装包构建均已通过；v1.1.0-preview.1 按此验证边界作为预览分发，未新增 Windows 实机声明。
+CI 补记：自动监测首轮 macOS CI 通过；Windows 在 Codex 升级回归测试中暴露测试构造的 `/` 与 `\` 文件身份差异。测试已改用实际入库游标的身份并保留原计数断言，本机相关回归通过；生产 parser/扫描器未变更，[修复提交 d9f11f9 的双平台 CI](https://github.com/Abyssaler/Providock/actions/runs/38138488820) 检查、测试及安装包构建均已通过；v2.0.0 按维护者要求作为正式 Release 分发，保留上述验证边界，未新增 Windows 实机声明；1.1.0-preview.1 候选未发布。
 
 ## 账户适配器实现状态（2026-10-11）
 

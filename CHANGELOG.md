@@ -1,12 +1,14 @@
 # 变更日志
 
-## 1.1.0-preview.1 — 2026-10-11
+## 2.0.0 — 2026-10-12
 
-本次自动监测交付以 v1.1.0-preview.1 预览版分发；前端、Tauri、Rust crate 与 lockfile 的应用版本一致。安装包为未签名测试构建，不表示稳定版发布门槛已完成。此版本来自重建后的实现，与旧 v1.0.0 的应用标识、数据目录和更新协议不同，需手动安装，不自动迁移旧版数据。完整说明见 [预览版发布说明](docs/releases/v1.1.0-preview.1.md)；更早实施状态见 Git 历史与 [CURRENT_STATUS](docs/CURRENT_STATUS.md)。
+本次自动监测交付按维护者明确要求发布为正式 Release v2.0.0，并设为 Latest；前端、Tauri、Rust crate 与 lockfile 的应用版本一致。发布身份不改变样本验证和实机验收的事实边界。macOS 应用采用完整 ad-hoc 签名，更新包采用既有 Tauri/minisign 密钥签名；没有 Apple Developer ID 公证或 Windows Authenticode 签名。旧 v1.0.0 属于重建前实现，需手动安装 v2，不自动迁移旧版数据。完整说明见 [v2.0.0 发布说明](docs/releases/v2.0.0.md)；更早实施状态见 Git 历史与 [CURRENT_STATUS](docs/CURRENT_STATUS.md)。
+
+1.1.0-preview.1 仅为准备过的内部候选，没有创建 GitHub Release；Windows 候选构建因默认 MSI 不支持该预发布后缀失败，本次明确构建 NSIS 修复此问题。
 
 ### 新增
 
-- v1.1.0-preview.1 的 macOS ARM64 / Windows x64 下载资产、SHA-256 校验和及人工预览发布流程；发布前要求对应提交的双平台 CI 成功。
+- v2.0.0 的 macOS ARM64 / Windows x64 安装包、签名更新包、公钥、SHA-256 和正式发布说明；发布前要求对应提交的双平台 CI 成功。
 - Agent 用量默认启动同步一次，之后每轮结束等待 60 秒扫描；未变化文件跳过，不启用文件监听，休眠周期不积压。
 - 用量页「数据采集与调度」和设置页提供独立的 Agent 自动同步/账户自动刷新开关，持久化到本机；关闭后仍可手动刷新。
 - 用量页参考 cc-switch 布局，提供八 Agent、来源、模型、日期筛选；汇总输入/输出/缓存、已知请求数、费用及覆盖率，展示趋势与 Agent 分布。
@@ -14,6 +16,9 @@
 - 可复现的 Kimi/Codex 只读独立核对工具、合成重播夹具与调度/采集回归测试。
 
 ### 修复
+
+- macOS 完整应用包使用 ad-hoc 签名并在 CI 执行 codesign 严格校验，修复只有链接器签名时资源未封装的完整性错误。
+- Windows CI 明确生成 NSIS，避免默认额外构建 MSI 的预发布版本限制；发布资产与签名缺失会使 CI 失败，PR 构建不需要私钥。
 
 - Windows CI 的 Codex 升级回归测试改用扫描器实际入库的文件身份，避免 `/` 与 `\` 路径写法导致合成旧重复记录无法命中；保持升级后 2 条记录/240 Token 与重扫守恒断言，不修改生产采集逻辑。
 

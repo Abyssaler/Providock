@@ -4,11 +4,11 @@
 
 **当前状态：核心链路已实现并通过样本级验证（2026-10-11）。** 八个本地 Agent 的解析器、采集入库、聚合与用量/账户/会话/数据源四页 UI 均已落地；macOS 实机只读验证了 Kimi Code、Codex 与 OpenCode。账户查询全部接口为样本验证（mock），未做真实凭据实测；Windows 实机、Claude Desktop 网关演示、正文查看的实机联调尚未完成。**准确的逐项状态见 [CURRENT_STATUS.md](docs/CURRENT_STATUS.md)，不要把本文的功能描述当作已实机验收。**
 
-## 预览版下载
+## 下载 v2.0.0
 
-当前开发版本为 **v1.1.0-preview.1**，下载见 [GitHub 预览 Release](https://github.com/Abyssaler/Providock/releases/tag/v1.1.0-preview.1)，变更、安装与兼容边界见 [发布说明](docs/releases/v1.1.0-preview.1.md)。这是未签名测试构建；Windows 实机、真实账户联网及完整发布验收尚未完成。
+正式版 **v2.0.0** 下载见 [GitHub Release](https://github.com/Abyssaler/Providock/releases/tag/v2.0.0)，变更、安装与兼容边界见 [发布说明](docs/releases/v2.0.0.md)。安装包有 Tauri/minisign 签名；Mac 应用另有 ad-hoc 完整性签名，但没有 Apple Developer ID 公证或 Windows 代码签名。Windows 实机、真实账户联网及完整产品验收仍未完成，详见当前状态。
 
-旧 v1.0.0 是重建前的实现，不包含本次自动监测改动。新版采用独立的应用标识和数据目录，需要手动安装，不使用旧版自动更新协议，也不自动迁移旧账户或统计数据。现有 CI 产出安装包，Release 按 [人工发布步骤](docs/specs/CROSS_PLATFORM_RELEASE.md#7-当前预览版的人工发布流程) 单独发布。
+旧 v1.0.0 是重建前的实现，不包含本次自动监测改动。新版采用独立的应用标识和数据目录，需要手动安装，不使用旧版自动更新协议，也不自动迁移旧账户或统计数据。当前应用没有自动更新入口；签名更新包为后续更新能力保留，不发布旧版 latest.json。CI 产出安装包，Release 按 [人工发布步骤](docs/specs/CROSS_PLATFORM_RELEASE.md#7-当前人工发布流程) 单独发布。
 
 ## 开发命令
 
@@ -23,7 +23,7 @@ cargo test --manifest-path src-tauri/Cargo.toml
 pnpm tauri build  # 在目标 OS 构建安装包
 ```
 
-工具链：Node 24（.node-version）、pnpm 12.11.2（packageManager 字段）、Rust 1.99.0（rust-toolchain.toml）。CI 在 macos-15（ARM64）与 windows-2022（x64）双平台执行上述检查并产出未签名安装包。
+工具链：Node 24（.node-version）、pnpm 12.11.2（packageManager 字段）、Rust 1.99.0（rust-toolchain.toml）。CI 在 macos-15（ARM64）与 windows-2022（x64）双平台执行上述检查并产出安装包及 Tauri/minisign 签名更新包；Mac 完整应用包有 ad-hoc 签名。
 
 Providock 聚合电脑上的 Agent Token 用量、输入输出、缓存读写及会话信息；独立管理 API Key、平台余额和 Coding Plan 额度。账户无需绑定 Agent，也不负责替用户切换模型或改写 Agent 配置。
 

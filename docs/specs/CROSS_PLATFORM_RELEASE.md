@@ -48,14 +48,17 @@ macOS 正式分发需要 Developer ID 签名与公证，Windows 代码签名用�
 
 记录系统版本、CPU 架构、Agent/协议版本、安装包 hash、签名状态、测试步骤和结果。真实 Windows 环境缺失会阻塞正式发布，不能把通过 cross-compile 当运行验收。CI 与人工报告共同构成发布证据。
 
-## 7. 当前预览版的人工发布流程
+## 7. 当前人工发布流程
 
-当前主线为重建后的实现，应用标识固定为 io.providock.app。历史 v1.0.0 来自旧实现 com.providock.desktop；预览版不自动迁移旧数据，不使用旧 updater 协议，也不覆盖旧版 latest.json。当前不恢复自动稳定发布，Release 与 main 分支 CI 是两个独立步骤。
+维护者在 2026-10-12 明确要求以 v2.0.0 正式 Release / Latest 发布当前实现，此决定优先于此前只发预览的安排；现有验证缺口、产品范围和后续验收目标保持如实登记，不能据正式标签把未验项目改为已验证。
 
-1. 统一 package.json、src-tauri/tauri.conf.json、src-tauri/Cargo.toml 和 Cargo.lock 的应用版本，并新增 docs/releases/ 下对应版本说明；同步 CHANGELOG、README、当前状态及兼容表。
-2. 推送版本提交到 main，确认对应完整 SHA 的 macOS / Windows 两个 CI job 成功；安装包缺失必须使 CI 失败，不能上传空 Release。
-3. 通过 gh run download 下载该次 CI 的 providock-macos-aarch64 和 providock-windows-x64；不得混用另一提交或旧版本产物。核对文件名、版本、架构及 SHA-256，生成 SHA256SUMS.txt。
-4. 在该确切提交创建版本标签，使用 gh release create 的 prerelease 标志与 latest=false，附对应发布说明、CI 链接、构建提交和两平台安装包/校验和。不移动既有标签或覆盖已有资产；不把未验证预览版设成 latest 稳定版。
-5. 从新 Release 下载 macOS 包，核对资产 hash，安装到用户 Mac 并记录启动检查结果。Windows CI 成功仍须保留 Windows 实机待验状态。
+当前应用标识固定为 io.providock.app，历史 v1.0.0 为 com.providock.desktop；不自动迁移旧数据，不使用旧 updater 协议，不发布旧版 latest.json。当前未接入应用内自动更新入口，更新包与签名是发布资产，不代表更新 UI 已实现。
 
-当前预览标签为 v1.1.0-preview.1。没有签名证书与完整实机验收时继续只发布明确标注边界的预览版；稳定发布仍须满足上文的完整门槛。
+1. 统一 package.json、src-tauri/tauri.conf.json、src-tauri/Cargo.toml 和 Cargo.lock，新增 docs/releases/ 对应说明；同步 CHANGELOG、README、当前状态、决策及兼容表。
+2. macOS 显式构建 DMG，signingIdentity 为 -，使完整应用包 ad-hoc 签名；CI 用 codesign --verify --deep --strict 校验。Windows 显式构建 NSIS，不默认额外生成 MSI。
+3. 启用 createUpdaterArtifacts，通过已有 GitHub Secrets 提供 Tauri/minisign 私钥与密码，配置中只存公钥。PR 禁用更新包生成且不读取私钥；发布 push 要求安装包、更新包及签名齐全。密钥不是 Apple Developer ID 或 Windows Authenticode 证书。
+4. 推送版本提交到 main，确认该完整 SHA 的两个 CI job 成功。用 gh run download 下载同一次运行的两个平台产物，核对包内版本/架构/完整性、签名及 SHA-256，不混用旧构建。
+5. 在确切提交创建版本标签，先创建草稿并上传安装包、更新包、签名、公钥、许可证与 SHA256SUMS.txt；核对资产后，将 v2.0.0 设为非 prerelease、非 draft、latest=true。既有标签及资产不覆盖。
+6. 从新 Release 下载 Mac 包、核对 hash、保留已有应用数据、安装并检查启动。Windows CI 不等于 Windows 实机验收；后续结果在验证记录中补记。
+
+正式证书签名/公证、双平台完整实机、迁移/回滚与性能门槛仍按上文规划继续完成，不因本次发布决定省略验证事实。

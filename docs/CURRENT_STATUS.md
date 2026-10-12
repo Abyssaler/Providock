@@ -1,4 +1,4 @@
-# 当前状态与交接（2026-10-11）
+# 当前状态与交接（2026-10-12）
 
 本文是交接事实表：每块工作按 [开发手册](DEVELOPMENT_HANDBOOK.md) 第 10 节的格式给出，并遵守 [AGENTS.md](../AGENTS.md) 的交付约定。状态分级：`样本验证`（合成夹具+独立预期值通过）< `macOS 实测` < `live_verified`（真实凭据/双平台）。**当前没有任何条目达到完整 live_verified。**
 
@@ -18,11 +18,15 @@ pnpm test && cargo test --manifest-path src-tauri/Cargo.toml
 
 首轮 [GitHub CI](https://github.com/Abyssaler/providock/actions/runs/38137942242)：macOS 检查及测试安装包构建通过；Windows 编译/前端检查通过，但新增 Codex 升级回归测试因合成身份中的路径分隔符不一致失败（应 2 条、实际 3 条）。已修正测试为读取实际游标身份，保留全部计数断言，并通过本机相关回归与 Clippy；修复提交 d9f11f9 的 [双平台 CI](https://github.com/Abyssaler/Providock/actions/runs/38138488820) 已全部通过，macOS ARM64 / Windows x64 安装包均已产出；仍不替代 Windows 实机验收。
 
-## 预览发布
+## v2.0.0 发布
 
-应用版本统一为 **1.1.0-preview.1**；[发布说明](releases/v1.1.0-preview.1.md) 列出八源验证矩阵、安装方式和已知缺口。预览包须取自该版本提交通过的双平台 CI，并附 SHA-256；发布状态以 [GitHub Release](https://github.com/Abyssaler/Providock/releases/tag/v1.1.0-preview.1) 为准。无 Developer ID 公证或 Windows 代码签名，不声明稳定版验收完成。
+维护者在 2026-10-12 明确要求将当前实现以 **v2.0.0 正式 Release / Latest** 发布，替代尚未发布的 1.1.0-preview.1 候选。[发布说明](releases/v2.0.0.md) 保留八源矩阵、已知缺口和手动安装方式；正式发布标记不代表 T15/T16、真实账户或所有 P0 门槛已经验收。
 
-旧 v1.0.0 属于重建前实现，标识为 com.providock.desktop；当前标识为 io.providock.app，数据目录和凭据域独立。手动安装不会自动迁移旧账户/统计，也不发布旧更新协议的 latest.json。
+此前 [候选 CI](https://github.com/Abyssaler/Providock/actions/runs/38139628694) 的 macOS 构建通过，但下载包的链接器签名没有封装完整应用资源；本机副本补签后已安装。Windows 测试通过，默认 MSI 打包因预发布后缀失败。本次改为显式 NSIS、Mac 完整 ad-hoc 签名/严格校验、签名资产齐全检查；正式资产必须来自 v2.0.0 对应完整提交成功的双平台 CI。
+
+Tauri/minisign 采用既有发布公钥及 CI Secrets，只给 push 构建签名；PR 禁用更新包签名生成，不需要私钥。该密钥不是 Apple Developer ID 或 Windows Authenticode 证书。
+
+旧 v1.0.0 属于重建前实现，标识为 com.providock.desktop；当前标识为 io.providock.app，数据目录和凭据域独立。手动安装不会自动迁移旧账户/统计。当前未接入自动更新 UI，不发布旧版 latest.json。
 
 ## 逐任务状态
 
@@ -34,7 +38,7 @@ pnpm test && cargo test --manifest-path src-tauri/Cargo.toml
 任务：T01（工程骨架）
 状态：已验证（macOS ARM64：typecheck/lint/test/build/dmg 打包全过；Windows x64 CI 检查/测试/安装包构建通过，实机安装运行待验）。
 实现：Tauri 2 / Rust 1.99 / React 19 / TS 5.9 / pnpm 12.11.2；标识 io.providock.app 已冻结；
-      CI=.github/workflows/ci.yml（macos-15 + windows-2022，产出未签名安装包）。
+      CI=.github/workflows/ci.yml（macos-15 + windows-2022，产出安装包与签名更新包；Mac ad-hoc 签名）。
 
 任务：T02（契约/存储/游标/去重）
 状态：已有核心单测验证（逐批事务回滚、重扫幂等、替换不累加、墓碑、溢出、禁存秘密列）；完整发布门槛未满足。
