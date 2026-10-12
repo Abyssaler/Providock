@@ -138,6 +138,8 @@ export interface AccountSummaryDto {
   stale: boolean;
   /** 最近一行查询的状态（含失败），无任何查询为 null。 */
   latestStatus: SnapshotStatus | null;
+  /** Key is present in this process; false after restart until re-entered. */
+  credentialReady: boolean;
 }
 
 /** `account_save` 入参（lib.rs `AccountSaveInput`）。 */
@@ -150,7 +152,7 @@ export interface AccountSaveInput {
   scope: string | null;
   configKind: ConfigKind;
   credentialType: CredentialType | null;
-  /** 仅在提交表单瞬间传入；后端立即写入系统凭据库，响应不回显。 */
+  /** 仅在提交表单瞬间传入；后端写入本地明文凭据文件，响应不回显。 */
   secret: string | null;
   capabilities: unknown | null;
 }

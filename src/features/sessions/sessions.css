@@ -78,7 +78,7 @@
 .sess-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(15, 22, 36, 0.45);
+  background: rgba(0, 0, 0, 0.8);
   display: flex;
   justify-content: flex-end;
   z-index: 40;

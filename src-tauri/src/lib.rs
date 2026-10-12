@@ -2,10 +2,13 @@
 // domain（契约类型）/ storage（自有 DB）/ ingestion（事务游标与去重）为 T02；
 // adapters（Kimi/Codex 纯解析器）+ services.aggregate + IPC 纵线为 T04。
 
+mod account_dto;
 pub mod adapters;
 pub mod domain;
 pub mod gateway;
 pub mod ingestion;
+#[cfg(target_os = "macos")]
+mod menu_bar;
 pub mod safepath;
 pub mod services;
 pub mod storage;
@@ -27,21 +30,23 @@ pub struct AppState {
     scheduler: Mutex<Option<services::account_scheduler::SchedulerHandle>>,
     usage_sync: Arc<usage_sync::UsageSync>,
     usage_scheduler: Mutex<Option<TaskHandle>>,
+    #[cfg(target_os = "macos")]
+    tray_scheduler: Mutex<Option<TaskHandle>>,
 }
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct AppInfo {
-    version: &'static str,
-    identifier: &'static str,
+    version: String,
+    identifier: String,
 }
 
 /// 最小联通性命令：前端据此区分桌面运行与浏览器预览。
 #[tauri::command]
-fn app_info() -> AppInfo {
+fn app_info(app: tauri::AppHandle) -> AppInfo {
     AppInfo {
-        version: env!("CARGO_PKG_VERSION"),
-        identifier: "io.providock.app",
+        version: app.package_info().version.to_string(),
+        identifier: app.config().identifier.clone(),
     }
 }
 
@@ -316,28 +321,50 @@ pub struct AccountSummaryDto {
     pub created_at: String,
     pub credentials: Vec<CredentialDto>,
     /// 最近成功快照（含余额、窗口、用量指标）；没有成功查询为 null。
-    pub snapshot: Option<services::accounts::Snapshot>,
+    pub snapshot: Option<account_dto::SnapshotDto>,
     /// 展示用：最近成功快照已过期（其后有失败查询）。
     pub stale: bool,
     /// 最近一行查询的状态（含失败），无任何查询为 null。
     pub latest_status: Option<services::accounts::SnapshotStatus>,
+    /// Checks the local credential file only; this never reads Keychain.
+    pub credential_ready: bool,
 }
 
-fn build_account_summary(db: &Database, account_id: &str) -> Result<AccountSummaryDto, String> {
+fn build_account_summary(
+    db: &Database,
+    vault: &dyn Vault,
+    account_id: &str,
+) -> Result<AccountSummaryDto, String> {
     use services::accounts as acc;
     let account = acc::account_get(db, account_id)
         .map_err(|e| e.to_string())?
         .ok_or_else(|| format!("account not found: {account_id}"))?;
-    let credentials = acc::credentials_list(db, account_id, true)
+    let credentials: Vec<CredentialDto> = acc::credentials_list(db, account_id, true)
         .map_err(|e| e.to_string())?
         .into_iter()
         .map(CredentialDto::from)
         .collect();
     let (snapshot, stale) = match acc::snapshot_latest(db, account_id).map_err(|e| e.to_string())? {
-        Some((snapshot, stale)) => (Some(snapshot), stale),
+        Some((snapshot, stale)) => (Some(snapshot.into()), stale),
         None => (None, false),
     };
     let latest_status = acc::snapshot_latest_status(db, account_id).map_err(|e| e.to_string())?;
+    let mut credential_ready = false;
+    let mut refs = db
+        .conn()
+        .prepare("SELECT vault_ref FROM credential_refs WHERE account_id=?1 AND retired_at IS NULL")
+        .map_err(|e| e.to_string())?;
+    let rows = refs
+        .query_map([account_id], |r| r.get::<_, String>(0))
+        .map_err(|e| e.to_string())?;
+    for reference in rows {
+        if vault
+            .exists(&reference.map_err(|e| e.to_string())?)
+            .unwrap_or(false)
+        {
+            credential_ready = true;
+        }
+    }
     Ok(AccountSummaryDto {
         account_id: account.account_id,
         platform: account.platform,
@@ -349,6 +376,7 @@ fn build_account_summary(db: &Database, account_id: &str) -> Result<AccountSumma
         snapshot,
         stale,
         latest_status,
+        credential_ready,
     })
 }
 
@@ -357,19 +385,20 @@ async fn accounts_list(
     state: tauri::State<'_, AppState>,
 ) -> Result<Vec<AccountSummaryDto>, String> {
     let db = Arc::clone(&state.db);
+    let vault = Arc::clone(&state.vault);
     tauri::async_runtime::spawn_blocking(move || {
         let db = db.lock().map_err(|e| e.to_string())?;
         let accounts = services::accounts::accounts_list(&db, false).map_err(|e| e.to_string())?;
         accounts
             .into_iter()
-            .map(|account| build_account_summary(&db, &account.account_id))
+            .map(|account| build_account_summary(&db, vault.as_ref(), &account.account_id))
             .collect()
     })
     .await
     .map_err(|e| e.to_string())?
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AccountSaveInput {
     /// `None` = 新建账户；`Some` = 更新既有账户。
@@ -380,7 +409,7 @@ pub struct AccountSaveInput {
     pub scope: Option<String>,
     pub config_kind: String,
     pub credential_type: Option<String>,
-    /// 前端仅在提交表单瞬间传入；后端立即写入系统凭据库，响应不回显。
+    /// 前端仅在提交表单瞬间传入；后端存入用户选择的本地明文凭据文件，响应不回显。
     pub secret: Option<String>,
     pub capabilities: Option<serde_json::Value>,
 }
@@ -388,12 +417,13 @@ pub struct AccountSaveInput {
 #[tauri::command]
 async fn account_save(
     state: tauri::State<'_, AppState>,
-    input: AccountSaveInput,
+    mut input: AccountSaveInput,
 ) -> Result<AccountSummaryDto, String> {
     let db = Arc::clone(&state.db);
     let vault = Arc::clone(&state.vault);
     let result = tauri::async_runtime::spawn_blocking(move || {
         use services::accounts as acc;
+        let secret = input.secret.take().map(vault::SecretString::new);
         let db = db.lock().map_err(|e| e.to_string())?;
         let config_kind = acc::ConfigKind::parse(&input.config_kind)
             .ok_or_else(|| format!("unknown config_kind: {}", input.config_kind))?;
@@ -429,14 +459,13 @@ async fn account_save(
             }
         };
 
-        // 只有前端明确提交秘密时才写入凭据库；秘密在此作用域内即被清零释放。
-        if let Some(secret) = input.secret.as_deref() {
+        // 只有前端明确提交秘密时才写入本地凭据库；秘密在此作用域内即被清零释放。
+        if let Some(secret) = secret {
             let credential_type = input
                 .credential_type
                 .as_deref()
                 .and_then(acc::CredentialType::parse)
                 .ok_or_else(|| "credential_type is required when saving a secret".to_owned())?;
-            let secret = vault::SecretString::new(secret);
             acc::credential_save(
                 &db,
                 vault.as_ref(),
@@ -448,7 +477,7 @@ async fn account_save(
             .map_err(|e| e.to_string())?;
         }
 
-        build_account_summary(&db, &account_id)
+        build_account_summary(&db, vault.as_ref(), &account_id)
     })
     .await
     .map_err(|e| e.to_string())??;
@@ -458,7 +487,7 @@ async fn account_save(
     Ok(result)
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AccountRotateInput {
     pub credential_id: String,
@@ -498,7 +527,7 @@ async fn account_rotate_credential(
 async fn account_refresh(
     state: tauri::State<'_, AppState>,
     account_id: String,
-) -> Result<services::account_query::SnapshotOutcome, String> {
+) -> Result<account_dto::OutcomeDto, String> {
     let db = Arc::clone(&state.db);
     let vault = Arc::clone(&state.vault);
     let result = tauri::async_runtime::spawn_blocking(move || {
@@ -510,7 +539,7 @@ async fn account_refresh(
     if let Some(handle) = state.scheduler.lock().map_err(|e| e.to_string())?.as_ref() {
         handle.wake();
     }
-    Ok(result)
+    Ok(result.into())
 }
 
 #[derive(Debug, Deserialize)]
@@ -549,6 +578,66 @@ async fn account_delete(
         handle.wake();
     }
     Ok(result)
+}
+
+#[tauri::command]
+async fn model_prices_list(
+    state: tauri::State<'_, AppState>,
+) -> Result<Vec<services::model_prices::ModelPrice>, String> {
+    let db = Arc::clone(&state.db);
+    tauri::async_runtime::spawn_blocking(move || {
+        services::model_prices::list(&*db.lock().map_err(|e| e.to_string())?)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn model_price_save(
+    state: tauri::State<'_, AppState>,
+    input: services::model_prices::ModelPrice,
+) -> Result<services::model_prices::ModelPrice, String> {
+    let db = Arc::clone(&state.db);
+    tauri::async_runtime::spawn_blocking(move || {
+        services::model_prices::save(&*db.lock().map_err(|e| e.to_string())?, input)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn usage_dashboard(
+    state: tauri::State<'_, AppState>,
+    filter: Option<UsageFilterDto>,
+    hourly: bool,
+) -> Result<services::usage_details::Dashboard, String> {
+    let db = Arc::clone(&state.db);
+    tauri::async_runtime::spawn_blocking(move || {
+        services::usage_details::dashboard(
+            &*db.lock().map_err(|e| e.to_string())?,
+            &map_filter(filter.unwrap_or_default()),
+            hourly,
+        )
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn usage_events(
+    state: tauri::State<'_, AppState>,
+    filter: Option<UsageFilterDto>,
+    page: u32,
+    page_size: u32,
+) -> Result<services::usage_details::EventPage, String> {
+    let db = Arc::clone(&state.db);
+    tauri::async_runtime::spawn_blocking(move || {
+        services::usage_details::events(
+            &*db.lock().map_err(|e| e.to_string())?,
+            &map_filter(filter.unwrap_or_default()),
+            page,
+            page_size,
+        )
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 // ---------------------------------------------------------------------------
@@ -688,7 +777,9 @@ pub fn run() {
             let db = Database::open(&data_dir.join("providock.db"))
                 .map_err(|e| std::io::Error::other(e.to_string()))?;
             let db = Arc::new(Mutex::new(db));
-            let vault: Arc<dyn Vault> = Arc::new(vault::KeyringVault::new());
+            let vault: Arc<dyn Vault> = Arc::new(vault::LocalPlaintextVault::new(
+                data_dir.join("credentials").join("keys.sqlite3"),
+            ));
             // 默认开启的后台调度；失败静默降级（查询层记 stale/unavailable）。
             let scheduler = services::account_scheduler::spawn(
                 Arc::clone(&db),
@@ -703,25 +794,24 @@ pub fn run() {
                 scheduler: Mutex::new(Some(scheduler)),
                 usage_sync,
                 usage_scheduler: Mutex::new(Some(usage_scheduler)),
+                #[cfg(target_os = "macos")]
+                tray_scheduler: Mutex::new(None),
             });
+            #[cfg(target_os = "macos")]
+            {
+                let tray = menu_bar::setup(app.handle())?;
+                *app.state::<AppState>().tray_scheduler.lock().unwrap() = Some(tray);
+            }
             Ok(())
         })
         .on_window_event(|window, event| {
-            // 关窗口即取消后台调度（ACCOUNT_ADAPTERS 第 5 节：关窗口后台策略可取消）。
-            if let tauri::WindowEvent::CloseRequested { .. } = event {
-                if let Some(state) = window.app_handle().try_state::<AppState>() {
-                    if let Ok(mut guard) = state.usage_scheduler.lock() {
-                        if let Some(handle) = guard.as_mut() {
-                            handle.shutdown();
-                        }
-                    }
-                    if let Ok(mut guard) = state.scheduler.lock() {
-                        if let Some(handle) = guard.as_mut() {
-                            handle.shutdown();
-                        }
-                    }
-                }
+            #[cfg(target_os = "macos")]
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                let _ = window.hide();
             }
+            #[cfg(not(target_os = "macos"))]
+            let _ = (window, event);
         })
         .invoke_handler(tauri::generate_handler![
             app_info,
@@ -734,6 +824,10 @@ pub fn run() {
             usage_summary,
             usage_series,
             accounts_list,
+            model_prices_list,
+            model_price_save,
+            usage_dashboard,
+            usage_events,
             account_save,
             account_rotate_credential,
             account_refresh,
@@ -743,6 +837,118 @@ pub fn run() {
             content_view_status,
             content_view_set,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen { .. } = event {
+                menu_bar::show(app);
+            }
+            if let tauri::RunEvent::ExitRequested { .. } = event {
+                if let Some(state) = app.try_state::<AppState>() {
+                    if let Ok(mut guard) = state.usage_scheduler.lock() {
+                        if let Some(handle) = guard.as_mut() {
+                            handle.shutdown();
+                        }
+                    }
+                    if let Ok(mut guard) = state.scheduler.lock() {
+                        if let Some(handle) = guard.as_mut() {
+                            handle.shutdown();
+                        }
+                    }
+                    #[cfg(target_os = "macos")]
+                    if let Ok(mut guard) = state.tray_scheduler.lock() {
+                        if let Some(handle) = guard.as_mut() {
+                            handle.shutdown();
+                        }
+                    }
+                }
+            }
+        });
+}
+
+#[cfg(test)]
+mod ipc_regressions {
+    use super::*;
+    use services::accounts as acc;
+    #[test]
+    fn stored_account_snapshot_matches_shared_frontend_fixture() {
+        let mut db = Database::open_in_memory().unwrap();
+        let account = acc::account_create(
+            &db,
+            &acc::NewAccount::new("deepseek", "合成测试账户", acc::ConfigKind::ApiPayg),
+        )
+        .unwrap();
+        let mut window =
+            acc::QuotaWindow::from_used_ratio("synthetic:5h", acc::QuotaUnit::Tokens, "0.58")
+                .unwrap();
+        window.duration_seconds = Some(18000);
+        acc::snapshot_write(
+            &mut db,
+            &acc::NewSnapshot {
+                account_id: account.account_id.clone(),
+                queried_at: "2026-10-12T00:00:00Z".into(),
+                evidence: Some("synthetic:interop".into()),
+                balances: vec![
+                    acc::BalanceEntry::new(acc::BalanceKind::Available, "18", "CNY").unwrap(),
+                ],
+                quota_windows: vec![window],
+                usage_metrics: vec![
+                    acc::UsageMetric::new("total", "123", acc::QuotaUnit::Tokens).unwrap(),
+                ],
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let mut actual = serde_json::to_value(
+            build_account_summary(&db, &vault::SessionVault::new(), &account.account_id).unwrap(),
+        )
+        .unwrap();
+        actual["accountId"] = "synthetic-account".into();
+        actual["createdAt"] = "2026-10-12T00:00:00Z".into();
+        actual["snapshot"]["accountId"] = "synthetic-account".into();
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("../../fixtures/interop/account-summary.json"))
+                .unwrap();
+        assert_eq!(actual,fixture,"Real DB -> IPC serialization must match the frontend render fixture, including every nested field");
+    }
+    #[test]
+    fn local_key_survives_restart_without_entering_account_ipc_or_main_db() {
+        let db = Database::open_in_memory().unwrap();
+        let dir =
+            std::env::temp_dir().join(format!("providock-ipc-vault-{}", rand::random::<u64>()));
+        let path = dir.join("keys.sqlite3");
+        let vault = vault::LocalPlaintextVault::new(path.clone());
+        let a = acc::account_create(
+            &db,
+            &acc::NewAccount::new("deepseek", "synthetic", acc::ConfigKind::ApiPayg),
+        )
+        .unwrap();
+        acc::credential_save(
+            &db,
+            &vault,
+            &a.account_id,
+            acc::CredentialType::ApiKey,
+            None,
+            &vault::SecretString::new("synthetic-secret-local-only"),
+        )
+        .unwrap();
+        let first = build_account_summary(&db, &vault, &a.account_id).unwrap();
+        assert!(first.credential_ready);
+        assert!(!serde_json::to_string(&first)
+            .unwrap()
+            .contains("synthetic-secret-local-only"));
+        let restarted =
+            build_account_summary(&db, &vault::LocalPlaintextVault::new(path), &a.account_id)
+                .unwrap();
+        assert!(restarted.credential_ready);
+        assert_eq!(restarted.credentials.len(), 1);
+        assert_eq!(restarted.account_id, first.account_id);
+        let stored_mask: String = db
+            .conn()
+            .query_row("SELECT mask FROM credential_refs", [], |r| r.get(0))
+            .unwrap();
+        assert!(!stored_mask.contains("synthetic-secret-local-only"));
+        std::fs::remove_dir_all(dir).unwrap();
+    }
 }

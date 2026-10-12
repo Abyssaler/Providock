@@ -147,12 +147,11 @@
 }
 .trend-line {
   fill: none;
-  stroke: #a86af5;
   stroke-width: 3;
   stroke-linejoin: round;
 }
 .trend-point {
-  fill: #a86af5;
+  fill: var(--primary);
 }
 .usage-bottom {
   display: grid;
@@ -259,4 +258,521 @@
     max-width: 100%;
     min-width: 130px;
   }
+}
+/* Usage dashboard: quiet surfaces, distinct data hierarchy, cc-switch reference. */
+.usage-page {
+  --violet: #bc8aff;
+}
+.usage-eyebrow {
+  color: var(--primary);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 2px;
+}
+.usage-heading h1 {
+  font-size: 30px;
+  letter-spacing: -0.7px;
+  margin-top: 4px;
+}
+.usage-heading p {
+  font-size: 13px;
+}
+.usage-heading .actions > button {
+  min-height: 38px;
+}
+.usage-price-button {
+  color: var(--primary);
+  background: var(--soft);
+  border-color: transparent;
+  font-weight: 600;
+}
+.usage-toolbar {
+  padding: 12px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  gap: 12px;
+}
+.agent-tabs {
+  border: 0;
+  background: var(--bg);
+  padding: 4px;
+  width: 100%;
+  gap: 3px;
+}
+.agent-tabs button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  flex: 1;
+  white-space: nowrap;
+  background: transparent;
+  color: var(--muted);
+  padding: 8px;
+}
+.agent-tabs button.active {
+  background: var(--card);
+  color: var(--primary);
+  box-shadow: 0 2px 6px #00000009;
+}
+.agent-glyph {
+  font-size: 17px;
+  line-height: 1;
+  font-weight: 600;
+}
+.usage-selects {
+  gap: 10px;
+}
+.usage-selects select {
+  flex: 1;
+  max-width: none;
+  min-width: 130px;
+  background: var(--bg);
+  border-color: transparent;
+  font-size: 12px;
+  padding: 8px 12px;
+}
+.usage-sync-line {
+  margin: 12px 3px 0;
+}
+.usage-sync-line > button {
+  font-size: 12px;
+}
+.usage-overview {
+  margin-top: 20px;
+  padding: 28px;
+  background: var(--card);
+  border-radius: 18px;
+}
+.usage-bolt {
+  font-size: 36px;
+  width: 60px;
+  height: 60px;
+  border-radius: 16px;
+}
+.usage-total {
+  gap: 18px;
+}
+.usage-total-number {
+  font-size: clamp(30px, 3.8vw, 44px);
+  line-height: 1.5;
+}
+.usage-total-number small {
+  font-size: 12px;
+  margin-left: 8px;
+  background: var(--bg);
+  padding: 0 8px;
+  border-radius: 6px;
+}
+.usage-mini-stats {
+  background: var(--card);
+  padding: 16px 18px;
+  gap: 18px;
+  border-radius: 14px;
+}
+.usage-mini-stats strong {
+  font-size: 17px;
+  letter-spacing: -0.3px;
+}
+.usage-mini-stats > div {
+  max-width: 210px;
+  font-size: 12px;
+}
+.usage-mini-stats > div + div {
+  padding-left: 18px;
+}
+.usage-metrics {
+  gap: 12px;
+  margin-top: 24px;
+}
+.usage-metric {
+  border-radius: 12px;
+  background: var(--card);
+  padding: 16px;
+}
+.usage-metric > span {
+  font-size: 12px;
+}
+.usage-metric strong {
+  font-size: 24px;
+}
+.usage-metric small {
+  font-size: 10px;
+}
+.usage-chart-card {
+  padding: 22px 24px 16px;
+  border-radius: 18px;
+}
+.usage-chart-card .cardhead p {
+  margin: 6px 0 0;
+}
+.usage-chart {
+  width: 100%;
+  height: auto;
+  min-height: 240px;
+}
+.usage-chart text {
+  fill: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.usage-chart .trend-line {
+  fill: none;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.trend-legend {
+  display: flex;
+  gap: 18px;
+  justify-content: center;
+  margin-top: -8px;
+}
+.trend-legend button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  background: transparent;
+  padding: 4px;
+  font-size: 12px;
+}
+.trend-legend button[aria-pressed="false"] {
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+.trend-legend i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.trend-data {
+  margin-top: 12px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.trend-data summary {
+  cursor: pointer;
+}
+.usage-detail-section {
+  margin-top: 24px;
+}
+.usage-detail-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+.usage-segmented {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--line);
+  border-radius: 10px;
+}
+.usage-segmented button {
+  border: 0;
+  background: transparent;
+  font-size: 12px;
+  padding: 7px 14px;
+  min-height: 30px;
+}
+.usage-segmented button.active {
+  background: var(--primary);
+  color: var(--primary-contrast);
+  box-shadow: 0 2px 5px #0000000a;
+}
+.usage-detail-card {
+  padding: 0;
+  overflow: hidden;
+  border-radius: 16px;
+  margin-top: 14px;
+}
+.usage-detail-card > p {
+  margin: 12px 20px;
+}
+.usage-table-scroll {
+  overflow: auto;
+  width: 100%;
+}
+.usage-table-scroll table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  text-align: left;
+}
+.usage-table-scroll th {
+  padding: 14px 18px;
+  color: var(--muted);
+  font-weight: 500;
+  background: var(--bg);
+  white-space: nowrap;
+}
+.usage-table-scroll td {
+  padding: 17px 18px;
+  border-top: 1px solid var(--line);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.usage-table-scroll td small {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  margin-top: 4px;
+}
+.usage-data-table td:first-child {
+  min-width: 180px;
+}
+.usage-data-table td strong {
+  font-weight: 600;
+}
+.usage-data-table tbody tr:hover {
+  background: var(--soft);
+}
+.usage-data-table button {
+  font-size: 11px;
+  padding: 4px 9px;
+  min-height: 28px;
+}
+.usage-cell-total {
+  font-weight: 650;
+}
+.usage-rankbar {
+  width: 105px;
+  height: 3px;
+  background: var(--line);
+  border-radius: 2px;
+  margin-top: 10px;
+  overflow: hidden;
+}
+.usage-rankbar i {
+  height: 100%;
+  display: block;
+  background: linear-gradient(90deg, var(--primary), var(--violet));
+}
+.usage-pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 18px;
+  border-top: 1px solid var(--line);
+}
+.usage-pagination .actions {
+  font-size: 12px;
+  gap: 16px;
+}
+.usage-empty {
+  text-align: center;
+  padding: 42px 20px;
+  color: var(--muted);
+}
+.usage-scope-note {
+  display: flex;
+  gap: 12px;
+  padding: 14px 4px 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+.usage-scope-note > span {
+  font-size: 18px;
+  color: var(--primary);
+}
+.usage-scope-note p {
+  margin: 0;
+}
+.pricing-dialog {
+  color: var(--text);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 28px;
+  width: min(860px, calc(100vw - 40px));
+  max-height: calc(100vh - 48px);
+  box-shadow: 0 24px 100px #0005;
+}
+.pricing-dialog::backdrop {
+  background: #000c;
+  backdrop-filter: blur(3px);
+}
+.pricing-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.pricing-head h2 {
+  margin: 4px 0 0;
+  font-size: 24px;
+}
+.pricing-dialog > p {
+  font-size: 13px;
+}
+.pricing-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.5fr 1fr;
+  gap: 16px;
+  margin-top: 24px;
+}
+.pricing-model {
+  grid-column: span 2;
+}
+.pricing-dialog label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 12px;
+}
+.pricing-dialog input,
+.pricing-dialog select {
+  font: inherit;
+  width: 100%;
+  min-width: 0;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--line);
+  padding: 10px 12px;
+  border-radius: 8px;
+}
+.pricing-rates {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 20px;
+}
+.price-input {
+  position: relative;
+}
+.price-input input {
+  padding-bottom: 27px;
+}
+.price-input span {
+  position: absolute;
+  left: 12px;
+  bottom: 6px;
+  font-size: 10px;
+  color: var(--muted);
+  pointer-events: none;
+}
+.pricing-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin: 20px 0;
+}
+.pricing-saved {
+  border-top: 1px solid var(--line);
+}
+.pricing-saved h3 {
+  font-size: 14px;
+}
+.pricing-rule {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 15px;
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+}
+.pricing-rule strong {
+  overflow-wrap: anywhere;
+}
+.pricing-rule p {
+  margin: 2px 0;
+}
+.acct-session-note {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--soft);
+  margin-bottom: 12px;
+}
+.acct-session-note strong {
+  font-size: 12px;
+}
+.acct-session-note p {
+  margin: 4px 0;
+}
+@media (max-width: 1100px) {
+  .agent-tabs button {
+    font-size: 11px;
+    gap: 4px;
+    padding: 7px 4px;
+  }
+  .usage-hero-row {
+    gap: 22px;
+  }
+  .usage-metrics {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+  .usage-metric {
+    padding: 12px;
+  }
+}
+@media (max-width: 760px) {
+  .agent-tabs {
+    flex-wrap: wrap;
+  }
+  .agent-tabs button {
+    flex: 1 0 17%;
+  }
+  .usage-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .usage-mini-stats {
+    flex-wrap: wrap;
+  }
+  .usage-total-number small {
+    display: block;
+    margin-left: 0;
+    width: fit-content;
+  }
+  .usage-detail-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .pricing-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .pricing-rates {
+    grid-template-columns: 1fr 1fr;
+  }
+  .pricing-dialog {
+    padding: 20px;
+  }
+  .usage-pagination {
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .usage-chart-card {
+    padding: 16px 10px;
+  }
+}
+
+.usage-page .usage-detail-card {
+  padding: 0;
+}
+.usage-page .usage-overview {
+  padding: 28px;
+}
+
+/* Metric accents match the trend legend. */
+.usage-metric:nth-child(1) strong {
+  color: #56b4ff;
+}
+.usage-metric:nth-child(2) strong {
+  color: #45edb8;
+}
+.usage-metric:nth-child(3) strong {
+  color: #ffbe55;
+}
+.usage-metric:nth-child(4) strong {
+  color: #bc8aff;
+}
+.usage-metrics .usage-metric {
+  border: 1px solid var(--line);
+}
+.agent-tabs button.active {
+  background: var(--soft);
+}
+.usage-selects select {
+  border-color: var(--line);
 }

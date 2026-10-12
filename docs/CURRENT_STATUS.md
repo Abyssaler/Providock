@@ -1,6 +1,6 @@
 # 当前状态与交接（2026-10-12）
 
-本文是交接事实表：每块工作按 [开发手册](DEVELOPMENT_HANDBOOK.md) 第 10 节的格式给出，并遵守 [AGENTS.md](../AGENTS.md) 的交付约定。状态分级：`样本验证`（合成夹具+独立预期值通过）< `macOS 实测` < `live_verified`（真实凭据/双平台）。**当前没有任何条目达到完整 live_verified。**
+本文是交接事实表：每块工作按 [开发手册](DEVELOPMENT_HANDBOOK.md) 第 10 节的格式给出，并遵守 [AGENTS.md](../AGENTS.md) 的交付约定。状态分级：`样本验证`（合成夹具+独立预期值通过）< `macOS 实测` < `live_verified`（真实凭据/双平台）。**当前没有任何条目达到完整 live_verified。各版本发行依据与验证边界分别记录。**
 
 ## 怎么跑起来
 
@@ -17,6 +17,15 @@ pnpm test && cargo test --manifest-path src-tauri/Cargo.toml
 自动监测、逐账户截止时间、持久化开关、用量页与 Codex v2 的行为和验证步骤详见 [验证记录](research/validation/2026-10-11-auto-monitoring.md)，版本变更见 [CHANGELOG](../CHANGELOG.md)。本机已通过前端 48 项测试、TypeScript/Prettier/Vite 构建、Rust 完整回归、fmt 与 Clippy；两个需主动读取真实环境/凭据库的测试仍为 ignored，Kimi/Codex 另用只读 usage-only 快照独立核对。Chrome 模拟 IPC 验证不等于原生桌面端到端，CI 构建不等于 Windows 实机验收。
 
 首轮 [GitHub CI](https://github.com/Abyssaler/providock/actions/runs/38137942242)：macOS 检查及测试安装包构建通过；Windows 编译/前端检查通过，但新增 Codex 升级回归测试因合成身份中的路径分隔符不一致失败（应 2 条、实际 3 条）。已修正测试为读取实际游标身份，保留全部计数断言，并通过本机相关回归与 Clippy；修复提交 d9f11f9 的 [双平台 CI](https://github.com/Abyssaler/Providock/actions/runs/38138488820) 已全部通过，macOS ARM64 / Windows x64 安装包均已产出；仍不替代 Windows 实机验收。
+
+## v2.0.2 改进（2026-10-12）
+
+用户已在比较三种方案后明确选择 A：参考 CC Switch 的本地明文保存；详见 [方案比较与决定](research/2026-10-12-credential-storage-options.md)。
+
+- T03/T09：用户要求避免系统钥匙串授权；生产默认 LocalPlaintextVault，独立 credentials/keys.sqlite3 明文保存，重启直接使用；Unix 目录 0700/文件 0600，Windows 继承用户目录 ACL。旧 Keychain 不读取/迁移/删除，已有账户需重新输入一次。账户与快照保留；不得称为加密。此行为不同于已公开 v2.0.0 包。
+- T12：账户成功快照改经显式 IPC DTO，所有嵌套字段统一 camelCase；领域/适配器夹具仍保留原命名。真实 DB→IPC 与前端共享合成夹具覆盖余额、窗口、指标；页面错误兜底保证导航可用。
+- T12/T14：新增多分量趋势（当天按小时、其余 UTC 日）、模型/Agent 汇总、20 条分页明细及模型定价 UI/IPC。规则按 Agent+模型+可选来源，输入为 USD/CNY 每百万 Token 费率；追加版本，停用也留版本。显示“当前定价估算”，按用户当前规则比较全部筛选记录，不改写既有费用、估值或 Token。
+- 本机验证：前端 50 测试、Rust 321 通过/2 ignored、类型/构建/fmt/Clippy；合成 IPC 浏览器检查浅深色、960px、模型筛选、定价保存、分页及有快照账户。未做 Windows 实机或真实账户联网验收。证据见 [记录](research/validation/2026-10-12-accounts-model-pricing.md)。
 
 ## v2.0.0 发布
 
@@ -119,7 +128,7 @@ Tauri/minisign 采用既有发布公钥及 CI Secrets，只给 push 构建签名
 3. 适配器是纯函数：不触网、不碰凭据库、不写源文件；证据→夹具→解析器→入库→UI 的顺序不变。
 4. 相同数字不是重复；event_id 是原生 ID 或「文件身份+代+偏移」，不是数值哈希。
 5. 累计快照做差分或当基线，不求和；快照重放/重置有显式规则。
-6. 凭据只进系统凭据库；诊断/日志/导出不出现秘密、路径（用 redact::anon_file_id）、正文。
+6. 凭据按用户选择仅进独立本地明文文件；诊断/日志/统计导出不出现秘密、路径（用 redact::anon_file_id）、正文。
 7. 网关默认关闭；未关联的网关流量与本地日志分域统计。
 
 ## 协作约定
@@ -127,3 +136,9 @@ Tauri/minisign 采用既有发布公钥及 CI Secrets，只给 push 构建签名
 - 文件归属按任务划分；共享文件（mod.rs/lib.rs/migrations.rs/契约文档）先协调再改。
 - 交付即更新 docs/research/compatibility-register.md 的「实现状态」表与本文件。
 - 测试纪律：采集语义、去重、凭据隔离、迁移必须有回归；样本验证 ≠ 实机验证，措辞不混淆。
+
+## v2.0.2 界面和菜单栏交付
+
+账户白屏/本地明文 Key、模型定价和模型/Agent/明细统计随 v2.0.2 一起交付。全局纯黑白字、黄绿强调和原创黑底图标已实现；修复旧 trend-line 样式覆盖所有 stroke 为紫色，蓝/绿/紫/橙四分量使用平滑曲线，缺失保留断点。macOS 原生菜单栏提供最近 24 小时计量小计和八 Agent、同步状态、打开/同步/退出，关窗隐藏后台运行，退出时取消调度；Windows 保持原关窗退出。
+
+本机自动化验证：52 项前端测试及 322 项 Rust 测试通过（2 项真实环境测试忽略），类型检查、格式、Clippy 与本地包构建通过。Mac 原生界面验证因电脑控制权限未授予而未完成；本次双平台 CI/发行包核验进度见 [v2.0.2 核验记录](research/validation/2026-10-12-release-v2.0.2.md)。

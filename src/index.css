@@ -1,35 +1,19 @@
-/* 设计变量见 docs/specs/UI_UX.md 第 3 节 */
+/* Pure black surfaces; one palette across all pages and dialogs. */
 :root {
-  color-scheme: light;
-  --bg: #f7f8fb;
-  --card: #ffffff;
-  --text: #172033;
-  --muted: #687387;
-  --line: #e4e8ef;
-  --primary: #2775e8;
-  --primary-contrast: #ffffff;
-  --soft: #edf4ff;
-  --warn: #955509;
-  --warn-bg: #fff6e8;
-  --danger: #c23434;
-  --ok: #247553;
-  --shadow: 0 3px 12px rgba(22, 47, 91, 0.04);
-}
-
-[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #15171c;
-  --card: #20232b;
-  --text: #edf2ff;
-  --muted: #a8b4c9;
-  --line: #343a46;
-  --primary: #85b5ff;
-  --primary-contrast: #10141c;
-  --soft: #263751;
-  --warn: #f6c77d;
-  --warn-bg: #403321;
-  --danger: #ff8f8f;
-  --ok: #83d7b1;
+  --bg: #000000;
+  --card: #000000;
+  --text: #ffffff;
+  --muted: #b8b8b8;
+  --line: #303030;
+  --primary: #d4ff5f;
+  --primary-contrast: #000000;
+  --soft: #171d0b;
+  --warn: #ffbe55;
+  --warn-bg: #261a05;
+  --danger: #ff7088;
+  --ok: #45edb8;
+  --shadow: none;
 }
 
 * {

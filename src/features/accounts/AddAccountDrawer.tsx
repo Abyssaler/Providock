@@ -147,8 +147,8 @@ export default function AddAccountDrawer({ onClose, onSaved }: Props) {
           }}
         >
           <p className="muted small">
-            账户独立于 Agent 采集，不需要绑定任何
-            Agent；凭据只进系统凭据库，普通数据库只存掩码与指纹。
+            账户独立于 Agent 采集，不需要绑定任何 Agent。API Key
+            保存在本机明文凭据文件中，重启后可直接使用，不访问系统钥匙串。
           </p>
 
           <fieldset>
@@ -253,7 +253,7 @@ export default function AddAccountDrawer({ onClose, onSaved }: Props) {
               />
             </label>
             <p className="small muted">
-              提交瞬间写入系统凭据库；响应只返回掩码与指纹，界面与日志都不出现明文。
+              Key 明文保存在本机，重启后直接使用。响应与日志不回显 Key。
             </p>
           </fieldset>
 
@@ -283,7 +283,7 @@ export default function AddAccountDrawer({ onClose, onSaved }: Props) {
               {saved.region ? ` · ${saved.region}` : ""}
             </p>
             <p className="small muted">
-              明文凭据未回显；本地只存掩码与指纹，删除本地记录不会撤销平台 Key。
+              Key 已保存到本机，重启后可直接使用。删除本地记录不会撤销平台 Key。
             </p>
           </div>
 

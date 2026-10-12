@@ -142,3 +142,11 @@ Coding Plan 包含消费不自动乘公开 API 价格当账单；如用户选择
 事件按 occurred_at/source/agent/model/session 建索引；聚合结果记录活跃账本版本和时区。按本机时区分日，可切换 UTC；夏令时一天可能不是 24 小时，筛选用半开时间区间 [start,end)。没发生时间的事件单独列为“时间未知”，不塞进今天。
 
 总体记录数命名“计量记录”，混合粒度时不叫请求数。请求数量仅对 request_count 已知部分求和并显示覆盖；Token 统计提供已知小计/完整总量状态。会话总量可包含子 Agent，展示父子关系，父汇总记录不能再当独立消耗相加。
+
+## 2026-10-12 模型定价与 IPC 增量
+
+ModelPrice 键为 Agent + 精确模型名 + 可选 source_id，source_id 必须属于该 Agent；精确来源优先于 Agent 通用规则，不凭同名模型跨 Agent 猜测厂商。USD/CNY 分币种，输入为每百万 Token 的 fresh/output/cache read/cache write 四项非负十进制费率。使用已有 price_versions 追加新版本及停用版本，旧行不覆盖。
+
+当前定价估算是只读比较：以最新启用规则计算筛选事件，不修改 usage_events 中 cost_reported、cost_estimated 或 Token。互斥分量只计一次；未知数量不当零，未知费率仅在数量明确为零时不影响完整性。部分估算与完整覆盖率分别显示，金额保持精确十进制，模型统计的 Token 标为已知小计。
+
+账户列表/刷新响应的嵌套 SnapshotDto/OutcomeDto 统一 camelCase，并通过共享合成夹具验证真实 DB→IPC→前端；领域对象与原适配器样本命名保持不变。credentialReady 仅表示本地凭据是否存在，不代表平台鉴权成功。用户已明确选择明文持久化，Key 存在独立 credentials/keys.sqlite3；普通 providock.db 和 IPC 不含明文秘密。

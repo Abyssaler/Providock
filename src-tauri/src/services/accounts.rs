@@ -428,7 +428,7 @@ fn ensure_active_account(db: &Database, account_id: &str) -> Result<()> {
 pub struct CredentialCleanup {
     /// 删除的 `credential_refs` 行数。
     pub refs_removed: usize,
-    /// 从系统凭据库删除的条目数。
+    /// 从配置的凭据库删除的条目数。
     pub vault_entries_removed: usize,
     /// 因仍被其他引用共享而保留的凭据库条目数。
     pub shared_refs_kept: usize,
@@ -453,7 +453,7 @@ pub fn account_delete(
     cleanup_account_credentials(db, vault, account_id)
 }
 
-/// 清理某账户的全部凭据引用与对应的系统凭据库条目。
+/// 清理某账户的全部凭据引用与对应的配置的凭据库条目。
 ///
 /// 共享引用检查：`vault_ref` 若仍被其它 `credential_refs` 行引用，则**不删除**凭据库条目
 /// （当前模型一个凭据只属一个账户，检查函数仍保留，便于以后多账户共享凭据）。
@@ -594,7 +594,7 @@ fn load_stored_credential(db: &Database, credential_id: &str) -> Result<Option<S
     }
 }
 
-/// 保存凭据：明文只进系统凭据库，DB 只写 `credential_refs`（引用 / 类型 / 掩码 / 指纹）。
+/// 保存凭据：明文只进配置的凭据库，DB 只写 `credential_refs`（引用 / 类型 / 掩码 / 指纹）。
 ///
 /// 顺序：先生成 `credential_id`（同时作为 `vault_ref`），凭据库写入成功后才写 DB 行；
 /// DB 写入失败时回滚刚写入的凭据库条目，避免留下无法解析的秘密。
@@ -707,7 +707,7 @@ pub fn credential_rotate(
 }
 
 /// 删除凭据：先删本地引用（同时把快照的 `credential_id` 置空，保留快照），
-/// 再清理系统凭据库条目（共享引用先检查）。清除本地凭据不等于平台撤销 Key。
+/// 再清理配置的凭据库条目（共享引用先检查）。清除本地凭据不等于平台撤销 Key。
 pub fn credential_delete(db: &mut Database, vault: &dyn Vault, credential_id: &str) -> Result<()> {
     let stored = load_stored_credential(db, credential_id)?
         .ok_or_else(|| AccountsError::CredentialNotFound(credential_id.to_owned()))?;
@@ -754,7 +754,7 @@ pub fn credentials_list(
 pub struct ActiveCredential {
     pub credential_id: String,
     pub credential_type: CredentialType,
-    /// 系统凭据库条目名；仅供服务层短期解封。
+    /// 配置的凭据库条目名；仅供服务层短期解封。
     pub vault_ref: String,
 }
 
@@ -1872,7 +1872,7 @@ mod tests {
             .unwrap();
         assert_eq!(leaked, 0);
 
-        // 明文确实进了系统凭据库
+        // 明文确实进了配置的凭据库
         let stored = vault.get(&vault_ref).unwrap();
         assert_eq!(stored.expose(), plaintext);
         assert_eq!(vault_ref, credential.credential_id);

@@ -1,13 +1,10 @@
-//! 系统凭据库抽象（T03）。
-//!
-//! 约束（docs/specs/SECURITY_PRIVACY.md 第 2 节、DATA_CONTRACTS 第 7/9 节）：
-//! - 明文秘密只进系统凭据库（macOS Keychain / Windows 凭据管理器）；普通 SQLite 只存
-//!   `credential_refs`（credential_id / mask / fingerprint / vault_ref），绝不落盘明文。
-//! - 凭据库不可用时返回 [`VaultError::Unavailable`]，**禁止任何明文文件回退**。
-//! - 仅需本次进程内短期持有秘密时，用 [`SecretString`] 封装并在用完后尽快 drop（Drop 清零）。
-//! - service 名固定 [`SERVICE_NAME`]，entry 名即 `vault_ref`（凭据 UUID）。
+//! 凭据库抽象。用户明确选择本地明文持久化，生产使用 LocalPlaintextVault，
+//! 不访问或自动迁移旧 Keychain 条目。系统凭据实现仅保留供显式集成测试。
+//! 响应不回显秘密；SecretString 正常释放时清零。
 
+mod local;
 pub mod mask;
+pub use local::LocalPlaintextVault;
 
 use crate::storage::StorageError;
 use zeroize::Zeroize;
@@ -66,11 +63,11 @@ impl Drop for SecretString {
 /// 一旦经 `Debug`/日志打印即泄露秘密。这里只保留稳定的、无秘密的类别。
 #[derive(Debug, thiserror::Error)]
 pub enum VaultError {
-    #[error("system credential store is unavailable")]
+    #[error("credential store is unavailable")]
     Unavailable,
-    #[error("credential not found in system credential store")]
+    #[error("credential not found in local credential store")]
     NotFound,
-    #[error("system credential store rejected the operation")]
+    #[error("credential store rejected the operation")]
     Backend,
     #[error("invalid credential reference")]
     InvalidRef,
@@ -83,7 +80,7 @@ pub enum VaultError {
 
 pub type VaultResult<T> = std::result::Result<T, VaultError>;
 
-/// 系统凭据库抽象。`vault_ref` 即凭据 UUID（`credential_refs.vault_ref`）。
+/// 凭据库抽象。`vault_ref` 即凭据 UUID（`credential_refs.vault_ref`）。
 pub trait Vault: Send + Sync {
     /// 写入/覆盖秘密。secret 由调用方在返回后尽快 drop。
     fn store(&self, vault_ref: &str, secret: &SecretString) -> VaultResult<()>;
@@ -176,13 +173,13 @@ impl Vault for KeyringVault {
 
 /// 进程内内存凭据库。
 ///
-/// ⚠ **仅用于测试，绝不可用于生产**：内容不加密、不持久、进程退出即丢失，
-/// 不满足产品“秘密只存系统凭据库”的要求。生产装配必须使用 [`KeyringVault`]。
-pub struct MemoryVault {
+/// 明确的“仅本次运行”模式：秘密不落盘，不访问系统凭据库；退出后需要重新输入。
+/// SecretString 在替换、删除和进程内对象正常释放时清零。
+pub struct SessionVault {
     entries: std::sync::Mutex<std::collections::HashMap<String, SecretString>>,
 }
 
-impl MemoryVault {
+impl SessionVault {
     pub fn new() -> Self {
         Self {
             entries: std::sync::Mutex::new(std::collections::HashMap::new()),
@@ -190,13 +187,13 @@ impl MemoryVault {
     }
 }
 
-impl Default for MemoryVault {
+impl Default for SessionVault {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Vault for MemoryVault {
+impl Vault for SessionVault {
     fn store(&self, vault_ref: &str, secret: &SecretString) -> VaultResult<()> {
         validate_ref(vault_ref)?;
         let mut entries = self.entries.lock().map_err(|_| VaultError::Backend)?;
@@ -227,34 +224,8 @@ impl Vault for MemoryVault {
     }
 }
 
-// ---------------------------------------------------------------------------
-// T09 前端 IPC 接口建议（本步不实现 command，仅给出契约，供接入时参考）：
-//
-// #[tauri::command]
-// async fn credential_store(
-//     state: tauri::State<'_, AppState>,
-//     account_id: String,
-//     credential_type: String,   // api_key / management_key / oauth_handle / local_server_token / ak_sk
-//     secret: String,            // 前端仅在此刻传入，收到后立即 SecretString::new(secret) 并尽快 drop
-// ) -> Result<CredentialRefDto, String>;
-//   - 生成 credential_id（UUID）；vault_ref = credential_id；
-//   - KeyringVault.store(vault_ref, secret)，失败返回 VaultError::Unavailable（前端提示“仅本次内存使用/未保存”）；
-//   - 用 mask::load_or_create_salt(&db) + mask::fingerprint_hex 计算 fingerprint，写 credential_refs；
-//   - 响应只含 credential_id / mask / fingerprint / capabilities，**绝不回显 secret**。
-//
-// #[tauri::command]
-// async fn credential_delete(state, credential_id: String) -> Result<(), String>;
-//   - 后端由 credential_id 查 credential_refs.vault_ref，再 KeyringVault.delete；随后删除引用行；
-//   - 不接受前端直接传 vault_ref 或系统路径。
-//
-// #[tauri::command]
-// async fn credential_status(state, credential_id: String) -> Result<CredentialStatusDto, String>;
-//   - 只返回 exists/类型/掩码/指纹，不返回明文；
-//   - 真正需要请求时在后端 get，构造请求头后立即 drop SecretString，缩短生命周期。
-//
-// 另：绝不把 secret 写入 URL query、日志、异常文本或剪贴板；网关/账户请求失败信息须经
-// services::redact 处理（见 src/services/redact.rs）。
-// ---------------------------------------------------------------------------
+/// Compatibility name for existing synthetic tests.
+pub type MemoryVault = SessionVault;
 
 #[cfg(test)]
 mod tests {

@@ -5,13 +5,8 @@
  */
 
 :root {
-  --acct-danger-bg: #fdeceb;
-  --acct-danger-line: #f3c9c7;
-}
-
-[data-theme="dark"] {
-  --acct-danger-bg: #40242a;
-  --acct-danger-line: #6b3a3a;
+  --acct-danger-bg: #240910;
+  --acct-danger-line: #713040;
 }
 
 /* ------------------------------------------------------------------ 筛选 */
@@ -306,7 +301,7 @@
 
 .acct-drawer::backdrop,
 .acct-dialog::backdrop {
-  background: rgba(16, 26, 44, 0.45);
+  background: rgba(0, 0, 0, 0.8);
 }
 
 .acct-drawer-head {

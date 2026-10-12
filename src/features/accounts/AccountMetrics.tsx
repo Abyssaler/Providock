@@ -39,8 +39,8 @@ export default function AccountMetrics({ account, mode, now, onRotateCredential 
   }
 
   const snapshot = account.snapshot;
-  const balanceGroups = snapshot ? groupBalances(snapshot.balances) : [];
-  const windows = snapshot ? sortWindows(snapshot.quotaWindows) : [];
+  const balanceGroups = snapshot ? groupBalances(snapshot.balances ?? []) : [];
+  const windows = snapshot ? sortWindows(snapshot.quotaWindows ?? []) : [];
   const metrics = snapshot?.usageMetrics ?? [];
   const staleAt = snapshot ? formatTime(snapshot.queriedAt) : null;
 
@@ -51,7 +51,10 @@ export default function AccountMetrics({ account, mode, now, onRotateCredential 
           <div>
             <strong>需要更新凭据</strong>
             <p className="small muted">
-              平台返回认证失败或权限不足。这里不显示余额数字，避免把“无法读取”当成 0。
+              {account.credentialReady === false
+                ? "请重新保存 API Key，以启用账户查询。"
+                : "平台返回认证失败或权限不足。"}
+              这里不显示余额数字，避免把“无法读取”当成 0。
             </p>
           </div>
           <button onClick={onRotateCredential}>更新凭据</button>

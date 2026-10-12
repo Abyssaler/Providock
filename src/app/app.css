@@ -15,21 +15,17 @@
   font-size: 22px;
   font-weight: 750;
   letter-spacing: -0.7px;
-  color: var(--primary);
+  color: var(--text);
   display: flex;
   align-items: center;
   gap: 10px;
 }
 
 .mark {
-  background: var(--primary);
-  color: var(--primary-contrast);
-  width: 30px;
-  height: 30px;
-  border-radius: 9px;
-  text-align: center;
-  font-size: 19px;
-  line-height: 30px;
+  color: white;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
 }
 
 .appbar nav {
@@ -208,7 +204,7 @@ button.primary {
   width: 100%;
   max-width: 62px;
   min-height: 4px;
-  background: linear-gradient(#7caafa, #347be6);
+  background: var(--primary);
   border-radius: 5px 5px 0 0;
 }
 

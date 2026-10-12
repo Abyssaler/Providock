@@ -1,0 +1,26 @@
+{
+  "accountId": "synthetic-account",
+  "platform": "deepseek",
+  "region": null,
+  "displayName": "合成测试账户",
+  "configKind": "api_payg",
+  "createdAt": "2026-10-12T00:00:00Z",
+  "credentials": [],
+  "snapshot": {
+    "snapshotId": 1,
+    "accountId": "synthetic-account",
+    "credentialId": null,
+    "queriedAt": "2026-10-12T00:00:00Z",
+    "providerAsOf": null,
+    "status": "ok",
+    "evidence": "synthetic:interop",
+    "errorCode": null,
+    "expiresAt": null,
+    "balances": [{ "kind": "available", "amount": "18", "currency": "CNY", "walletScope": null, "expiresAt": null, "formula": null, "quality": "reported" }],
+    "quotaWindows": [{ "windowId": "synthetic:5h", "label": null, "resource": null, "scope": null, "unit": "tokens", "periodKind": null, "durationSeconds": 18000, "startsAt": null, "resetsAt": null, "used": null, "limit": null, "remaining": null, "usedRatio": "0.58", "remainingRatio": "0.42", "rawRatio": null, "overLimit": null, "quality": "reported", "evidenceRef": null }],
+    "usageMetrics": [{ "name": "total", "value": "123", "unit": "tokens", "scope": null, "quality": "reported" }]
+  },
+  "stale": false,
+  "latestStatus": "ok",
+  "credentialReady": false
+}

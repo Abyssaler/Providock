@@ -286,8 +286,8 @@ export default function AccountsPage() {
             <strong>还没有账户。</strong>
           </p>
           <p className="muted">
-            点击右上角「添加账户」：平台与区域 → 账户类型 → 凭据类型与最小权限说明 → 只读验证。
-            凭据只写入系统凭据库。
+            点击右上角「添加账户」：平台与区域 → 账户类型 → 凭据类型与最小权限说明 → 只读验证。 API
+            Key 明文保存在本机，重启后直接使用；不访问系统钥匙串。
           </p>
           <p className="muted small">
             账户不绑定 Agent；平台没有官方查询能力时只保留管理与凭据，不显示虚构余额。
@@ -423,6 +423,15 @@ function AccountCard({ account, mode, now, busy, onRefresh, onRotate, onDelete }
       </div>
 
       <div className="acct-metric-slot">
+        {account.credentialReady === false && (
+          <div className="acct-session-note">
+            <strong>需要重新保存 API Key</strong>
+            <p className="small muted">
+              账户与历史快照已保留。旧钥匙串条目不会读取，请重新输入一次 Key。
+            </p>
+            <button onClick={onRotate}>输入 API Key</button>
+          </div>
+        )}
         <AccountMetrics account={account} mode={mode} now={now} onRotateCredential={onRotate} />
       </div>
 

@@ -9,7 +9,7 @@
 //! - `docs/ARCHITECTURE.md` 第 4 节：解析是纯函数，HTTP 与凭据注入在服务层。
 //!
 //! 边界：
-//! - 秘密只在构造请求头的瞬间从系统凭据库解封，随后立即 drop；任何返回值、错误与日志都不回显。
+//! - 秘密只在构造请求头的瞬间从配置的凭据库解封，随后立即 drop；任何返回值、错误与日志都不回显。
 //! - 只做只读 GET；不重试有副作用请求（本服务只有只读查询，失败按契约记 stale/unavailable）。
 //! - `query_codex` 为进程协议占位：B07 依赖官方 App Server 的 JSON-RPC（stdio/ws/unix），
 //!   不属于简单 HTTP，本任务不接线，返回 `unsupported`。

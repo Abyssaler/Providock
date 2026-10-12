@@ -281,6 +281,14 @@ pub fn estimate_cost_at(
     let Some(version) = select_effective(db, provider, model, at)? else {
         return Ok(None);
     };
+    estimate_with_version(&version, tokens)
+}
+
+/// Pure calculation for a selected immutable price version.
+pub fn estimate_with_version(
+    version: &PriceVersion,
+    tokens: &TokenSet,
+) -> Result<Option<CostInfo>> {
     if !version.rates.has_any() {
         return Ok(None);
     }
@@ -316,10 +324,14 @@ pub fn estimate_cost_at(
         return Ok(None);
     };
 
-    let complete = tokens.input_fresh.is_some()
-        && tokens.input_cache_read.is_some()
-        && tokens.input_cache_write.is_some()
-        && tokens.output_total.is_some();
+    let complete = [
+        (tokens.input_fresh, &version.rates.input),
+        (tokens.input_cache_read, &version.rates.cache_read),
+        (tokens.input_cache_write, &version.rates.cache_write),
+        (tokens.output_total, &version.rates.output),
+    ]
+    .iter()
+    .all(|(count, rate)| count.is_some_and(|n| n == 0 || rate.is_some()));
     Ok(Some(CostInfo {
         money: Money::new(amount, version.currency.clone()).map_err(|_| {
             PricingError::InvalidDecimal {

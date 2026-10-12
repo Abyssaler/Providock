@@ -7,7 +7,7 @@ import type {
   SourceScanReport,
   SyncStatus,
   UsageOptions,
-  UsageSeriesPoint,
+  UsageFilter,
   UsageSummary,
 } from "../../contracts/usage";
 import { formatTokenFull } from "../../lib/format";
@@ -20,6 +20,10 @@ import {
   type Period,
 } from "./usageDisplay";
 import MonitoringControls from "./MonitoringControls";
+import ModelPricing from "./ModelPricing";
+import UsageTrend from "./UsageTrend";
+import UsageBreakdown, { moneyText } from "./UsageBreakdown";
+import type { UsageDashboard } from "../../contracts/pricing";
 import "./usage.css";
 
 const EMPTY_STATUS: SyncStatus = {
@@ -50,68 +54,6 @@ function Metric({
     </div>
   );
 }
-function Trend({ series }: { series: UsageSeriesPoint[] }) {
-  const known = series.map(([, value]) => (value === null ? null : Number(value)));
-  const max = Math.max(1, ...known.map((value) => value ?? 0));
-  const points = known.map((value, index) => ({
-    x: series.length === 1 ? 480 : 40 + (index * 880) / (series.length - 1),
-    y: value === null ? null : 215 - (value / max) * 175,
-  }));
-  // 未知值断开曲线，不能画成零消费。
-  let path = "";
-  let connected = false;
-  for (const point of points) {
-    if (point.y === null) {
-      connected = false;
-      continue;
-    }
-    path += `${connected ? "L" : "M"}${point.x},${point.y} `;
-    connected = true;
-  }
-  return (
-    <div className="usage-trend">
-      <svg viewBox="0 0 960 255" role="img" aria-label="每日 Token 使用趋势">
-        {[0, 1, 2, 3].map((row) => (
-          <g key={row}>
-            <line
-              x1="40"
-              x2="920"
-              y1={40 + (row * 175) / 3}
-              y2={40 + (row * 175) / 3}
-              className="trend-grid"
-            />
-            <text x="40" y={30 + (row * 175) / 3}>
-              {formatUsageCompact(String(Math.round(max * (1 - row / 3))))}
-            </text>
-          </g>
-        ))}
-        <path d={path} className="trend-line" />
-        {points.map((point, i) => (
-          <g key={series[i][0]}>
-            {point.y !== null && (
-              <circle cx={point.x} cy={point.y} r="4" className="trend-point">
-                <title>
-                  {series[i][0]} · {formatTokenFull(series[i][1])} Tokens
-                </title>
-              </circle>
-            )}
-            {(series.length <= 12 ||
-              i % Math.ceil(series.length / 10) === 0 ||
-              i === series.length - 1) && (
-              <text x={point.x} y="245" textAnchor="middle">
-                {series[i][0].slice(5)}
-              </text>
-            )}
-          </g>
-        ))}
-      </svg>
-      {series.some(([, value]) => value === null) && (
-        <p className="muted small">部分日期未提供总 Token，曲线保留缺口。</p>
-      )}
-    </div>
-  );
-}
-
 export default function UsagePage() {
   const [monitoring, setMonitoring] = useState<MonitoringSettings | null>(null);
   const [period, setPeriod] = useState<Period>("today");
@@ -121,7 +63,10 @@ export default function UsagePage() {
   const [model, setModel] = useState("");
   const [refreshSeconds, setRefreshSeconds] = useState(30);
   const [summary, setSummary] = useState<UsageSummary | null>(null);
-  const [series, setSeries] = useState<UsageSeriesPoint[]>([]);
+  const [dashboard, setDashboard] = useState<UsageDashboard | null>(null);
+  const [revision, setRevision] = useState(0);
+  const [detailFilter, setDetailFilter] = useState<UsageFilter>({});
+  const [priceTarget, setPriceTarget] = useState<{ agent: string; model: string } | null>(null);
   const [options, setOptions] = useState<UsageOptions>({ sources: [], models: [] });
   const [status, setStatus] = useState<SyncStatus>(EMPTY_STATUS);
   const [manualBusy, setManualBusy] = useState(false);
@@ -131,20 +76,25 @@ export default function UsagePage() {
   const refresh = useCallback(async () => {
     const version = ++request.current;
     try {
-      const filter = {
+      const queryFilter = {
         ...periodFilter(period, new Date(), dates.start, dates.end),
         agent: agent || undefined,
         sourceId: sourceId || undefined,
         model: model || undefined,
       };
-      const [nextSummary, nextSeries, nextOptions] = await Promise.all([
-        invoke<UsageSummary>("usage_summary", { filter }),
-        invoke<UsageSeriesPoint[]>("usage_series", { filter }),
+      const [nextSummary, nextDashboard, nextOptions] = await Promise.all([
+        invoke<UsageSummary>("usage_summary", { filter: queryFilter }),
+        invoke<UsageDashboard>("usage_dashboard", {
+          filter: queryFilter,
+          hourly: period === "today",
+        }),
         invoke<UsageOptions>("usage_options"),
       ]);
       if (version !== request.current) return;
       setSummary(nextSummary);
-      setSeries(nextSeries);
+      setDashboard(nextDashboard);
+      setDetailFilter(queryFilter);
+      setRevision((v) => v + 1);
       setOptions(nextOptions);
       setError(null);
     } catch (e) {
@@ -215,13 +165,22 @@ export default function UsagePage() {
     <section className="usage-page" aria-label="用量页面">
       <div className="usage-heading">
         <div>
+          <span className="usage-eyebrow">USAGE ANALYTICS</span>
           <h1>使用统计</h1>
           <p className="muted">查看本机 AI Agent 的使用情况与成本统计</p>
         </div>
-        <details className="usage-monitor">
-          <summary>数据采集与调度</summary>
-          <MonitoringControls onChange={setMonitoring} />
-        </details>
+        <div className="actions">
+          <button
+            className="usage-price-button"
+            onClick={() => setPriceTarget({ agent: agent || "codex", model })}
+          >
+            ◈ 模型定价
+          </button>
+          <details className="usage-monitor">
+            <summary>数据采集与调度</summary>
+            <MonitoringControls onChange={setMonitoring} />
+          </details>
+        </div>
       </div>
       <div className="usage-toolbar">
         <div className="agent-tabs" role="group" aria-label="Agent 筛选">
@@ -233,7 +192,7 @@ export default function UsagePage() {
               setSourceId("");
             }}
           >
-            全部
+            <span className="agent-glyph">▦</span> 全部
           </button>
           {AGENTS.map(([id, label]) => (
             <button
@@ -245,7 +204,23 @@ export default function UsagePage() {
                 setSourceId("");
               }}
             >
-              {label}
+              <span className="agent-glyph" aria-hidden="true">
+                {
+                  (
+                    {
+                      claude_code: "✳",
+                      codex: "◎",
+                      gemini_cli: "✦",
+                      grok_build: "◈",
+                      opencode: "◌",
+                      pi: "π",
+                      mcode: "M",
+                      kimi_code: "K",
+                    } as Record<string, string>
+                  )[id]
+                }
+              </span>
+              <span>{label}</span>
             </button>
           ))}
         </div>
@@ -346,7 +321,7 @@ export default function UsagePage() {
                   ϟ
                 </span>
                 <div>
-                  <span className="muted">真实消耗 Tokens</span>
+                  <span className="muted">本机消耗 Tokens</span>
                   <div className="usage-total-number">
                     {formatTokenFull(summary.total.value)}{" "}
                     <small>≈ {formatUsageCompact(summary.total.value)}</small>
@@ -362,6 +337,13 @@ export default function UsagePage() {
                   <strong>{formatTokenFull(summary.requestCount)}</strong>
                   <small className="muted">
                     覆盖 {summary.requestCountKnownEvents}/{summary.events}
+                  </small>
+                </div>
+                <div>
+                  <span className="muted">当前定价估算</span>
+                  <strong className="usage-cost">{moneyText(dashboard?.currentCost ?? [])}</strong>
+                  <small className="muted">
+                    完整估算 {dashboard?.completeCostEvents ?? 0}/{summary.events} 条
                   </small>
                 </div>
                 <div>
@@ -404,51 +386,35 @@ export default function UsagePage() {
               </p>
             </div>
           )}
-          <div className="card">
-            <div className="cardhead">
-              <h2>使用趋势</h2>
-              <span className="muted small">Token · 按 UTC 日聚合</span>
-            </div>
-            {series.length ? (
-              <Trend series={series} />
-            ) : (
-              <p className="muted">该范围没有带时间戳的计量记录。</p>
-            )}
-          </div>
-          <div className="usage-bottom">
-            <div className="card">
-              <div className="cardhead">
-                <h2>Agent 分布</h2>
-                <span className="muted small">已知总 Token</span>
-              </div>
-              {summary.byAgent.map((item) => (
-                <div className="rankline" key={item.agent}>
-                  <span>{agentLabel(item.agent)}</span>
-                  <strong>{formatTokenFull(item.total.value)}</strong>
-                  <span className="muted small">{item.events} 条</span>
-                </div>
-              ))}
-            </div>
-            <div className="card">
-              <h2>统计范围</h2>
-              <p className="muted">
-                本机记录不等于平台全部消费。未知值显示为 —；缓存读取、写入和 reasoning
-                按源协议计量。
-              </p>
-              <p className="muted">
-                输入总量 {formatTokenFull(summary.inputTotal.value)} · 计量记录 {summary.events} 条
-              </p>
-              {summary.costEstimated.map((cost) => (
-                <p key={cost.currency}>
-                  估算成本：{cost.amount} {cost.currency}
-                </p>
-              ))}
-              {summary.timeUnknownEvents > 0 && (
-                <p className="muted">{summary.timeUnknownEvents} 条记录缺少发生时间。</p>
-              )}
-            </div>
+          {dashboard && <UsageTrend series={dashboard.series} hourly={period === "today"} />}
+          {dashboard && (
+            <UsageBreakdown
+              dashboard={dashboard}
+              filter={detailFilter}
+              options={options}
+              revision={revision}
+              scopeKey={JSON.stringify([period, dates.start, dates.end, agent, sourceId, model])}
+              onPrice={(agent, model) => setPriceTarget({ agent, model })}
+            />
+          )}
+          <div className="usage-scope-note">
+            <span>ⓘ</span>
+            <p>
+              本机日志不代表平台全部消费。当前定价估算与源已报告费用分别展示；未定价、未知 Token
+              均不补零。
+              {dashboard &&
+                ` 已参与估算 ${dashboard.pricedEvents}/${summary.events} 条记录，其中 ${dashboard.completeCostEvents} 条价格与用量完整。`}
+              {summary.timeUnknownEvents > 0 && ` ${summary.timeUnknownEvents} 条记录时间未知。`}
+            </p>
           </div>
         </>
+      )}
+      {priceTarget && (
+        <ModelPricing
+          initial={priceTarget}
+          onClose={() => setPriceTarget(null)}
+          onSaved={() => void refresh()}
+        />
       )}
       <details className="card usage-reports">
         <summary>最近采集结果 · {status.reports.length} 个数据源</summary>

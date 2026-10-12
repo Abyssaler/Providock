@@ -10,3 +10,8 @@ pub mod session_queries;
 
 pub mod background;
 pub mod usage_sync;
+
+pub mod model_prices;
+pub mod usage_details;
+
+pub mod menu_usage;

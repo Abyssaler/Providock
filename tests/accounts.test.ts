@@ -68,6 +68,7 @@ function account(partial: Partial<AccountSummaryDto>): AccountSummaryDto {
     snapshot: null,
     stale: false,
     latestStatus: null,
+    credentialReady: true,
     ...partial,
   };
 }

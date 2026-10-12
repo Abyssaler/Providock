@@ -217,6 +217,9 @@ export function RotateCredentialDialog({ account, onClose, onRotated }: RotatePr
             当前凭据：{active.length > 0 ? active[0].mask : "无"}。更新后旧错误与快照保留时间信息；
             更新本地引用不等于平台侧撤销。
           </p>
+          <p className="small muted">
+            API Key 明文保存在本机凭据文件中，重启后直接使用；不访问系统钥匙串。
+          </p>
           {active.length > 1 && (
             <label>
               <span>要替换的凭据</span>
