@@ -1,4 +1,24 @@
 import type { MoneyTotal } from "./usage";
+
+/** 每百万 Token 费率；字段可选，缺省 = 未定价。十进制字符串。 */
+export interface RateSet {
+  input?: string;
+  output?: string;
+  cacheRead?: string;
+  cacheWrite?: string;
+}
+
+/** 高峰时间窗（后端当前固定 Asia/Shanghai + 仅工作日）。 */
+export interface PeakWindowSpec {
+  timezone: string;
+  weekdaysOnly: boolean;
+  /** `"HH:MM-HH:MM"`（如 `"09:00-12:00"`），开始早于结束。 */
+  ranges: string[];
+}
+
+/** 长上下文分档：超过 inputOverTokens 的整请求按此档费率计费。 */
+export type LongContextSpec = { inputOverTokens: number } & RateSet;
+
 export interface ModelPrice {
   version: string;
   agent: string;
@@ -10,6 +30,10 @@ export interface ModelPrice {
   cacheRead: string | null;
   cacheWrite: string | null;
   enabled: boolean;
+  /** 分时段（高峰）费率；null/缺省 = 未配置。 */
+  peak?: RateSet | null;
+  peakWindows?: PeakWindowSpec | null;
+  longContext?: LongContextSpec | null;
 }
 export interface UsageTokens {
   inputFresh: string | null;

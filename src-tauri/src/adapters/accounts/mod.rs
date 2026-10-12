@@ -5,6 +5,7 @@ pub mod codex_appserver;
 pub mod common;
 pub mod deepseek;
 pub mod glm_plan;
+pub mod kimi_code;
 pub mod kimi_server;
 pub mod novita;
 pub mod openrouter;

@@ -41,6 +41,8 @@ export interface UsageFilter {
   from?: string;
   to?: string;
   agent?: string;
+  /** 限定参与统计的 Agent 集合（用量页可见性）；缺省 = 不限制。 */
+  agents?: string[];
   streamDomain?: string;
   sourceId?: string;
   model?: string;

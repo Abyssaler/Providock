@@ -1,6 +1,6 @@
 # 兼容登记
 
-最近更新：2026-10-11（T00 证据核实完成一轮）。状态含义：`researched` = 阅读固定提交源码/官方文档；`fixture_verified` = 合成/脱敏样本 + 独立预期值通过；`live_verified` = 真实环境实测。
+最近更新：2026-10-12（GLM 错误分类修正 + B-04 Kimi Code 直连真实凭据补验）；此前为 2026-10-11（T00 证据核实完成一轮）。状态含义：`researched` = 阅读固定提交源码/官方文档；`fixture_verified` = 合成/脱敏样本 + 独立预期值通过；`live_verified` = 真实环境实测。
 
 ## 实现状态（2026-10-11，随验收更新）
 
@@ -21,7 +21,7 @@
 
 CI 补记：自动监测首轮 macOS CI 通过；Windows 在 Codex 升级回归测试中暴露测试构造的 `/` 与 `\` 文件身份差异。测试已改用实际入库游标的身份并保留原计数断言，本机相关回归通过；生产 parser/扫描器未变更，[修复提交 d9f11f9 的双平台 CI](https://github.com/Abyssaler/Providock/actions/runs/38138488820) 检查、测试及安装包构建均已通过；v2.0.0 按维护者要求作为正式 Release 分发，保留上述验证边界，未新增 Windows 实机声明；1.1.0-preview.1 候选未发布。
 
-## 账户适配器实现状态（2026-10-11）
+## 账户适配器实现状态（2026-10-12）
 
 | ID | 适配器 | 验证级别 | 备注 |
 | --- | --- | --- | --- |
@@ -29,12 +29,13 @@ CI 补记：自动监测首轮 macOS CI 通过；Windows 在 Codex 升级回归�
 | B02 OpenRouter Key | ✅ openrouter.rs | 样本验证 | scope=key 预算非现金 |
 | B03 OpenRouter Credits | ✅ openrouter.rs | 样本验证 | 管理密钥要求已建模型 |
 | B04 Novita | ✅ novita.rs | 样本验证 | 新路径 + 1/10000 USD 精确换算 |
-| B05 GLM Coding Plan | ✅ glm_plan.rs | 样本验证 | E2；双 TOKENS_LIMIT 区分待官方证据 |
+| B05 GLM Coding Plan | ✅ glm_plan.rs | 样本验证 | E2；双 TOKENS_LIMIT 区分待官方证据；`no_plan`/401 分类经 2026-10-12 真实凭据验证；`CREDIT_LIMIT` 保持未知诊断 |
 | B06 Kimi 本机 Server | ✅ kimi_server.rs | 样本验证 | 需用户已运行 Server；meta 协商已实现 |
+| B-04 Kimi Code 直连 | ✅ kimi_code.rs | 实机验证（仅 `/coding/v1/usages`，2026-10-12）+ 夹具 | `credential_type = api_key` → 直连；server token 保持 B06；`booster_wallet` 未解析 |
 | B07 Codex App Server | ✅ codex_appserver.rs | 样本验证（协议构造/响应解析） | 进程协议未接线，查询占位 unsupported |
 | 账户域服务 | services/{accounts,account_query,account_scheduler}.rs | 单测 + mock HTTP 实测（重定向剥 Auth 等） | 后台循环及持久化开关已接；逐账户到期；禁用启动首轮、锁外 HTTP、并发和删除中请求回归通过 |
 
-账户页 UI（T12）已接 IPC。全部账户结论均为样本验证，非 live_verified。
+账户页 UI（T12）已接 IPC。Kimi Code 直连额度和 GLM 无套餐/401 状态已有局部 macOS 实测，其余保持样本验证；不代表完整平台或 Windows 账户验收。
 
 证据文档（均为 2026-10-11 按固定提交核实，含逐行 URL）：
 
@@ -97,3 +98,9 @@ v2.0.0 固定提交 2662489 的 [双平台 CI](https://github.com/Abyssaler/Prov
 ## v2.0.2 界面与运行策略
 
 全局纯黑主题，原创矢量应用图标；趋势 SVG 平滑插值保持端点区间，分量颜色经浏览器计算样式核对。macOS 菜单栏使用 Tauri 2.12.3 tray-icon API，后台统计只读数据库；Windows 不增加该生命周期策略。Agent 解析器版本和已有适配范围未改变。账户明文文件选择与既有重新输入要求见安全规范。
+
+## v2.0.3 更新与界面交付
+
+八源解析器版本未变。Agent 可见性 IPC 保存参数修复；多币种趋势选择恢复且保持未知断点。Kimi Code 与 GLM 局部真实验证沿用上表，不使用已删除的测试密钥重新查询。
+
+新增 Tauri updater 2.13.3 / process 2.4.0（JS/Rust 锁文件固定），支持 darwin-aarch64 与 windows-x86_64；使用 io.providock.app 及独立 providock-v2-latest.json，v1 更新协议不兼容。macOS/Windows 的构建、原生及更新验证范围见 [v2.0.3 记录](validation/2026-10-12-release-v2.0.3.md)。不引入 DB schema 变更，不改变凭据保存策略。

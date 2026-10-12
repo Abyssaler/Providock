@@ -230,7 +230,7 @@ data: {
 | B-01 | StepFun API `/v1/accounts` | **E1** | 官方文档：GET `https://api.stepfun.com/v1/accounts`，`Authorization: Bearer <KEY>`。字段 `object`（固定 `account`）、`type`（`prepaid`/`postpaid`）、`balance`（可用余额）、`total_cash_balance`（总充值）、`total_voucher_balance`（总赠送），单位 ¥。来源：https://platform.stepfun.com/docs/zh/api-reference/accounts/get |
 | B-02 | SiliconFlow 中国 `/v1/user/info` | **E0（官方已停用）** | 官方发布记录写明：`/user/info` “将于 **2026-08-14（周五）** 正式停止服务，届时接口将不再可用”，并称“后续平台将适时提供账户层面的替代 API”，截至目前**无替代接口公告**。国内文档页 `docs.siliconflow.cn/en/api-reference/userinfo/get-user-info` 现已 404。来源：https://docs.siliconflow.cn/docs/release-notes/overview |
 | B-03 | SiliconFlow 国际站 | **E1** | 国际文档 `docs.siliconflow.com` 仍在线收录 GET `https://api.siliconflow.com/v1/user/info`（Bearer），返回 `{code,message,status,data{id,name,image,email,isAdmin,balance,status,introduction,role,chargeBalance,totalBalance}}`。国际站发布记录中**未见** `/user/info` 停用公告，不能由中国公告类推同日停用。单位/币种页面未明确标注，须实测确认。来源：https://docs.siliconflow.com/en/api-reference/userinfo/get-user-info |
-| B-04 | Kimi Coding Key 直接查询 `https://api.kimi.com/coding/v1/usages` | **E2** | 官方 CLI 源码（MoonshotAI/kimi-code `c9f01f0`，`packages/oauth/src/managed-usage.ts`）：`DEFAULT_KIMI_CODE_BASE_URL = 'https://api.kimi.com/coding/v1'`，`GLOBAL_KIMI_CODE_BASE_URL = 'https://api.kimi.ai/coding/v1'`，请求 `${base}/usages`，头 `Authorization: Bearer <accessToken>`。上游原始 payload 为 snake_case：`usages.{limit_5h,limit_7d,limit_month_total,limit_month_code}` 每项 `{used_ratio(0–1), reset_time}`，`boosterWallet.{balanceCents,totalCents,monthlyChargeLimitEnabled,monthlyChargeLimitCents,monthlyUsedCents,currency}`；CLI 本地 server 再归一化为驼峰（对应 B06 的 `oauth/usage`）。**该端点未出现在厂商公开 Open Platform 参考中**，契约由官方 CLI 定义，兼容可能随 CLI 变化。来源：https://github.com/MoonshotAI/kimi-code/blob/c9f01f07388abc2cdca40c9c5267f58c65086710/packages/oauth/src/managed-usage.ts |
+| B-04 | Kimi Coding Key 直接查询 `https://api.kimi.com/coding/v1/usages` | **E2** | 官方 CLI 源码（MoonshotAI/kimi-code `c9f01f0`，`packages/oauth/src/managed-usage.ts`）：`DEFAULT_KIMI_CODE_BASE_URL = 'https://api.kimi.com/coding/v1'`，`GLOBAL_KIMI_CODE_BASE_URL = 'https://api.kimi.ai/coding/v1'`，请求 `${base}/usages`，头 `Authorization: Bearer <accessToken>`。上游原始 payload 为 snake_case：`usages.{limit_5h,limit_7d,limit_month_total,limit_month_code}` 每项 `{used_ratio(0–1), reset_time}`，`boosterWallet.{balanceCents,totalCents,monthlyChargeLimitEnabled,monthlyChargeLimitCents,monthlyUsedCents,currency}`；CLI 本地 server 再归一化为驼峰（对应 B06 的 `oauth/usage`）。**该端点未出现在厂商公开 Open Platform 参考中**，契约由官方 CLI 定义，兼容可能随 CLI 变化。来源：https://github.com/MoonshotAI/kimi-code/blob/c9f01f07388abc2cdca40c9c5267f58c65086710/packages/oauth/src/managed-usage.ts 。**2026-10-12：已实现（`kimi_code.rs`）并实机验证，见 §D。** |
 | B-05 | Zhipu（智谱）团队版 | **E3** | 未找到官方公开文档或官方源码证明团队版额度接口。cc-switch 用 `https://open.bigmodel.cn/api/monitor/usage/quota/limit?type=2` + 头 `bigmodel-organization` / `bigmodel-project`，但这是第三方反推。官方 zai-coding-plugins 的 `query-usage.mjs` **仅个人版**，且智谱官方文档 `docs.bigmodel.cn/cn/coding-plan/extension/usage-query-plugin` 明确写“仅支持个人版套餐”。第三方 issue（sub2api#6266）亦称团队版拿不到额额度。故团队版仅 E3，不得把个人 Key 当团队凭据。 |
 | B-06 | MiniMax `coding_plan/remains` | **E1（但路径应为 `/v1/token_plan/remains`；`coding_plan/remains` 路径 E3/E0）** | 官方 FAQ 明确给出“方式三：使用 API 接口查询”：中国站 `curl https://www.minimax.cn/v1/token_plan/remains -H 'Authorization: Bearer <API Key>' -H 'Content-Type: application/json'`；国际站为 `https://www.minimax.io/v1/token_plan/remains`。cc-switch 使用的 `/v1/api/openplatform/coding_plan/remains` 在官方文档中**查无此路径**。额度窗口口径：非视频模型受 5 小时+周窗口，视频仅受周窗口；额度用完不自动扣按量余额。来源：https://platform.minimax.cn/docs/m-plan/faq 、https://platform.minimax.io/docs/m-plan/faq |
 | B-07 | ZenMux Plan | **E1（需 Management API Key）** | ZenMux 官方提供 Platform Management API（`Authorization: Bearer <sk-mg-v1-*>`）：`GET https://zenmux.ai/api/v1/management/subscription/detail` 返回 `data.plan{tier,amount_usd,interval,expires_at}`、`quota_5_hour`/`quota_7_day`（`usage_percentage` 0–1、`resets_at`、`max_flows`、`used_flows`、`remaining_flows`、`used_value_usd`、`max_value_usd`）与 `quota_monthly`；`GET https://zenmux.ai/api/v1/management/payg/balance` 返回 `data{currency:"usd", total_credits, top_up_credits, bonus_credits}`（`total = top_up + bonus`）。**仅接受个人账户创建的 Management Key**，普通 API Key / OAuth token / 组织 Key 不支持。来源：https://zenmux.ai/docs/zh/api/platform/subscription-detail.html 、https://zenmux.ai/docs/zh/api/platform/payg-balance.html |
@@ -256,12 +256,12 @@ data: {
 2. **B02 OpenRouter 当前 Key**：`limit` 未设限时的实际返回（null？）、`budgets[].scope` 取值集合、`rate_limit` deprecated 后是否仍返回。
 3. **B03 OpenRouter Credits**：普通推理 Key 是否实际 403、管理密钥创建方式、`total_credits − total_usage` 与 UI 是否一致。
 4. **B04 Novita**：`creditLimit`/`outstandingInvoices` 在无授信/无欠款账户的实际值、单位换算边界。
-5. **B05 GLM Coding Plan**：`Authorization` 是否**确实**不加 Bearer、国际站 `api.z.ai` 与中国站字段差异、`TIME_LIMIT.usage`（源码 `totol` 笔误）真实键名、团队版 `?type=2` 是否可用（当前 E3）。
+5. **B05 GLM Coding Plan**：`Authorization` 是否**确实**不加 Bearer、国际站 `api.z.ai` 与中国站字段差异、`TIME_LIMIT.usage`（源码 `totol` 笔误）真实键名、团队版 `?type=2` 是否可用（当前 E3）。（2026-10-12 已用真实凭据验证无套餐/401 信封分类，见 §D；其余字段差异未验。）
 6. **B06 Kimi 本机 Server**：本机是否运行、`/openapi.json` 实际版本、`oauth/usage` 的 `usages` 键集合与 `extraUsage` 是否非空、信封 `code` 非 0 时的降级。
 7. **B07 Codex App Server**：本机 Codex 版本是否支持 `account/usage/read`、`rateLimits` 的 workspace/member 维度、认证方式（API-key-only 明确不支持 usage）。
 8. **B-01 StepFun**：`type=postpaid` 时 `balance` 语义与单位。
 9. **B-03 SiliconFlow 国际**：币种/单位（文档未标注，需实测确认 USD）。
-10. **B-04 Kimi Coding Key**：用 `sk-kimi-*` API Key 与 OAuth token 两种凭据分别验证 `Bearer` 是否都可用、5h/周/月窗口实际返回。
+10. **B-04 Kimi Coding Key**：用 `sk-kimi-*` API Key 与 OAuth token 两种凭据分别验证 `Bearer` 是否都可用、5h/周/月窗口实际返回。（2026-10-12 API Key 已实机验证，见 §D；OAuth token 与月窗条目未验。）
 11. **B-06 MiniMax**：`/v1/token_plan/remains` 实际响应结构与单位、中国站 `minimax.cn` 与国际站 `minimax.io` 字段差异。
 12. **B-07 ZenMux**：Management Key（`sk-mg-v1-*`）权限验证、`usage_percentage` 精度、PAYG 与订阅口径区分。
 13. **B-08 火山引擎**：AK/SK 最小权限、正确 host（`ark.<region>.volcengineapi.com` 对官方文档）、`GetAFPUsage` → `GetCodingPlanUsage` 回落、各窗口 `Quota/Used` 单位（AFP 积分）。
@@ -272,4 +272,24 @@ data: {
 
 ---
 
-参考规范：`docs/specs/ACCOUNT_ADAPTERS.md`、`docs/research/UPSTREAM_AUDIT.md`。本文所有官方链接与源码提交均为 2026-10-11 抓取快照；主分支与文档页会变化，实现前须按固定提交或重新抓取复核。
+## D. 2026-10-12 真实凭据补验（不落公共夹具）
+
+以下结论来自 2026-10-12 用真实凭据的实机请求；原始响应含账户信息，**不写入公共夹具**。公共夹具（`fixtures/accounts/kimi_code/`、`fixtures/accounts/glm_plan/`）为按实测形态重写的脱敏合成样本。
+
+### Kimi Coding Key 直连（B-04 → 已实现 `adapters/accounts/kimi_code.rs`）
+
+- `GET https://api.kimi.com/coding/v1/usages`，`Authorization: Bearer <key>` + `Accept: application/json`：有效 Key 返回 200，顶层 `usages` 对象含 `limit_5h`、`limit_7d`；本次验证账户**无** `limit_month_total`/`limit_month_code` 月窗条目，月窗映射系按 CLI 源码与 B06 一致性推断，夹具覆盖但无实测。条目形如 `{"used_ratio": 0.xx, "reset_time": "<RFC3339，可含小数秒>"}`，snake_case。
+- 同响应含 `booster_wallet`（snake_case 键），与 CLI `managed-usage.ts` 的 camelCase `boosterWallet` schema 不一致；CLI 消费的是本机 Server 归一化后的契约，不能反推上游。证据不足，**不解析**。
+- 无效/过期 Key：HTTP 401，JSON 错误信封 → `auth_required`。
+- 仅 `usages` 端点经实机验证，不向未验证端点延伸。
+
+### GLM Coding Plan（B05 错误分类修正）
+
+- 无 Coding Plan 账户（中国站 `open.bigmodel.cn` 与国际站 `api.z.ai` 报文一致）：HTTP 200，信封 `{"code": 500, "msg": "当前用户不存在coding plan", "success": false}`（`code` 按 `json_decimal` 兼容数字/字符串）→ 新状态 `no_plan`（`GlmError::NoPlan`）。
+- 无效 token：HTTP 200，信封 `{"code": 401, "msg": "token expired or incorrect", "success": false}`。修复前的实现先判 `success==false`，会把真实 401 误判为 `success_false`→unavailable；已改为数值 `code` 优先 → `auth_required`。
+- `CREDIT_LIMIT`：官方插件 `zai-org/zai-coding-plugins`（固定提交 `0446d0bb` 与 main 复核，`query-usage.mjs` 两版相同，175 行）只处理 `TOKENS_LIMIT`/`TIME_LIMIT`，不解析 `CREDIT_LIMIT`；保持 `unknown_limit_type:CREDIT_LIMIT` 诊断，待官方依据。
+- GLM 现金：2026-10-12 复核 bigmodel 按量计费余额无官方公开查询 API，维持 B-16 E3 结论。
+
+---
+
+参考规范：`docs/specs/ACCOUNT_ADAPTERS.md`、`docs/research/UPSTREAM_AUDIT.md`。本文所有官方链接与源码提交均为 2026-10-11 抓取快照（§D 为 2026-10-12 实机补验）；主分支与文档页会变化，实现前须按固定提交或重新抓取复核。

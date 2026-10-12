@@ -120,6 +120,9 @@ wire_enum! {
     /// 快照状态（DATA_CONTRACTS 第 8 节，取值固定）。
     ///
     /// 无支持能力（`unsupported`）与暂时失败（`unavailable` / `stale`）是不同状态。
+    /// `no_plan`（2026-10-12 新增）：平台确认该账户**没有对应套餐**（如 GLM 返回
+    /// “当前用户不存在coding plan”）——不是凭据失效也不是暂时失败，UI 显示
+    /// “无 Coding Plan 套餐”而不是通用错误。
     SnapshotStatus {
         Ok = "ok",
         Stale = "stale",
@@ -129,6 +132,7 @@ wire_enum! {
         Unsupported = "unsupported",
         Incompatible = "incompatible",
         Unavailable = "unavailable",
+        NoPlan = "no_plan",
     }
 }
 

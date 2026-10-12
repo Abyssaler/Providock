@@ -1,0 +1,23 @@
+{
+  "windows": [
+    {
+      "window_id": "kimi:coding_plan:account:5h",
+      "unit": "percent",
+      "period_kind": "rolling",
+      "duration_seconds": 18000,
+      "resets_at": "2026-10-12T07:13:48.123456Z",
+      "used_ratio": "0.0835",
+      "remaining_ratio": "0.9165"
+    },
+    {
+      "window_id": "kimi:coding_plan:account:7d",
+      "unit": "percent",
+      "period_kind": "rolling",
+      "duration_seconds": 604800,
+      "resets_at": "2026-10-14T01:13:48Z",
+      "used_ratio": "0.5",
+      "remaining_ratio": "0.5"
+    }
+  ],
+  "diagnostics": []
+}

@@ -56,6 +56,8 @@ pub struct UsageFilterDto {
     pub from: Option<String>,
     pub to: Option<String>,
     pub agent: Option<String>,
+    /// 用量页可见 Agent 过滤；缺省（None）不限制，空列表匹配不到任何行
+    pub agents: Option<Vec<String>>,
     pub stream_domain: Option<String>,
     pub source_id: Option<String>,
     pub model: Option<String>,
@@ -80,6 +82,7 @@ fn map_filter(f: UsageFilterDto) -> services::aggregate::UsageFilter {
         from: f.from,
         to: f.to,
         agent: f.agent,
+        agents: f.agents,
         stream_domain: f.stream_domain,
         source_id: f.source_id,
         model: f.model,
@@ -641,6 +644,40 @@ async fn usage_events(
 }
 
 // ---------------------------------------------------------------------------
+// 用量页 Agent 可见性：settings 单键存储，读取永不失败（缺失/损坏回退全部可见）
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+async fn agent_visibility(
+    state: tauri::State<'_, AppState>,
+) -> Result<services::agent_visibility::AgentVisibilityDto, String> {
+    let db = Arc::clone(&state.db);
+    tauri::async_runtime::spawn_blocking(move || {
+        Ok(services::agent_visibility::read(
+            &*db.lock().map_err(|e| e.to_string())?,
+        ))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn agent_visibility_update(
+    state: tauri::State<'_, AppState>,
+    input: services::agent_visibility::AgentVisibilityUpdate,
+) -> Result<services::agent_visibility::AgentVisibilityDto, String> {
+    let db = Arc::clone(&state.db);
+    tauri::async_runtime::spawn_blocking(move || {
+        services::agent_visibility::write(
+            &*db.lock().map_err(|e| e.to_string())?,
+            &input.visible_agents,
+        )
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+// ---------------------------------------------------------------------------
 // 会话 IPC（T13）：列表只查索引元数据；正文默认关闭，开启后按源文件按需读取
 // ---------------------------------------------------------------------------
 
@@ -768,6 +805,8 @@ async fn content_view_set(
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .setup(|app| {
             let data_dir = app
                 .path()
@@ -828,6 +867,8 @@ pub fn run() {
             model_price_save,
             usage_dashboard,
             usage_events,
+            agent_visibility,
+            agent_visibility_update,
             account_save,
             account_rotate_credential,
             account_refresh,
@@ -871,6 +912,29 @@ pub fn run() {
 mod ipc_regressions {
     use super::*;
     use services::accounts as acc;
+    #[test]
+    fn usage_filter_agents_maps_through_and_visibility_dto_serializes_camel_case() {
+        let dto: UsageFilterDto =
+            serde_json::from_value(serde_json::json!({ "agents": ["codex", "kimi_code"] }))
+                .unwrap();
+        assert_eq!(
+            map_filter(dto).agents.as_deref(),
+            Some(["codex".to_owned(), "kimi_code".to_owned()].as_slice())
+        );
+        // 旧前端载荷不含 agents 字段时必须保持 None（行为与之前完全一致）。
+        let legacy: UsageFilterDto =
+            serde_json::from_value(serde_json::json!({ "agent": "codex" })).unwrap();
+        let mapped = map_filter(legacy);
+        assert!(mapped.agents.is_none());
+        assert_eq!(mapped.agent.as_deref(), Some("codex"));
+        let visibility = services::agent_visibility::AgentVisibilityDto {
+            visible_agents: vec!["codex".into(), "mcode".into()],
+        };
+        assert_eq!(
+            serde_json::to_value(&visibility).unwrap(),
+            serde_json::json!({ "visibleAgents": ["codex", "mcode"] })
+        );
+    }
     #[test]
     fn stored_account_snapshot_matches_shared_frontend_fixture() {
         let mut db = Database::open_in_memory().unwrap();

@@ -35,6 +35,61 @@ pub enum PricingError {
 
 pub type Result<T> = std::result::Result<T, PricingError>;
 
+/// 某一档的费率集合。数值为十进制字符串，单位跟随所属 [`Rates::unit`]；
+/// 分量为 `None` 表示该分量费率未知（未知 ≠ 0）。
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RateSet {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub input: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cache_read: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cache_write: Option<String>,
+}
+
+/// 高峰时段定义：固定时区 + 是否仅工作日 + 每日若干分钟段。
+/// `ranges` 元素形如 "09:00-12:00"（24 小时制，半开区间 [start, end)，不跨午夜）。
+/// 法定节假日日历未实现：weekdays_only 把所有周一至周五都当工作日。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PeakWindows {
+    pub timezone: String,
+    pub weekdays_only: bool,
+    pub ranges: Vec<String>,
+}
+
+/// 长上下文整请求升档：事件 `input_total` 超过 `input_over_tokens` 时，
+/// 整个请求（含输出与缓存分量）按该档费率计价，不与高峰档叠加。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LongContext {
+    pub input_over_tokens: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub input: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cache_read: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cache_write: Option<String>,
+}
+
+/// 手动价格规则的计费策略（序列化在 `rates_json` 的 `strategy` 键下）。
+/// 全部字段可选；旧版本行没有该键，反序列化 `serde(default)` 得到 `None`。
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RateStrategy {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub peak: Option<RateSet>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub peak_windows: Option<PeakWindows>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub long_context: Option<LongContext>,
+}
+
 /// 各分量费率。数值为十进制字符串（每 1 个 token 的金额，单位见 [`Rates::unit`]）。
 ///
 /// TTL 分量（`cache_write_ttl_5m` / `cache_write_ttl_1h`）是 `cache_write` 的细分，
@@ -56,6 +111,9 @@ pub struct Rates {
     /// 计价单位说明（默认按单个 token 计价）。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub unit: Option<String>,
+    /// 手动规则的计费策略（分时段 / 长上下文升档）。无策略的旧行此键不存在。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub strategy: Option<RateStrategy>,
 }
 
 impl Rates {
@@ -769,5 +827,31 @@ mod tests {
             .unwrap();
         assert_eq!(got, p);
         assert_eq!(price_versions_list(&db).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn strategy_json_is_version_tolerant_both_directions() {
+        // 新行（含 strategy）：旧结构（无该字段）读取时忽略未知键，不报错
+        let new_json = r#"{"input":"2","unit":"per_million_tokens","strategy":{"peak":{"input":"4"},"peakWindows":{"timezone":"Asia/Shanghai","weekdaysOnly":true,"ranges":["09:00-12:00"]},"longContext":{"inputOverTokens":128000,"input":"5"}}}"#;
+        let rates: Rates = serde_json::from_str(new_json).unwrap();
+        let strategy = rates.strategy.unwrap();
+        assert_eq!(strategy.peak.unwrap().input.as_deref(), Some("4"));
+        assert_eq!(
+            strategy.peak_windows.unwrap().ranges,
+            vec!["09:00-12:00".to_string()]
+        );
+        assert_eq!(strategy.long_context.unwrap().input_over_tokens, 128000);
+        #[derive(Deserialize)]
+        struct OldRates {
+            #[allow(dead_code)]
+            input: Option<String>,
+        }
+        let old: OldRates = serde_json::from_str(new_json).unwrap();
+        assert_eq!(old.input.as_deref(), Some("2"));
+        // 旧行（无 strategy 键）：新结构 serde(default) 得到 None
+        let flat: Rates =
+            serde_json::from_str(r#"{"input":"2","unit":"per_million_tokens"}"#).unwrap();
+        assert!(flat.strategy.is_none());
+        assert!(!serde_json::to_string(&flat).unwrap().contains("strategy"));
     }
 }

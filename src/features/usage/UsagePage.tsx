@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type {
@@ -12,13 +12,31 @@ import type {
 } from "../../contracts/usage";
 import { formatTokenFull } from "../../lib/format";
 import {
-  AGENTS,
   agentLabel,
+  agentsFilter,
+  allAgentIds,
   formatUsageCompact,
+  isAgentVisible,
+  normalizeVisibleAgents,
   percentage,
   periodFilter,
+  visibleAgentTabs,
   type Period,
 } from "./usageDisplay";
+import {
+  AgentGlyph,
+  BoltIcon,
+  CalendarIcon,
+  CacheReadIcon,
+  CacheWriteIcon,
+  ClockIcon,
+  InputIcon,
+  ModelIcon,
+  OutputIcon,
+  PriceIcon,
+  RatioIcon,
+  SourceIcon,
+} from "./usageIcons";
 import MonitoringControls from "./MonitoringControls";
 import ModelPricing from "./ModelPricing";
 import UsageTrend from "./UsageTrend";
@@ -38,15 +56,22 @@ function Metric({
   metric,
   events,
   hint,
+  tone,
+  icon,
 }: {
   label: string;
   metric: MetricTotal;
   events: number;
   hint?: string;
+  tone: "input" | "output" | "cacheWrite" | "cacheRead";
+  icon: ReactNode;
 }) {
   return (
-    <div className="usage-metric">
-      <span className="muted">{label}</span>
+    <div className="usage-metric" data-tone={tone}>
+      <span className="usage-metric-head">
+        {icon}
+        {label}
+      </span>
       <strong>{formatUsageCompact(metric.value)}</strong>
       <small className="muted" title={hint}>
         {hint ?? `覆盖 ${metric.knownEvents}/${events} 条记录`}
@@ -68,6 +93,7 @@ export default function UsagePage() {
   const [detailFilter, setDetailFilter] = useState<UsageFilter>({});
   const [priceTarget, setPriceTarget] = useState<{ agent: string; model: string } | null>(null);
   const [options, setOptions] = useState<UsageOptions>({ sources: [], models: [] });
+  const [visibleAgents, setVisibleAgents] = useState<string[]>(() => allAgentIds());
   const [status, setStatus] = useState<SyncStatus>(EMPTY_STATUS);
   const [manualBusy, setManualBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -80,7 +106,9 @@ export default function UsagePage() {
         ...periodFilter(period, new Date(), dates.start, dates.end),
         agent: agent || undefined,
         sourceId: sourceId || undefined,
+        // 模型是跨 Agent 的全局维度（同一模型可出现在多个 Agent 里），不随可见性裁剪。
         model: model || undefined,
+        agents: agentsFilter(visibleAgents),
       };
       const [nextSummary, nextDashboard, nextOptions] = await Promise.all([
         invoke<UsageSummary>("usage_summary", { filter: queryFilter }),
@@ -100,7 +128,7 @@ export default function UsagePage() {
     } catch (e) {
       if (version === request.current) setError(String(e));
     }
-  }, [period, dates.start, dates.end, agent, sourceId, model]);
+  }, [period, dates.start, dates.end, agent, sourceId, model, visibleAgents]);
 
   useEffect(() => {
     void refresh();
@@ -146,6 +174,27 @@ export default function UsagePage() {
     };
   }, [refresh]);
 
+  // 用量页可见 Agent：设置页可裁剪；IPC 不可用（浏览器预览）时保持全部可见。
+  useEffect(() => {
+    let active = true;
+    invoke<{ visibleAgents: string[] }>("agent_visibility")
+      .then((value) => {
+        if (active) setVisibleAgents(normalizeVisibleAgents(value.visibleAgents));
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // 选中的 Agent 被隐藏时退回「全部」，避免停留在一个不可见的选择上。
+  useEffect(() => {
+    if (agent && !isAgentVisible(visibleAgents, agent)) {
+      setAgent("");
+      setSourceId("");
+    }
+  }, [agent, visibleAgents]);
+
   const onSync = async () => {
     setManualBusy(true);
     setError(null);
@@ -174,7 +223,7 @@ export default function UsagePage() {
             className="usage-price-button"
             onClick={() => setPriceTarget({ agent: agent || "codex", model })}
           >
-            ◈ 模型定价
+            <PriceIcon /> 模型定价
           </button>
           <details className="usage-monitor">
             <summary>数据采集与调度</summary>
@@ -192,9 +241,12 @@ export default function UsagePage() {
               setSourceId("");
             }}
           >
-            <span className="agent-glyph">▦</span> 全部
+            <span className="agent-glyph" aria-hidden="true">
+              <AgentGlyph id="all" />
+            </span>
+            全部
           </button>
-          {AGENTS.map(([id, label]) => (
+          {visibleAgentTabs(visibleAgents).map(([id, label]) => (
             <button
               key={id}
               className={agent === id ? "active" : ""}
@@ -205,69 +257,72 @@ export default function UsagePage() {
               }}
             >
               <span className="agent-glyph" aria-hidden="true">
-                {
-                  (
-                    {
-                      claude_code: "✳",
-                      codex: "◎",
-                      gemini_cli: "✦",
-                      grok_build: "◈",
-                      opencode: "◌",
-                      pi: "π",
-                      mcode: "M",
-                      kimi_code: "K",
-                    } as Record<string, string>
-                  )[id]
-                }
+                <AgentGlyph id={id} />
               </span>
               <span>{label}</span>
             </button>
           ))}
         </div>
         <div className="usage-selects">
-          <select
-            aria-label="数据源筛选"
-            value={sourceId}
-            onChange={(e) => setSourceId(e.target.value)}
-          >
-            <option value="">全部来源</option>
-            {options.sources
-              .filter((source) => !agent || source.agent === agent)
-              .map((source) => (
-                <option key={source.sourceId} value={source.sourceId}>
-                  {agentLabel(source.agent)} · {source.label}
+          <span className="usage-select">
+            <SourceIcon />
+            <select
+              aria-label="数据源筛选"
+              value={sourceId}
+              onChange={(e) => setSourceId(e.target.value)}
+            >
+              <option value="">全部来源</option>
+              {options.sources
+                .filter(
+                  (source) =>
+                    (!agent || source.agent === agent) &&
+                    isAgentVisible(visibleAgents, source.agent),
+                )
+                .map((source) => (
+                  <option key={source.sourceId} value={source.sourceId}>
+                    {agentLabel(source.agent)} · {source.label}
+                  </option>
+                ))}
+            </select>
+          </span>
+          <span className="usage-select">
+            <ModelIcon />
+            <select aria-label="模型筛选" value={model} onChange={(e) => setModel(e.target.value)}>
+              <option value="">全部模型</option>
+              {options.models.map((model) => (
+                <option key={model}>{model}</option>
+              ))}
+            </select>
+          </span>
+          <span className="usage-select">
+            <ClockIcon />
+            <select
+              aria-label="界面刷新周期"
+              title="只刷新统计显示，不改变每 60 秒的日志采集周期"
+              value={refreshSeconds}
+              onChange={(e) => setRefreshSeconds(Number(e.target.value))}
+            >
+              {[0, 5, 10, 30, 60].map((seconds) => (
+                <option key={seconds} value={seconds}>
+                  {seconds ? `显示刷新 · ${seconds}s` : "显示刷新 · 关闭"}
                 </option>
               ))}
-          </select>
-          <select aria-label="模型筛选" value={model} onChange={(e) => setModel(e.target.value)}>
-            <option value="">全部模型</option>
-            {options.models.map((model) => (
-              <option key={model}>{model}</option>
-            ))}
-          </select>
-          <select
-            aria-label="界面刷新周期"
-            title="只刷新统计显示，不改变每 60 秒的日志采集周期"
-            value={refreshSeconds}
-            onChange={(e) => setRefreshSeconds(Number(e.target.value))}
-          >
-            {[0, 5, 10, 30, 60].map((seconds) => (
-              <option key={seconds} value={seconds}>
-                {seconds ? `显示刷新 · ${seconds}s` : "显示刷新 · 关闭"}
-              </option>
-            ))}
-          </select>
-          <select
-            aria-label="日期范围"
-            value={period}
-            onChange={(e) => setPeriod(e.target.value as Period)}
-          >
-            <option value="today">当天</option>
-            <option value="7d">最近 7 天</option>
-            <option value="30d">最近 30 天</option>
-            <option value="all">全部时间</option>
-            <option value="custom">自定义日期</option>
-          </select>
+            </select>
+          </span>
+          <span className="usage-select">
+            <CalendarIcon />
+            <select
+              aria-label="日期范围"
+              value={period}
+              onChange={(e) => setPeriod(e.target.value as Period)}
+            >
+              <option value="today">当天</option>
+              <option value="7d">最近 7 天</option>
+              <option value="30d">最近 30 天</option>
+              <option value="all">全部时间</option>
+              <option value="custom">自定义日期</option>
+            </select>
+          </span>
         </div>
       </div>
       {period === "custom" && (
@@ -318,7 +373,7 @@ export default function UsagePage() {
             <div className="usage-hero-row">
               <div className="usage-total">
                 <span className="usage-bolt" aria-hidden="true">
-                  ϟ
+                  <BoltIcon />
                 </span>
                 <div>
                   <span className="muted">本机消耗 Tokens</span>
@@ -357,12 +412,39 @@ export default function UsagePage() {
               </div>
             </div>
             <div className="usage-metrics">
-              <Metric label="新增输入" metric={summary.inputFresh} events={summary.events} />
-              <Metric label="输出" metric={summary.outputTotal} events={summary.events} />
-              <Metric label="缓存创建" metric={summary.inputCacheWrite} events={summary.events} />
-              <Metric label="缓存命中" metric={summary.inputCacheRead} events={summary.events} />
-              <div className="usage-metric">
-                <span className="muted">缓存命中率</span>
+              <Metric
+                label="新增输入"
+                metric={summary.inputFresh}
+                events={summary.events}
+                tone="input"
+                icon={<InputIcon />}
+              />
+              <Metric
+                label="输出"
+                metric={summary.outputTotal}
+                events={summary.events}
+                tone="output"
+                icon={<OutputIcon />}
+              />
+              <Metric
+                label="缓存创建"
+                metric={summary.inputCacheWrite}
+                events={summary.events}
+                tone="cacheWrite"
+                icon={<CacheWriteIcon />}
+              />
+              <Metric
+                label="缓存命中"
+                metric={summary.inputCacheRead}
+                events={summary.events}
+                tone="cacheRead"
+                icon={<CacheReadIcon />}
+              />
+              <div className="usage-metric" data-tone="ratio">
+                <span className="usage-metric-head">
+                  <RatioIcon />
+                  缓存命中率
+                </span>
                 <strong className="usage-cost">{percentage(summary.cacheReadRatio)}</strong>
                 <progress
                   aria-label="缓存命中率"
@@ -393,7 +475,15 @@ export default function UsagePage() {
               filter={detailFilter}
               options={options}
               revision={revision}
-              scopeKey={JSON.stringify([period, dates.start, dates.end, agent, sourceId, model])}
+              scopeKey={JSON.stringify([
+                period,
+                dates.start,
+                dates.end,
+                agent,
+                sourceId,
+                model,
+                visibleAgents,
+              ])}
               onPrice={(agent, model) => setPriceTarget({ agent, model })}
             />
           )}

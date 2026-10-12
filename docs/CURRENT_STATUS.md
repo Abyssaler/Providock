@@ -1,6 +1,6 @@
 # 当前状态与交接（2026-10-12）
 
-本文是交接事实表：每块工作按 [开发手册](DEVELOPMENT_HANDBOOK.md) 第 10 节的格式给出，并遵守 [AGENTS.md](../AGENTS.md) 的交付约定。状态分级：`样本验证`（合成夹具+独立预期值通过）< `macOS 实测` < `live_verified`（真实凭据/双平台）。**当前没有任何条目达到完整 live_verified。各版本发行依据与验证边界分别记录。**
+本文是交接事实表：每块工作按 [开发手册](DEVELOPMENT_HANDBOOK.md) 第 10 节的格式给出，并遵守 [AGENTS.md](../AGENTS.md) 的交付约定。状态分级：`样本验证`（合成夹具+独立预期值通过）< `macOS 实测` < `live_verified`（真实凭据/双平台）。**尚未完成双平台完整验收；局部 macOS 真实账户验证见下文，不外推到整个账户域。各版本发行依据与验证边界分别记录。**
 
 ## 怎么跑起来
 
@@ -37,7 +37,7 @@ pnpm test && cargo test --manifest-path src-tauri/Cargo.toml
 
 Tauri/minisign 采用既有发布公钥及 CI Secrets，只给 push 构建签名；PR 禁用更新包签名生成，不需要私钥。该密钥不是 Apple Developer ID 或 Windows Authenticode 证书。
 
-旧 v1.0.0 属于重建前实现，标识为 com.providock.desktop；当前标识为 io.providock.app，数据目录和凭据域独立。手动安装不会自动迁移旧账户/统计。当前未接入自动更新 UI，不发布旧版 latest.json。
+旧 v1.0.0 属于重建前实现，标识为 com.providock.desktop；当前标识为 io.providock.app，数据目录和凭据域独立。手动安装不会自动迁移旧账户/统计。v2.0.3 接入应用内更新 UI，使用独立 v2 清单，不发布旧版 latest.json。
 
 ## 逐任务状态
 
@@ -60,9 +60,9 @@ Tauri/minisign 采用既有发布公钥及 CI Secrets，只给 push 构建签名
       本次没有变更 DB schema；Codex v2 只对已证实重复身份执行逐批精确退休。
 
 任务：T03（凭据库/路径守卫/诊断脱敏）
-状态：样本验证；真实 Keychain 往返测试存在但 #[ignore]（避免弹窗），Windows 凭据库未实机。
-实现：src-tauri/src/vault/（无明文回退）、safepath.rs、services/redact.rs。
-缺口：真实钥匙串/Windows Credential Manager 实测；锁定时 UX。
+状态：本地明文凭据文件、权限/重启/损坏路径有回归；macOS 已安装版本使用该默认。
+实现：src-tauri/src/vault/（LocalPlaintextVault 是用户明确选择，不是回退）、safepath.rs、services/redact.rs。
+缺口：Windows 用户目录 ACL 实机验证。系统凭据库实现仅作历史/独立测试，生产不使用。
 
 任务：T04（Codex/Kimi 纵线）
 状态：macOS 只读计量快照核对（Kimi：63 文件、4147 事件、697159437 Token；Codex：10 文件、
@@ -145,4 +145,17 @@ Tauri/minisign 采用既有发布公钥及 CI Secrets，只给 push 构建签名
 
 ### v2.0.2 正式发行已完成
 
-[v2.0.2](https://github.com/Abyssaler/Providock/releases/tag/v2.0.2) 已公开并设为 Latest，代码与标签固定 d6c1a72286807e1a78045218c7c8f23bde7ab228，[双平台 CI](https://github.com/Abyssaler/Providock/actions/runs/38207790571) 全部成功。10 项远端资产摘要与公开回下载均匹配；Mac 完整 ad-hoc 签名、版本/架构、DMG/更新包一致性与新图标、Windows x64 PE/NSIS 清单均已核验。未替换本机已安装应用；Mac 原生 GUI 交互受电脑控制权限限制未实测，Windows 实机和真实账户边界保留。发行后仅补记文档，不改变上述代码提交或历史 v2.0.0 标签。详见本版验证记录。
+[v2.0.2](https://github.com/Abyssaler/Providock/releases/tag/v2.0.2) 已公开并设为 Latest，代码与标签固定 d6c1a72286807e1a78045218c7c8f23bde7ab228，[双平台 CI](https://github.com/Abyssaler/Providock/actions/runs/38207790571) 全部成功。10 项远端资产摘要与公开回下载均匹配；Mac 完整 ad-hoc 签名、版本/架构、DMG/更新包一致性与新图标、Windows x64 PE/NSIS 清单均已核验。发行后仅补记文档，不改变上述代码提交或历史 v2.0.0 标签。详见本版验证记录。
+
+2026-10-12 后续：本机已卸载 v2.0.0 并换装 v2.0.2（旧统计数据留有备份，旧 Keychain 条目按用户要求删除）；原生启动、库初始化、首轮真实采集（5263 事件、3 个本机 Agent 源）、跨扫描周期稳定运行实测通过；菜单栏交互仍需人工确认。
+
+## v2.0.3 交付（2026-10-12）
+
+- macOS Overlay 隐藏标题栏 + 拖拽顶栏；设置页「用量页显示的 Agent」复选（后端 `agents` 筛选贯通汇总/趋势/明细，`usage.visible_agents` 设置持久化）；用量页顶部按 cc-switch v3.20.4 参考美化；趋势图渐变填充 + 右轴虚线成本线 + 共享悬浮提示，未知断点保留。
+- 账户：Kimi Code Coding Key 直连通道（api.kimi.com/coding/v1/usages）已实现并用真实密钥实测通过（5h/7d 窗口）；GLM 401 分类修复 + `no_plan` 明确状态（真实无套餐密钥实测）；bigmodel 无官方余额 API 已核实登记。
+- 定价引擎升级：分时段（高峰/空闲，北京时间工作日 9:00-12:00、14:00-18:00）与长上下文整请求升档两种策略；时间/输入未知不估算，法定节假日暂不剔除（已注明）。本机库已按官方页面录入 6 条人民币规则（kimi-k3、deepseek-flash、glm-5.3、glm-5.3-flash 两个 Agent、gpt-6.1-sol 含 272K 升档）；gpt-6.1-sol 无官方人民币价，按 2026-10-12 中间价 6.7313 折算标注。
+- 验证：前端 66 项、Rust 349 项通过（4 ignored：2 项既有真实环境测试 + 2 项账户 live 测试，后者已用真实凭据人工跑通）；typecheck/Prettier/fmt/Clippy/Vite 构建通过。原生 GUI 交互、Windows 实机、GLM-5.3-Flash 限时五折是否仍生效（官方未标注截止日期）保持未验证。
+
+- 本次接手修复：Agent 勾选保存改为符合 Rust 命令的 input 参数；趋势图恢复 CNY/USD 等币种选择，成本线、提示和表格只读取所选币种，缺失不补零。
+- 软件更新：官方 Tauri updater/process 插件；启动/6 小时/窗口恢复到期检查，设置开关及手动检查，应用内通知、下载进度、失败重试、签名校验成功后安装重启。v2.0.3 是启用首版，旧安装需手动替换一次。平台、清单及验证边界见 [更新规范](specs/APP_UPDATES.md)。
+- 本次完整回归、CI、公开资产及安装核验进度以 [v2.0.3 核验记录](research/validation/2026-10-12-release-v2.0.3.md) 为准。此前 66/349 为接手基线，不是最终测试总数。

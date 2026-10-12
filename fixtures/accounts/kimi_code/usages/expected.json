@@ -1,0 +1,49 @@
+{
+  "windows": [
+    {
+      "window_id": "kimi:coding_plan:account:5h",
+      "label": "5-hour rolling",
+      "resource": "limit_5h",
+      "unit": "percent",
+      "period_kind": "rolling",
+      "duration_seconds": 18000,
+      "resets_at": "2026-10-12T09:30:00Z",
+      "used_ratio": "0.25",
+      "remaining_ratio": "0.75"
+    },
+    {
+      "window_id": "kimi:coding_plan:account:7d",
+      "label": "7-day rolling",
+      "resource": "limit_7d",
+      "unit": "percent",
+      "period_kind": "rolling",
+      "duration_seconds": 604800,
+      "resets_at": "2026-10-15T01:30:00.250000Z",
+      "used_ratio": "0.6",
+      "remaining_ratio": "0.4"
+    },
+    {
+      "window_id": "kimi:coding_plan:account:month_total",
+      "label": "Monthly total (calendar)",
+      "resource": "limit_month_total",
+      "unit": "percent",
+      "period_kind": "calendar",
+      "duration_seconds": null,
+      "resets_at": "2026-11-01T00:00:00Z",
+      "used_ratio": "0.4",
+      "remaining_ratio": "0.6"
+    },
+    {
+      "window_id": "kimi:coding_plan:account:month_code",
+      "label": "Monthly code (calendar)",
+      "resource": "limit_month_code",
+      "unit": "percent",
+      "period_kind": "calendar",
+      "duration_seconds": null,
+      "resets_at": null,
+      "used_ratio": "0.1",
+      "remaining_ratio": "0.9"
+    }
+  ],
+  "diagnostics": []
+}

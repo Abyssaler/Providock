@@ -3,6 +3,16 @@ import { invoke } from "@tauri-apps/api/core";
 import type { ModelPrice } from "../../contracts/pricing";
 import type { UsageOptions } from "../../contracts/usage";
 import { AGENTS, agentLabel } from "./usageDisplay";
+import {
+  DEFAULT_RANGES,
+  PEAK_TIMEZONE,
+  blankStrategyForm,
+  serializeModelPrice,
+  strategyFormOf,
+  validateModelPrice,
+  type RateKey,
+  type StrategyForm,
+} from "./pricingStrategy";
 
 const blank = (agent = "codex", model = ""): ModelPrice => ({
   version: "",
@@ -22,6 +32,37 @@ const FIELDS = [
   ["cacheRead", "缓存读取"],
   ["cacheWrite", "缓存创建"],
 ] as const;
+
+function RateFields({
+  rates,
+  currency,
+  onChange,
+}: {
+  rates: { [key in RateKey]?: string | null };
+  currency: string;
+  onChange: (key: RateKey, value: string) => void;
+}) {
+  return (
+    <div className="pricing-rates">
+      {FIELDS.map(([key, label]) => (
+        <label key={key}>
+          {label}
+          <div className="price-input">
+            <input
+              inputMode="decimal"
+              pattern="[0-9]{1,9}([.][0-9]{1,9})?"
+              placeholder="未定价"
+              value={rates[key] ?? ""}
+              onChange={(e) => onChange(key, e.target.value)}
+            />
+            <span>{currency} / 1M</span>
+          </div>
+        </label>
+      ))}
+    </div>
+  );
+}
+
 export default function ModelPricing({
   onClose,
   onSaved,
@@ -34,6 +75,7 @@ export default function ModelPricing({
   const dialog = useRef<HTMLDialogElement>(null);
   const [rules, setRules] = useState<ModelPrice[]>([]);
   const [draft, setDraft] = useState<ModelPrice>(() => blank(initial?.agent, initial?.model));
+  const [form, setForm] = useState<StrategyForm>(blankStrategyForm);
   const [options, setOptions] = useState<UsageOptions>({ sources: [], models: [] });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -69,6 +111,18 @@ export default function ModelPricing({
       setBusy(false);
     }
   };
+  const update = (patch: Partial<StrategyForm>) => {
+    setForm((prev) => ({ ...prev, ...patch }));
+    setSaved(false);
+  };
+  const updatePeakRate = (key: RateKey, value: string) => {
+    setForm((prev) => ({ ...prev, peakRates: { ...prev.peakRates, [key]: value } }));
+    setSaved(false);
+  };
+  const updateLongRate = (key: RateKey, value: string) => {
+    setForm((prev) => ({ ...prev, longRates: { ...prev.longRates, [key]: value } }));
+    setSaved(false);
+  };
   return (
     <dialog
       ref={dialog}
@@ -92,9 +146,19 @@ export default function ModelPricing({
         按每百万 Token 填写价格。保存后，用量页会按当前价格估算所选范围，保留原始费用和旧价格版本。
       </p>
       <form
+        noValidate
         onSubmit={(e) => {
           e.preventDefault();
-          void save(draft);
+          if (!draft.model.trim()) {
+            setError("请填写模型名称");
+            return;
+          }
+          const problem = validateModelPrice(draft, form);
+          if (problem) {
+            setError(problem);
+            return;
+          }
+          void save(serializeModelPrice(draft, form));
         }}
       >
         <div className="pricing-grid">
@@ -157,31 +221,111 @@ export default function ModelPricing({
             </select>
           </label>
         </div>
-        <div className="pricing-rates">
-          {FIELDS.map(([key, label]) => (
-            <label key={key}>
-              {label}
-              <div className="price-input">
-                <input
-                  inputMode="decimal"
-                  pattern="[0-9]+([.][0-9]{1,9})?"
-                  placeholder="未定价"
-                  value={draft[key] ?? ""}
-                  onChange={(e) => {
-                    setDraft({ ...draft, [key]: e.target.value || null });
-                    setSaved(false);
-                  }}
-                />
-                <span>{draft.currency} / 1M</span>
-              </div>
-            </label>
-          ))}
-        </div>
+        <RateFields
+          rates={draft}
+          currency={draft.currency}
+          onChange={(key, value) => {
+            setDraft({ ...draft, [key]: value || null });
+            setSaved(false);
+          }}
+        />
         <p className="small muted">
           留空 = 未知；0 =
           明确免费。仅计算已知分量，缺少用量或价格时标为部分估算。特定来源规则优先，不从模型名称猜供应商。订阅用量的
           API 等价估算不代表实际账单。
         </p>
+
+        <details className="pricing-section" open={form.peakOn}>
+          <summary>
+            分时段价格（高峰）{form.peakOn && <span className="badge">已启用</span>}
+          </summary>
+          <label className="pricing-enable">
+            <input
+              type="checkbox"
+              checked={form.peakOn}
+              onChange={(e) =>
+                update({
+                  peakOn: e.target.checked,
+                  ...(e.target.checked && !form.ranges.length
+                    ? { ranges: [...DEFAULT_RANGES] }
+                    : {}),
+                })
+              }
+            />
+            启用高峰价格
+          </label>
+          {form.peakOn && (
+            <>
+              <RateFields
+                rates={form.peakRates}
+                currency={draft.currency}
+                onChange={updatePeakRate}
+              />
+              <div className="pricing-ranges">
+                <span className="small muted">高峰时段 · 北京时间（{PEAK_TIMEZONE}）</span>
+                {form.ranges.map((range, i) => (
+                  <div className="pricing-range-row" key={i}>
+                    <input
+                      placeholder="09:00-12:00"
+                      value={range}
+                      onChange={(e) =>
+                        update({
+                          ranges: form.ranges.map((r, j) => (j === i ? e.target.value : r)),
+                        })
+                      }
+                    />
+                    <button
+                      type="button"
+                      disabled={form.ranges.length <= 1}
+                      onClick={() => update({ ranges: form.ranges.filter((_, j) => j !== i) })}
+                    >
+                      删除
+                    </button>
+                  </div>
+                ))}
+                <button type="button" onClick={() => update({ ranges: [...form.ranges, ""] })}>
+                  ＋ 添加时段
+                </button>
+                <label className="pricing-enable">
+                  <input type="checkbox" checked disabled onChange={() => {}} />
+                  仅工作日（法定节假日暂不剔除）
+                </label>
+              </div>
+            </>
+          )}
+        </details>
+
+        <details className="pricing-section" open={form.longOn}>
+          <summary>长上下文分档{form.longOn && <span className="badge">已启用</span>}</summary>
+          <label className="pricing-enable">
+            <input
+              type="checkbox"
+              checked={form.longOn}
+              onChange={(e) => update({ longOn: e.target.checked })}
+            />
+            启用长上下文分档
+          </label>
+          {form.longOn && (
+            <>
+              <label>
+                长上下文阈值（Token）
+                <input
+                  inputMode="numeric"
+                  placeholder="272000"
+                  value={form.threshold}
+                  onChange={(e) => update({ threshold: e.target.value })}
+                />
+              </label>
+              <p className="small muted">超过阈值时整请求按此档计费。</p>
+              <RateFields
+                rates={form.longRates}
+                currency={draft.currency}
+                onChange={updateLongRate}
+              />
+            </>
+          )}
+        </details>
+
         {error && (
           <p role="alert" className="monitor-error">
             {error}
@@ -198,6 +342,7 @@ export default function ModelPricing({
             disabled={busy}
             onClick={() => {
               setDraft(blank());
+              setForm(blankStrategyForm());
               setSaved(false);
             }}
           >
@@ -217,6 +362,8 @@ export default function ModelPricing({
           <div className="pricing-rule" key={rule.version}>
             <div>
               <strong>{rule.model}</strong>
+              {(rule.peak || rule.peakWindows) && <span className="badge">分时段</span>}
+              {rule.longContext && <span className="badge">长上下文分档</span>}
               <p className="small muted">
                 {agentLabel(rule.agent)} ·{" "}
                 {rule.sourceId
@@ -233,6 +380,7 @@ export default function ModelPricing({
                 disabled={busy}
                 onClick={() => {
                   setDraft(rule);
+                  setForm(strategyFormOf(rule));
                   setSaved(false);
                 }}
               >

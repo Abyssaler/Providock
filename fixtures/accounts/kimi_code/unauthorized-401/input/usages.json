@@ -1,0 +1,6 @@
+{
+  "error": {
+    "message": "Invalid authentication credentials provided.",
+    "type": "invalid_authentication_error"
+  }
+}

@@ -1,20 +1,31 @@
 //! User-entered prices, scoped to an Agent and optional source. Append-only versions;
 //! current-price comparisons never rewrite source usage or saved historical estimates.
+//!
+//! Optional strategies on a rule (stored inside `rates_json.strategy`, see
+//! DATA_CONTRACTS.md「费用」与「2026-10-12 模型定价与 IPC 增量」):
+//! - `peak` + `peakWindows`: 分时段价格（如 DeepSeek）。Asia/Shanghai 固定 UTC+8，
+//!   工作日 + 本地时间落入任一半开时段 [start, end) 时按高峰费率，否则按基础（低谷）费率。
+//!   法定节假日日历未实现，周一至周五一律视为工作日。
+//! - `longContext`: 长上下文整请求升档。事件 input_total 超过阈值时整个请求按档位费率。
+//!
+//! 两者同配时 longContext 优先；长上下文档位没有高峰变体，peak 只在未配置 longContext 时参与。
+//! 判定所需的 occurred_at / input_total 未知时估算为未知（Ok(None)），绝不按 0 或基础费率臆造。
 use crate::{
     domain::{Completeness, CostInfo, Quality, TokenSet},
     services::{
         accounts::now_rfc3339,
-        pricing::{self, PriceVersion, Rates},
+        pricing::{self, LongContext, PeakWindows, PriceVersion, RateSet, RateStrategy, Rates},
     },
     storage::Database,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+use time::{format_description::well_known::Rfc3339, OffsetDateTime, UtcOffset, Weekday};
 
 const KIND: &str = "providock_manual_per_million_v1";
 const DISABLED: &str = "providock_manual_disabled_v1";
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelPrice {
     #[serde(default)]
@@ -29,6 +40,12 @@ pub struct ModelPrice {
     pub cache_write: Option<String>,
     #[serde(default = "yes")]
     pub enabled: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub peak: Option<RateSet>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub peak_windows: Option<PeakWindows>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub long_context: Option<LongContext>,
 }
 fn yes() -> bool {
     true
@@ -45,6 +62,7 @@ pub fn list(db: &Database) -> Result<Vec<ModelPrice>, String> {
         let Some(agent) = p.provider.strip_prefix("manual:") else {
             continue;
         };
+        let strategy = p.rates.strategy;
         let rule = ModelPrice {
             version: p.price_version,
             agent: agent.into(),
@@ -56,6 +74,9 @@ pub fn list(db: &Database) -> Result<Vec<ModelPrice>, String> {
             cache_read: p.rates.cache_read,
             cache_write: p.rates.cache_write,
             enabled: p.tier.as_deref() == Some(KIND),
+            peak: strategy.as_ref().and_then(|s| s.peak.clone()),
+            peak_windows: strategy.as_ref().and_then(|s| s.peak_windows.clone()),
+            long_context: strategy.and_then(|s| s.long_context),
         };
         latest.insert(
             (
@@ -127,6 +148,15 @@ pub fn save(db: &Database, mut rule: ModelPrice) -> Result<ModelPrice, String> {
     {
         return Err("至少填写一项价格；留空表示未知，0 表示明确免费".into());
     }
+    validate_strategy(&rule)?;
+    let strategy = (rule.peak.is_some()
+        || rule.peak_windows.is_some()
+        || rule.long_context.is_some())
+    .then(|| RateStrategy {
+        peak: rule.peak.clone(),
+        peak_windows: rule.peak_windows.clone(),
+        long_context: rule.long_context.clone(),
+    });
     rule.version = format!(
         "manual-{}-{:08x}",
         time::OffsetDateTime::now_utc().unix_timestamp_nanos(),
@@ -149,12 +179,102 @@ pub fn save(db: &Database, mut rule: ModelPrice) -> Result<ModelPrice, String> {
                 cache_read: rule.cache_read.clone(),
                 cache_write: rule.cache_write.clone(),
                 unit: Some("per_million_tokens".into()),
+                strategy,
                 ..Default::default()
             },
         },
     )
     .map_err(|e| e.to_string())?;
     Ok(rule)
+}
+
+/// 策略校验：分时段与长上下文档的费率与基础费率同一十进制规则；
+/// peak 与 peakWindows 必须成对出现；阈值与时段形状在此把关。
+fn validate_strategy(rule: &ModelPrice) -> Result<(), String> {
+    match (&rule.peak, &rule.peak_windows) {
+        (Some(_), None) => return Err("分时段价格需要同时配置高峰时段".into()),
+        (None, Some(_)) => return Err("已配置高峰时段，请同时填写高峰费率".into()),
+        _ => {}
+    }
+    if let Some(peak) = &rule.peak {
+        validate_rate_set(
+            [
+                &peak.input,
+                &peak.output,
+                &peak.cache_read,
+                &peak.cache_write,
+            ],
+            "高峰费率",
+        )?;
+    }
+    if let Some(windows) = &rule.peak_windows {
+        validate_peak_windows(windows)?;
+    }
+    if let Some(long) = &rule.long_context {
+        if long.input_over_tokens == 0 || long.input_over_tokens > i64::MAX as u64 {
+            return Err("长上下文阈值必须大于 0 且不超过 i64 上限".into());
+        }
+        validate_rate_set(
+            [
+                &long.input,
+                &long.output,
+                &long.cache_read,
+                &long.cache_write,
+            ],
+            "长上下文费率",
+        )?;
+    }
+    Ok(())
+}
+
+/// 一档费率至少一项，且每项满足与基础费率相同的十进制约束。
+fn validate_rate_set(rates: [&Option<String>; 4], label: &str) -> Result<(), String> {
+    if rates.iter().all(|r| r.is_none()) {
+        return Err(format!(
+            "{label}至少填写一项价格；留空表示未知，0 表示明确免费"
+        ));
+    }
+    for rate in rates.into_iter().flatten() {
+        per_token(rate)?;
+    }
+    Ok(())
+}
+
+fn validate_peak_windows(windows: &PeakWindows) -> Result<(), String> {
+    if windows.timezone != "Asia/Shanghai" {
+        return Err("高峰时段目前仅支持 Asia/Shanghai 时区（固定 UTC+8）".into());
+    }
+    if windows.ranges.is_empty() || windows.ranges.len() > 4 {
+        return Err("高峰时段需配置 1–4 个时间段".into());
+    }
+    let mut ranges = Vec::with_capacity(windows.ranges.len());
+    for raw in &windows.ranges {
+        let Some(range) = parse_range(raw) else {
+            return Err("高峰时段格式为 HH:MM-HH:MM，开始须早于结束且不跨午夜".into());
+        };
+        ranges.push(range);
+    }
+    ranges.sort_unstable();
+    if ranges.windows(2).any(|w| w[1].0 < w[0].1) {
+        return Err("高峰时间段不可重叠".into());
+    }
+    Ok(())
+}
+
+/// "HH:MM-HH:MM" → (起始分钟, 结束分钟)。24 小时制，start < end（不跨午夜）；非法返回 None。
+fn parse_range(range: &str) -> Option<(u32, u32)> {
+    fn hm(s: &str) -> Option<u32> {
+        let (h, m) = s.split_once(':')?;
+        if h.len() != 2 || m.len() != 2 {
+            return None;
+        }
+        let h: u32 = h.parse().ok()?;
+        let m: u32 = m.parse().ok()?;
+        (h < 24 && m < 60).then_some(h * 60 + m)
+    }
+    let (start, end) = range.split_once('-')?;
+    let (start, end) = (hm(start)?, hm(end)?);
+    (start < end).then_some((start, end))
 }
 
 /// Decimal point shift, with a bounded precision to keep i128 arithmetic checked.
@@ -194,7 +314,31 @@ pub fn matching<'a>(
         })
 }
 
-pub fn quote(rule: &ModelPrice, tokens: &TokenSet) -> Result<Option<CostInfo>, String> {
+/// 估算某事件在当前规则下的费用。`occurred_at` 为事件发生的 RFC3339 时间（可空），
+/// `input_total` 为事件输入总量（可空）——两者是策略判定所需的唯一事件上下文。
+///
+/// 解析顺序（与 DATA_CONTRACTS.md「2026-10-12 模型定价与 IPC 增量」一致）：
+/// 1. 配置了 longContext：input_total 未知 → Ok(None)（未知 ≠ 0，不按基础费率臆造）；
+///    input_total > 阈值 → 整个请求按档位费率；否则按基础费率（长上下文档位无高峰变体，
+///    配置了升档的规则不再叠加 peak）。
+/// 2. 否则配置了 peak：occurred_at 缺失或不可解析 → Ok(None)；否则换算到 Asia/Shanghai
+///    （固定 UTC+8，无夏令时），工作日（周一至周五，法定节假日未实现）且本地时间落入任一
+///    半开时段 [start, end) → 高峰费率，其余 → 基础费率。
+/// 3. 否则按基础费率。
+///
+/// 选中的档位中某分量费率为 None 时，该分量按未知处理（沿用 estimate_with_version 的
+/// 部分估算语义：只累计“数量与费率都已知”的分量，完整性相应降级）。
+pub fn quote(
+    rule: &ModelPrice,
+    tokens: &TokenSet,
+    occurred_at: Option<&str>,
+    input_total: Option<u64>,
+) -> Result<Option<CostInfo>, String> {
+    let Some([input, output, cache_read, cache_write]) =
+        select_rates(rule, occurred_at, input_total)
+    else {
+        return Ok(None);
+    };
     let convert = |s: &Option<String>| s.as_deref().map(per_token).transpose();
     let price = PriceVersion {
         price_version: rule.version.clone(),
@@ -206,15 +350,75 @@ pub fn quote(rule: &ModelPrice, tokens: &TokenSet) -> Result<Option<CostInfo>, S
         region: rule.source_id.clone(),
         tier: Some("current_user_price_comparison".into()),
         rates: Rates {
-            input: convert(&rule.input)?,
-            output: convert(&rule.output)?,
-            cache_read: convert(&rule.cache_read)?,
-            cache_write: convert(&rule.cache_write)?,
+            input: convert(input)?,
+            output: convert(output)?,
+            cache_read: convert(cache_read)?,
+            cache_write: convert(cache_write)?,
             unit: Some("per_token".into()),
             ..Default::default()
         },
     };
     pricing::estimate_with_version(&price, tokens).map_err(|e| e.to_string())
+}
+
+/// 选出本事件适用的费率档 [input, output, cache_read, cache_write]。
+/// 返回 None = 策略判定所需的上下文未知，估算整体未知。
+fn select_rates<'a>(
+    rule: &'a ModelPrice,
+    occurred_at: Option<&str>,
+    input_total: Option<u64>,
+) -> Option<[&'a Option<String>; 4]> {
+    let base = [
+        &rule.input,
+        &rule.output,
+        &rule.cache_read,
+        &rule.cache_write,
+    ];
+    if let Some(long) = &rule.long_context {
+        let input = input_total?;
+        if input > long.input_over_tokens {
+            return Some([
+                &long.input,
+                &long.output,
+                &long.cache_read,
+                &long.cache_write,
+            ]);
+        }
+        return Some(base);
+    }
+    if let Some(peak) = &rule.peak {
+        let windows = rule.peak_windows.as_ref()?;
+        if is_peak_time(windows, occurred_at?)? {
+            return Some([
+                &peak.input,
+                &peak.output,
+                &peak.cache_read,
+                &peak.cache_write,
+            ]);
+        }
+    }
+    Some(base)
+}
+
+/// occurred_at(RFC3339，可带任意偏移) 换算到 UTC+8 后判定是否高峰：
+/// weekdays_only 时周六/周日恒为低谷；本地分钟落入任一时段 [start, end) 为高峰。
+/// 时间不可解析或存储的时段形状损坏时返回 None（调用方给出未知估算）。
+fn is_peak_time(windows: &PeakWindows, occurred_at: &str) -> Option<bool> {
+    debug_assert_eq!(windows.timezone, "Asia/Shanghai", "save() 已白名单校验");
+    let t = OffsetDateTime::parse(occurred_at, &Rfc3339).ok()?;
+    let t = t.to_offset(UtcOffset::from_hms(8, 0, 0).ok()?);
+    if windows.weekdays_only && matches!(t.weekday(), Weekday::Saturday | Weekday::Sunday) {
+        return Some(false);
+    }
+    let minute = u32::from(t.hour()) * 60 + u32::from(t.minute());
+    let in_range = windows
+        .ranges
+        .iter()
+        .map(|r| parse_range(r))
+        .collect::<Option<Vec<_>>>()?
+        .iter()
+        .any(|&(start, end)| start <= minute && minute < end);
+    Some(in_range)
 }
 
 pub fn is_complete(cost: &CostInfo) -> bool {

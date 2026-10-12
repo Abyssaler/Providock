@@ -15,6 +15,8 @@ pub struct UsageFilter {
     pub from: Option<String>,
     pub to: Option<String>,
     pub agent: Option<String>,
+    /// 用量页可见 Agent 列表；None = 不限，Some(空列表) 不匹配任何行
+    pub agents: Option<Vec<String>>,
     /// 默认只统计本地账本；网关域需显式选择（R12）
     pub stream_domain: Option<String>,
     pub source_id: Option<String>,
@@ -96,6 +98,25 @@ fn col_index(field: &str) -> usize {
     FIELDS.iter().position(|f| *f == field).unwrap()
 }
 
+/// `agents` 列表谓词：值走参数绑定，不拼接字面量；Some(空) 语义上匹配不到任何行。
+pub(crate) fn push_agents_clause(
+    filter: &UsageFilter,
+    sql: &mut String,
+    params: &mut Vec<rusqlite::types::Value>,
+) {
+    if let Some(agents) = &filter.agents {
+        if agents.is_empty() {
+            sql.push_str(" AND 1 = 0");
+        } else {
+            let placeholders = vec!["?"; agents.len()].join(", ");
+            sql.push_str(&format!(" AND agent IN ({placeholders})"));
+            for agent in agents {
+                params.push(agent.clone().into());
+            }
+        }
+    }
+}
+
 pub fn usage_summary(db: &Database, filter: &UsageFilter) -> crate::storage::Result<UsageSummary> {
     let mut sql = String::from(
         "SELECT input_fresh, input_cache_read, input_cache_write, input_total,
@@ -116,6 +137,7 @@ pub fn usage_summary(db: &Database, filter: &UsageFilter) -> crate::storage::Res
         sql.push_str(" AND agent = ?");
         params.push(a.clone().into());
     }
+    push_agents_clause(filter, &mut sql, &mut params);
     if let Some(source_id) = &filter.source_id {
         sql.push_str(" AND source_id = ?");
         params.push(source_id.clone().into());
@@ -253,6 +275,7 @@ pub fn usage_series_daily(
         sql.push_str(" AND agent = ?");
         params.push(a.clone().into());
     }
+    push_agents_clause(filter, &mut sql, &mut params);
     if let Some(source_id) = &filter.source_id {
         sql.push_str(" AND source_id = ?");
         params.push(source_id.clone().into());

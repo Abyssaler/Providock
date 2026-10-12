@@ -2,7 +2,7 @@
 use crate::{
     domain::{Quality, TokenSet},
     services::{
-        aggregate::UsageFilter,
+        aggregate::{push_agents_clause, UsageFilter},
         model_prices::{self, ModelPrice},
     },
     storage::Database,
@@ -167,6 +167,7 @@ fn predicate(f: &UsageFilter) -> (String, Vec<rusqlite::types::Value>) {
             params.push(v.clone().into());
         }
     }
+    push_agents_clause(f, &mut sql, &mut params);
     (sql, params)
 }
 const COLUMNS:&str="event_id, occurred_at, agent, COALESCE(model_normalized,model_raw), source_id, granularity, input_fresh, input_cache_read, input_cache_write, input_total, output_total, total, cost_reported_amount, cost_reported_currency";
@@ -193,8 +194,9 @@ fn row(row: &rusqlite::Row<'_>, rules: &[ModelPrice]) -> Result<(Event, [Option<
         output_reasoning: None,
         quality: Quality::Reported,
     };
+    let occurred_at = get_string(1)?;
     let estimate = model_prices::matching(rules, &agent, &source, model.as_deref())
-        .map(|p| model_prices::quote(p, &tokens))
+        .map(|p| model_prices::quote(p, &tokens, occurred_at.as_deref(), tokens.input_total))
         .transpose()?
         .flatten();
     let cost_calculated = estimate.map(|c| {
@@ -213,7 +215,7 @@ fn row(row: &rusqlite::Row<'_>, rules: &[ModelPrice]) -> Result<(Event, [Option<
     Ok((
         Event {
             event_id: row.get(0).map_err(|e| e.to_string())?,
-            occurred_at: get_string(1)?,
+            occurred_at,
             agent,
             model,
             source_id: source,

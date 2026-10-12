@@ -11,6 +11,11 @@
   z-index: 5;
 }
 
+/* macOS Overlay 标题栏：左侧给红绿灯按钮留位 */
+.mac-overlay .appbar {
+  padding-left: 84px;
+}
+
 .brand {
   font-size: 22px;
   font-weight: 750;

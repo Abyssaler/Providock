@@ -15,7 +15,7 @@
 //!   不属于简单 HTTP，本任务不接线，返回 `unsupported`。
 
 use crate::adapters::accounts::common::{self, RequestSpec};
-use crate::adapters::accounts::{deepseek, glm_plan, kimi_server, novita, openrouter};
+use crate::adapters::accounts::{deepseek, glm_plan, kimi_code, kimi_server, novita, openrouter};
 use crate::services::accounts::{
     self, Account, AccountsError, BalanceEntry, CredentialType, FailureSignal, NewSnapshot,
     QuotaWindow, Snapshot, SnapshotStatus, UsageMetric,
@@ -41,6 +41,8 @@ pub const MAX_REDIRECTS: usize = 5;
 /// settings 表中 GLM / Kimi 的 base URL 覆盖键（用户配置的实例地址）。
 pub const SETTING_GLM_BASE_URL: &str = "account.glm.base_url";
 pub const SETTING_KIMI_BASE_URL: &str = "account.kimi_server.base_url";
+/// Kimi Code 直连通道的 base URL 覆盖键（默认 `https://api.kimi.com/coding/v1`）。
+pub const SETTING_KIMI_CODE_BASE_URL: &str = "account.kimi_code.base_url";
 
 // ---------------------------------------------------------------------------
 // 错误
@@ -363,7 +365,12 @@ enum AdapterPlan {
     Glm {
         base: String,
     },
+    /// B06：本机 Kimi Code Server（loopback）。
     Kimi {
+        base: String,
+    },
+    /// B-04：Kimi Code Coding Key 直连 `GET {base}/usages`（官方 CLI 同一通道）。
+    KimiCode {
         base: String,
     },
     /// B07：进程协议，不在本 HTTP 服务接线范围内。
@@ -410,9 +417,20 @@ fn resolve_plan(
             Ok(AdapterPlan::Glm { base })
         }
         "kimi" | "kimi_server" | "kimi_code_server" => {
-            let base = setting_get(db, SETTING_KIMI_BASE_URL)?
-                .unwrap_or_else(|| kimi_server::DEFAULT_BASE.to_owned());
-            Ok(AdapterPlan::Kimi { base })
+            // 凭据类型决定通道：Coding Key（api_key）走官方 CLI 的直连 usages 端点；
+            // 本机 Server 令牌（或历史账户无凭据类型）保持 loopback B06。
+            match credential_type {
+                Some(CredentialType::ApiKey) => {
+                    let base = setting_get(db, SETTING_KIMI_CODE_BASE_URL)?
+                        .unwrap_or_else(|| kimi_code::DEFAULT_BASE.to_owned());
+                    Ok(AdapterPlan::KimiCode { base })
+                }
+                _ => {
+                    let base = setting_get(db, SETTING_KIMI_BASE_URL)?
+                        .unwrap_or_else(|| kimi_server::DEFAULT_BASE.to_owned());
+                    Ok(AdapterPlan::Kimi { base })
+                }
+            }
         }
         "codex" | "codex_appserver" => Ok(AdapterPlan::Codex),
         other => Err(QueryError::UnsupportedPlatform(other.to_owned())),
@@ -441,6 +459,9 @@ fn build_spec(plan: &AdapterPlan) -> Result<RequestSpec> {
         AdapterPlan::Kimi { base } => {
             kimi_server::build_request(base, kimi_server::KimiEndpoint::OauthUsage)
                 .map_err(|e| build(e.to_string()))
+        }
+        AdapterPlan::KimiCode { base } => {
+            kimi_code::build_request(base).map_err(|e| build(e.to_string()))
         }
         AdapterPlan::Codex => Err(QueryError::UnsupportedPlatform("codex".into())),
     }
@@ -522,6 +543,15 @@ fn parse_payload(plan: &AdapterPlan, status: u16, body: &[u8]) -> ParseOutcome {
         AdapterPlan::Kimi { .. } => match kimi_server::parse_oauth_usage(status, body) {
             Ok(report) => ParseOutcome::Ok(ParsedPayload {
                 balances: report.balances,
+                quota_windows: report.windows,
+                provider_as_of: None,
+                evidence: Some(report.evidence),
+            }),
+            Err(error) => ParseOutcome::Fail(error.failure_signal()),
+        },
+        AdapterPlan::KimiCode { .. } => match kimi_code::parse_usages(status, body) {
+            Ok(report) => ParseOutcome::Ok(ParsedPayload {
+                balances: Vec::new(),
                 quota_windows: report.windows,
                 provider_as_of: None,
                 evidence: Some(report.evidence),
@@ -1069,6 +1099,191 @@ mod tests {
             .header("authorization")
             .unwrap()
             .starts_with("Bearer "));
+    }
+
+    // ---- Kimi 凭据类型路由（B06 loopback vs B-04 直连） ---------------------
+
+    #[test]
+    fn kimi_credential_type_selects_channel() {
+        let db = Database::open_in_memory().unwrap();
+        let account = account_create(
+            &db,
+            &NewAccount::new("kimi", "Kimi", ConfigKind::CodingPlan),
+        )
+        .unwrap();
+
+        // 本机 Server 令牌 / 无凭据 → loopback B06 默认地址。
+        for credential_type in [Some(CredentialType::LocalServerToken), None] {
+            match resolve_plan(&db, &account, credential_type).unwrap() {
+                AdapterPlan::Kimi { base } => {
+                    assert_eq!(base, crate::adapters::accounts::kimi_server::DEFAULT_BASE)
+                }
+                other => panic!("expected loopback plan, got {}", plan_name(&other)),
+            }
+        }
+
+        // Coding Key（api_key）→ 直连 usages 通道，默认官方 base。
+        match resolve_plan(&db, &account, Some(CredentialType::ApiKey)).unwrap() {
+            AdapterPlan::KimiCode { base } => {
+                assert_eq!(base, crate::adapters::accounts::kimi_code::DEFAULT_BASE)
+            }
+            other => panic!("expected direct plan, got {}", plan_name(&other)),
+        }
+
+        // 两个 base 覆盖键互不争抢：server 键不影响直连，直连键不影响 loopback。
+        db.conn()
+            .execute(
+                "INSERT INTO settings (key, value) VALUES (?1, ?2)",
+                rusqlite::params![SETTING_KIMI_BASE_URL, "http://127.0.0.1:9000"],
+            )
+            .unwrap();
+        db.conn()
+            .execute(
+                "INSERT INTO settings (key, value) VALUES (?1, ?2)",
+                rusqlite::params![SETTING_KIMI_CODE_BASE_URL, "https://api.kimi.ai/coding/v1"],
+            )
+            .unwrap();
+        match resolve_plan(&db, &account, Some(CredentialType::ApiKey)).unwrap() {
+            AdapterPlan::KimiCode { base } => assert_eq!(base, "https://api.kimi.ai/coding/v1"),
+            other => panic!("expected direct override, got {}", plan_name(&other)),
+        }
+        match resolve_plan(&db, &account, Some(CredentialType::LocalServerToken)).unwrap() {
+            AdapterPlan::Kimi { base } => assert_eq!(base, "http://127.0.0.1:9000"),
+            other => panic!("expected loopback override, got {}", plan_name(&other)),
+        }
+    }
+
+    fn plan_name(plan: &AdapterPlan) -> &'static str {
+        match plan {
+            AdapterPlan::Deepseek => "deepseek",
+            AdapterPlan::OpenRouter(_) => "openrouter",
+            AdapterPlan::Novita => "novita",
+            AdapterPlan::Glm { .. } => "glm",
+            AdapterPlan::Kimi { .. } => "kimi_loopback",
+            AdapterPlan::KimiCode { .. } => "kimi_code_direct",
+            AdapterPlan::Codex => "codex",
+        }
+    }
+
+    #[test]
+    fn kimi_api_key_queries_direct_usages_channel() {
+        let server = MockServer::start(vec![MockResponse::ok(
+            r#"{"usages":{"limit_5h":{"used_ratio":0.25,"reset_time":"2026-10-12T09:30:00Z"},
+                          "limit_7d":{"used_ratio":0.6}}}"#,
+        )]);
+        let mut db = Database::open_in_memory().unwrap();
+        let account = account_create(
+            &db,
+            &NewAccount::new("kimi", "Kimi", ConfigKind::CodingPlan),
+        )
+        .unwrap();
+        let vault = MemoryVault::new();
+        save_credential(&db, &vault, &account.account_id, CredentialType::ApiKey);
+
+        let outcome = query_account_via(
+            &mut db,
+            &vault,
+            &account.account_id,
+            &ReqwestTransport::new(),
+            Some(&server.base_url),
+        )
+        .unwrap();
+
+        assert_eq!(outcome.status, SnapshotStatus::Ok);
+        assert_eq!(outcome.quota_windows.len(), 2);
+        assert_eq!(
+            outcome.quota_windows[0].window_id,
+            "kimi:coding_plan:account:5h"
+        );
+        assert_eq!(
+            outcome.quota_windows[0].resets_at.as_deref(),
+            Some("2026-10-12T09:30:00Z")
+        );
+        assert!(outcome
+            .evidence
+            .as_deref()
+            .unwrap()
+            .contains("kimi:coding_direct"));
+        let requests = server.requests();
+        assert_eq!(requests[0].method, "GET");
+        assert_eq!(requests[0].path, "/coding/v1/usages");
+        assert!(requests[0]
+            .header("authorization")
+            .unwrap()
+            .starts_with("Bearer "));
+    }
+
+    #[test]
+    fn kimi_api_key_401_maps_auth_required() {
+        let server = MockServer::start(vec![MockResponse::status(
+            401,
+            r#"{"error":{"message":"Invalid authentication credentials provided.","type":"invalid_authentication_error"}}"#,
+        )]);
+        let mut db = Database::open_in_memory().unwrap();
+        let account = account_create(
+            &db,
+            &NewAccount::new("kimi", "Kimi", ConfigKind::CodingPlan),
+        )
+        .unwrap();
+        let vault = MemoryVault::new();
+        save_credential(&db, &vault, &account.account_id, CredentialType::ApiKey);
+
+        let outcome = query_account_via(
+            &mut db,
+            &vault,
+            &account.account_id,
+            &ReqwestTransport::new(),
+            Some(&server.base_url),
+        )
+        .unwrap();
+
+        assert_eq!(outcome.status, SnapshotStatus::AuthRequired);
+        assert_eq!(
+            outcome.error_code.as_deref(),
+            Some("invalid_authentication_error")
+        );
+        assert!(outcome.snapshot_id.is_none());
+    }
+
+    // ---- GLM 无套餐 → no_plan 落库 ------------------------------------------
+
+    #[test]
+    fn glm_no_plan_records_no_plan_status() {
+        let server = MockServer::start(vec![MockResponse::ok(
+            r#"{"code":500,"msg":"当前用户不存在coding plan","success":false}"#,
+        )]);
+        let mut db = Database::open_in_memory().unwrap();
+        let account =
+            account_create(&db, &NewAccount::new("glm", "GLM", ConfigKind::CodingPlan)).unwrap();
+        let vault = MemoryVault::new();
+        save_credential(&db, &vault, &account.account_id, CredentialType::ApiKey);
+
+        let outcome = query_account_via(
+            &mut db,
+            &vault,
+            &account.account_id,
+            &ReqwestTransport::new(),
+            Some(&server.base_url),
+        )
+        .unwrap();
+
+        assert_eq!(outcome.status, SnapshotStatus::NoPlan);
+        assert_eq!(outcome.error_code.as_deref(), Some("500"));
+        assert!(outcome.snapshot_id.is_none());
+        // 失败行确实以 no_plan 落库，latest status 读回一致。
+        assert_eq!(
+            accounts::snapshot_latest_status(&db, &account.account_id).unwrap(),
+            Some(SnapshotStatus::NoPlan)
+        );
+        let stored: String = db
+            .conn()
+            .query_row(
+                "SELECT status FROM account_snapshots WHERE account_id = ?1",
+                [&account.account_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(stored, "no_plan");
     }
 
     // ---- 失败映射 ----------------------------------------------------------

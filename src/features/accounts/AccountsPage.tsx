@@ -54,6 +54,9 @@ function latestStatusBadge(
       return { label: "暂时不可用", dangerous: true };
     case "incompatible":
       return { label: "接口不兼容", dangerous: true };
+    // 平台确认没有套餐是提示信息，不是故障；沿用非警示徽标样式。
+    case "no_plan":
+      return { label: "无 Coding Plan 套餐", dangerous: false };
     default:
       return null;
   }

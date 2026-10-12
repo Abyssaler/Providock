@@ -28,7 +28,9 @@ export type SnapshotStatus =
   | "rate_limited"
   | "unsupported"
   | "incompatible"
-  | "unavailable";
+  | "unavailable"
+  /** 平台侧确认该账户没有任何 Coding Plan 套餐（非失败，仅提示）。 */
+  | "no_plan";
 
 /** `services::accounts::CredentialType`（ACCOUNT_ADAPTERS 第 4 节）。 */
 export type CredentialType =

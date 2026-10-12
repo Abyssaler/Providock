@@ -22,15 +22,16 @@
   display: flex;
   flex-wrap: wrap;
   gap: 3px;
-  padding: 6px;
+  padding: 5px;
   border: 1px solid var(--line);
-  border-radius: 13px;
+  border-radius: 999px;
   background: var(--card);
 }
 .agent-tabs button {
   border: 0;
-  padding: 7px 10px;
+  padding: 7px 12px;
   font-size: 12px;
+  border-radius: 999px;
 }
 .usage-selects {
   display: flex;
@@ -38,8 +39,10 @@
   gap: 8px;
   flex: 1;
 }
-.usage-selects select {
-  max-width: 220px;
+.usage-select {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
 }
 .usage-sync-line {
   display: flex;
@@ -70,7 +73,6 @@
   background: var(--soft);
   color: var(--primary);
   border-radius: 18px;
-  font-size: 40px;
 }
 .usage-total-number {
   font-size: clamp(28px, 3.5vw, 46px);
@@ -85,11 +87,6 @@
   color: var(--muted);
   letter-spacing: 0;
   display: inline-block;
-}
-.usage-mini-stats {
-  border: 1px solid var(--line);
-  padding: 18px 22px;
-  border-radius: 20px;
 }
 .usage-mini-stats > div {
   display: flex;
@@ -143,15 +140,53 @@
 }
 .trend-grid {
   stroke: var(--line);
-  stroke-dasharray: 4 5;
+  stroke-dasharray: 3 3;
+  opacity: 0.4;
 }
 .trend-line {
   fill: none;
   stroke-width: 3;
   stroke-linejoin: round;
 }
-.trend-point {
-  fill: var(--primary);
+.usage-chart .trend-cost-line {
+  fill: none;
+}
+.trend-plot {
+  position: relative;
+}
+.trend-tooltip {
+  position: absolute;
+  top: 30px;
+  transform: translateX(-50%);
+  min-width: 210px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 12px;
+  pointer-events: none;
+  z-index: 6;
+}
+.trend-tooltip > div {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.trend-tooltip i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.trend-tooltip b {
+  margin-left: auto;
+  padding-left: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
 }
 .usage-bottom {
   display: grid;
@@ -241,8 +276,12 @@
     gap: 12px;
   }
   .usage-bolt {
-    width: 42px;
-    height: 48px;
+    width: 44px;
+    height: 44px;
+  }
+  .usage-bolt svg {
+    width: 22px;
+    height: 22px;
   }
   .usage-overview {
     padding: 18px;
@@ -253,10 +292,8 @@
   .usage-bottom {
     grid-template-columns: 1fr;
   }
-  .usage-selects select {
-    flex: 1;
-    max-width: 100%;
-    min-width: 130px;
+  .usage-select {
+    flex: 1 1 100%;
   }
 }
 /* Usage dashboard: quiet surfaces, distinct data hierarchy, cc-switch reference. */
@@ -285,16 +322,20 @@
   background: var(--soft);
   border-color: transparent;
   font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.usage-price-button svg {
+  flex-shrink: 0;
 }
 .usage-toolbar {
-  padding: 12px;
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: 14px;
+  padding: 0;
+  background: transparent;
+  border: 0;
   gap: 12px;
 }
 .agent-tabs {
-  border: 0;
   background: var(--bg);
   padding: 4px;
   width: 100%;
@@ -312,26 +353,46 @@
   padding: 8px;
 }
 .agent-tabs button.active {
-  background: var(--card);
-  color: var(--primary);
-  box-shadow: 0 2px 6px #00000009;
+  background: var(--primary);
+  color: var(--primary-contrast);
+}
+.agent-tabs button:hover:not(.active) {
+  color: var(--text);
 }
 .agent-glyph {
-  font-size: 17px;
-  line-height: 1;
-  font-weight: 600;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+.agent-glyph svg {
+  width: 13px;
+  height: 13px;
 }
 .usage-selects {
   gap: 10px;
 }
-.usage-selects select {
+.usage-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   flex: 1;
-  max-width: none;
   min-width: 130px;
+  padding: 0 10px 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
   background: var(--bg);
-  border-color: transparent;
+}
+.usage-select > svg {
+  flex-shrink: 0;
+  pointer-events: none;
+  color: var(--muted);
+}
+.usage-select select {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 7px 0 7px 2px;
   font-size: 12px;
-  padding: 8px 12px;
 }
 .usage-sync-line {
   margin: 12px 3px 0;
@@ -346,10 +407,13 @@
   border-radius: 18px;
 }
 .usage-bolt {
-  font-size: 36px;
   width: 60px;
   height: 60px;
   border-radius: 16px;
+}
+.usage-bolt svg {
+  width: 30px;
+  height: 30px;
 }
 .usage-total {
   gap: 18px;
@@ -361,15 +425,12 @@
 .usage-total-number small {
   font-size: 12px;
   margin-left: 8px;
-  background: var(--bg);
-  padding: 0 8px;
-  border-radius: 6px;
 }
 .usage-mini-stats {
-  background: var(--card);
-  padding: 16px 18px;
+  background: transparent;
+  border: 0;
+  padding: 0;
   gap: 18px;
-  border-radius: 14px;
 }
 .usage-mini-stats strong {
   font-size: 17px;
@@ -378,6 +439,8 @@
 .usage-mini-stats > div {
   max-width: 210px;
   font-size: 12px;
+  align-items: flex-end;
+  text-align: right;
 }
 .usage-mini-stats > div + div {
   padding-left: 18px;
@@ -425,27 +488,26 @@
 }
 .trend-legend {
   display: flex;
-  gap: 18px;
+  flex-wrap: wrap;
+  gap: 14px;
   justify-content: center;
   margin-top: -8px;
 }
-.trend-legend button {
+.trend-legend span {
   display: flex;
   align-items: center;
   gap: 7px;
-  border: 0;
-  background: transparent;
-  padding: 4px;
   font-size: 12px;
 }
-.trend-legend button[aria-pressed="false"] {
-  opacity: 0.5;
-  text-decoration: line-through;
-}
 .trend-legend i {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
+  width: 16px;
+  height: 3px;
+  border-radius: 2px;
+}
+.trend-legend i.trend-legend-dash {
+  height: 0;
+  background: none;
+  border-top: 2px dashed;
 }
 .trend-data {
   margin-top: 12px;
@@ -679,6 +741,53 @@
 .pricing-rule p {
   margin: 2px 0;
 }
+.pricing-section {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.pricing-section > summary {
+  cursor: pointer;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pricing-dialog label.pricing-enable {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.pricing-enable input {
+  width: 15px;
+  height: 15px;
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+  accent-color: var(--primary);
+}
+.pricing-ranges {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 14px 0;
+  max-width: 420px;
+}
+.pricing-range-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+.pricing-range-row input {
+  flex: 1;
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+}
+.pricing-range-row button {
+  font-size: 12px;
+}
 .acct-session-note {
   padding: 10px 12px;
   border-radius: 8px;
@@ -755,24 +864,76 @@
 }
 
 /* Metric accents match the trend legend. */
-.usage-metric:nth-child(1) strong {
+.usage-metric[data-tone="input"] strong {
   color: #56b4ff;
 }
-.usage-metric:nth-child(2) strong {
+.usage-metric[data-tone="output"] strong {
   color: #45edb8;
 }
-.usage-metric:nth-child(3) strong {
+.usage-metric[data-tone="cacheWrite"] strong {
   color: #ffbe55;
 }
-.usage-metric:nth-child(4) strong {
+.usage-metric[data-tone="cacheRead"] strong {
   color: #bc8aff;
+}
+.usage-metric[data-tone="ratio"] strong {
+  color: var(--ok);
 }
 .usage-metrics .usage-metric {
   border: 1px solid var(--line);
 }
-.agent-tabs button.active {
-  background: var(--soft);
+.usage-metric-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
 }
-.usage-selects select {
-  border-color: var(--line);
+.usage-metric-head svg {
+  flex-shrink: 0;
+}
+.usage-metric progress {
+  height: 6px;
+  border-radius: 3px;
+}
+
+/* 设置页：用量页显示的 Agent */
+.agent-visibility h2 {
+  margin: 0 0 4px;
+  font-size: 16px;
+}
+.agent-visibility-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px 14px;
+  margin: 16px 0 10px;
+}
+.agent-visibility-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.agent-visibility-row:hover {
+  border-color: var(--primary);
+}
+.agent-visibility-row input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: var(--primary);
+  flex-shrink: 0;
+}
+.agent-visibility-row svg {
+  color: var(--muted);
+  flex-shrink: 0;
+}
+@media (max-width: 900px) {
+  .agent-visibility-grid {
+    grid-template-columns: 1fr 1fr;
+  }
 }

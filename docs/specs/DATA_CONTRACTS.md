@@ -149,4 +149,11 @@ ModelPrice 键为 Agent + 精确模型名 + 可选 source_id，source_id 必须�
 
 当前定价估算是只读比较：以最新启用规则计算筛选事件，不修改 usage_events 中 cost_reported、cost_estimated 或 Token。互斥分量只计一次；未知数量不当零，未知费率仅在数量明确为零时不影响完整性。部分估算与完整覆盖率分别显示，金额保持精确十进制，模型统计的 Token 标为已知小计。
 
+ModelPrice 可选两种计费策略，随 rates_json 的 `strategy` 键追加存储（tier 字符串不变，旧行无该键照常读取）：
+
+- 分时段价格：`peak`（高峰费率组）+ `peakWindows`（`timezone` 目前仅 Asia/Shanghai，固定 UTC+8 无夏令时；`weekdaysOnly`；`ranges` 为 1–4 个 "HH:MM-HH:MM" 半开时段 [start,end)，不跨午夜、不重叠）。事件 occurred_at 换算到北京时间后，工作日（周一至周五）且本地时间落入任一时段 → 高峰费率，否则基础费率（基础费率即低谷价）。法定节假日日历未实现：所有工作日一律按高峰处理，是已知偏差。
+- 长上下文升档：`longContext`（`inputOverTokens` 阈值 + 一档费率）。事件 input_total 严格大于阈值时整个请求（含输出与缓存分量）按档位费率计价；等于阈值不升档。
+
+解析顺序：longContext 优先——配置了升档的规则不再叠加 peak（档位无高峰变体），未超阈值回到基础费率；peak 只在未配置 longContext 时参与。判定所需上下文未知时不臆造：配置了 peak 而 occurred_at 缺失/不可解析，或配置了 longContext 而 input_total 未知，该事件估算整体为未知（不是 0，也不回落基础费率）。选中档位内某分量费率为空时该分量按未知处理（部分估算）。USD/CNY 仍分币种统计。
+
 账户列表/刷新响应的嵌套 SnapshotDto/OutcomeDto 统一 camelCase，并通过共享合成夹具验证真实 DB→IPC→前端；领域对象与原适配器样本命名保持不变。credentialReady 仅表示本地凭据是否存在，不代表平台鉴权成功。用户已明确选择明文持久化，Key 存在独立 credentials/keys.sqlite3；普通 providock.db 和 IPC 不含明文秘密。

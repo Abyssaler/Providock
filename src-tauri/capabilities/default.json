@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "默认能力：仅核心 API。网络/凭据/文件访问在对应任务中按需显式添加。",
+  "description": "核心窗口操作、签名更新与更新后重启；账户网络和凭据由 Rust 服务处理。",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": ["core:default", "core:window:allow-start-dragging", "updater:default", "process:allow-restart"]
 }

@@ -57,6 +57,7 @@ export const STATUS_LABELS: Record<SnapshotStatus, string> = {
   unsupported: "暂未接入官方查询能力",
   incompatible: "接口不兼容",
   unavailable: "暂时不可用",
+  no_plan: "无 Coding Plan 套餐",
 };
 
 export const QUOTA_UNIT_LABELS: Record<QuotaUnit, string> = {

@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import MonitoringControls from "../features/usage/MonitoringControls";
+import AgentVisibilitySettings from "../features/usage/AgentVisibilitySettings";
 import UsagePage from "../features/usage/UsagePage";
 import AccountsPage from "../features/accounts/AccountsPage";
 import SessionsPage from "../features/sessions/SessionsPage";
 import SourcesPage from "../features/sources/SourcesPage";
 import PageBoundary from "./PageBoundary";
+import AppUpdates from "../features/updates/AppUpdates";
 import "./app.css";
 
 type PageId = "usage" | "accounts" | "sessions" | "sources" | "settings";
@@ -33,9 +35,17 @@ export default function App() {
       .catch(() => setAppInfo(null));
   }, []);
 
+  useEffect(() => {
+    // macOS 隐藏式标题栏：红绿灯悬浮在顶栏上，顶栏整体可拖拽并给红绿灯让位
+    if (appInfo && /Mac OS X/.test(navigator.userAgent)) {
+      document.documentElement.classList.add("mac-overlay");
+      return () => document.documentElement.classList.remove("mac-overlay");
+    }
+  }, [appInfo]);
+
   return (
     <div>
-      <header className="appbar">
+      <header className="appbar" data-tauri-drag-region>
         <div className="brand">
           <svg className="mark" viewBox="0 0 64 64" aria-hidden="true">
             <path
@@ -79,6 +89,7 @@ export default function App() {
         </div>
       </header>
       <main>
+        <AppUpdates version={appInfo?.version} settings={page === "settings"} />
         <PageBoundary key={page}>
           {page === "usage" && <UsagePage />}
           {page === "accounts" && <AccountsPage />}
@@ -91,6 +102,7 @@ export default function App() {
                 <p className="muted">Agent 用量与平台账户分别调度，关闭自动任务不影响手动刷新。</p>
               </div>
               <MonitoringControls />
+              <AgentVisibilitySettings />
               <div className="card">
                 <h2>桌面运行</h2>
                 <p className="muted">

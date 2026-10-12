@@ -30,6 +30,9 @@ fn rule(agent: &str, model: &str) -> ModelPrice {
         cache_read: Some("0.3".into()),
         cache_write: None,
         enabled: true,
+        peak: None,
+        peak_windows: None,
+        long_context: None,
     }
 }
 fn tokens() -> TokenSet {
@@ -46,7 +49,7 @@ fn tokens() -> TokenSet {
 }
 #[test]
 fn per_million_cost_is_exact_and_cache_not_double_counted() {
-    let cost = model_prices::quote(&rule("codex", "m1"), &tokens())
+    let cost = model_prices::quote(&rule("codex", "m1"), &tokens(), None, None)
         .unwrap()
         .unwrap();
     // 1000*3/1M + 500*0.3/1M + 200*12/1M = 0.00555 (not total input * 3).
@@ -55,7 +58,7 @@ fn per_million_cost_is_exact_and_cache_not_double_counted() {
     let mut p = rule("codex", "m1");
     p.cache_read = None;
     assert_eq!(
-        model_prices::quote(&p, &tokens())
+        model_prices::quote(&p, &tokens(), None, None)
             .unwrap()
             .unwrap()
             .completeness,
@@ -64,7 +67,10 @@ fn per_million_cost_is_exact_and_cache_not_double_counted() {
     let mut t = tokens();
     t.input_cache_write = None;
     assert_eq!(
-        model_prices::quote(&p, &t).unwrap().unwrap().completeness,
+        model_prices::quote(&p, &t, None, None)
+            .unwrap()
+            .unwrap()
+            .completeness,
         Completeness::Partial
     );
 }
@@ -81,12 +87,14 @@ fn invalid_prices_are_rejected_unknown_and_zero_are_distinct() {
     p.output = None;
     p.cache_read = None;
     assert!(model_prices::save(&db, p.clone()).is_err());
-    assert!(model_prices::quote(&p, &tokens()).unwrap().is_none());
+    assert!(model_prices::quote(&p, &tokens(), None, None)
+        .unwrap()
+        .is_none());
     p.input = Some("0".into());
     p.output = Some("0".into());
     p.cache_read = Some("0".into());
     assert_eq!(
-        model_prices::quote(&p, &tokens())
+        model_prices::quote(&p, &tokens(), None, None)
             .unwrap()
             .unwrap()
             .money

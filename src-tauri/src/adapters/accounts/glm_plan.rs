@@ -21,6 +21,16 @@
 //! `remaining_ratio`，**绝不反推绝对 Token/请求数**。超过 100% 记 `raw_ratio` +
 //! `over_limit`，`used_ratio` 封顶为 1。
 //!
+//! 2026-10-12 实查补充（真实凭据，非公共夹具）：
+//! - 无 Coding Plan 的按量账户在两个区域 host 都返回 HTTP200
+//!   `{"code":500,"msg":"当前用户不存在coding plan","success":false}` → 映射为
+//!   独立状态 `no_plan`（[`GlmError::NoPlan`]），UI 据此显示“无 Coding Plan 套餐”。
+//! - 真实 401 信封同时带 `code:401` 与 `success:false`；业务判定先看数值 `code`，
+//!   避免误分类为 `success_false`（unavailable）。
+//! - `CREDIT_LIMIT`：官方插件固定提交与 main 分支均**未**解析该类型（2026-10-12 复核
+//!   `query-usage.mjs`），按 AGENTS.md 规则不从第三方线索实现；保持
+//!   `unknown_limit_type:CREDIT_LIMIT` 诊断，待官方依据。
+//!
 //! 纯函数：不触网、不读文件、不接触凭据；`RequestSpec` 不装载任何秘密。
 //! 请求规格与十进制/比例工具统一取自 [`crate::adapters::accounts::common`]。
 
@@ -108,6 +118,11 @@ pub enum GlmError {
     Http { status: u16 },
     #[error("business error {code}: {message}")]
     Business { code: String, message: String },
+    /// 平台确认账户无 Coding Plan（2026-10-12 实测：`code:500` +
+    /// `msg:"当前用户不存在coding plan"`，`open.bigmodel.cn` 与 `api.z.ai` 一致）。
+    /// 区别于通用失败：UI 显示“无 Coding Plan 套餐”。
+    #[error("no coding plan (business {code}): {message}")]
+    NoPlan { code: String, message: String },
     #[error("schema changed: {0}")]
     SchemaChanged(String),
     #[error("unsupported: {0}")]
@@ -129,6 +144,7 @@ impl GlmError {
                 "429" | "42901" => SnapshotStatus::RateLimited,
                 _ => SnapshotStatus::Unavailable,
             },
+            Self::NoPlan { .. } => SnapshotStatus::NoPlan,
             Self::SchemaChanged(_) => SnapshotStatus::Incompatible,
             Self::Unsupported(_) => SnapshotStatus::Unsupported,
         }
@@ -142,7 +158,9 @@ impl GlmError {
         };
         match self {
             Self::Http { status } => signal.http_status = Some(*status),
-            Self::Business { code, .. } => signal.business_code = Some(code.clone()),
+            Self::Business { code, .. } | Self::NoPlan { code, .. } => {
+                signal.business_code = Some(code.clone())
+            }
             Self::SchemaChanged(_) => signal.schema_changed = true,
             Self::Unsupported(_) => signal.unsupported = true,
             Self::InvalidBaseUrl(_) | Self::UnrecognizedHost(_) => {}
@@ -318,13 +336,31 @@ pub fn parse_response(
     }
 }
 
-/// HTTP200 业务错误：`success=false` 或 `code` 不是 0/200。
+/// HTTP200 业务错误：`code` 不是 0/200，或（无数值码时）`success=false`。
 ///
-/// GLM 的 `code` 语义未在证据中固定；按“非成功码即失败”处理，避免把拒绝当成功。
+/// **数值 `code` 先于 `success` 判定**（2026-10-12 修复）：真实 401 信封是
+/// `{"code":401,"msg":"token expired or incorrect","success":false}`，先看 `success`
+/// 会把认证失败误分类为 `success_false`（unavailable）。GLM 的 `code` 语义未在证据中
+/// 固定；按“非成功码即失败”处理，避免把拒绝当成功。
 fn check_business(root: &Value) -> Result<(), GlmError> {
     let Some(obj) = root.as_object() else {
         return Ok(());
     };
+    if let Some(code) = obj.get("code").and_then(common::json_decimal) {
+        if code != "0" && code != "200" {
+            let message = obj
+                .get("msg")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_owned();
+            // 无 Coding Plan 的明确业务应答（2026-10-12 双站实测报文）：
+            // code 500 + “…不存在coding plan”，映射为独立状态而非通用失败。
+            if code == "500" && message.contains(NO_PLAN_MESSAGE_MARK) {
+                return Err(GlmError::NoPlan { code, message });
+            }
+            return Err(GlmError::Business { code, message });
+        }
+    }
     if obj.get("success") == Some(&Value::Bool(false)) {
         let message = obj
             .get("msg")
@@ -335,18 +371,11 @@ fn check_business(root: &Value) -> Result<(), GlmError> {
             message: message.to_owned(),
         });
     }
-    if let Some(code) = obj.get("code").and_then(common::json_decimal) {
-        if code != "0" && code != "200" {
-            let message = obj
-                .get("msg")
-                .and_then(Value::as_str)
-                .unwrap_or("")
-                .to_owned();
-            return Err(GlmError::Business { code, message });
-        }
-    }
     Ok(())
 }
+
+/// 无套餐应答的识别子串（实测原文：`"当前用户不存在coding plan"`）。
+const NO_PLAN_MESSAGE_MARK: &str = "不存在coding plan";
 
 fn parse_quota_limit(root: &Value) -> Result<GlmReport, GlmError> {
     let data = root.get("data").unwrap_or(root);

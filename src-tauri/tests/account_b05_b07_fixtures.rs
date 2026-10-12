@@ -7,7 +7,9 @@
 //! 预期值取自 `fixtures/accounts/**/expected.json`（人工按证据语义独立计算，见各 README），
 //! 断言用「子集比较」：只校验 expected 里出现的字段，避免与无关字段耦合并防止漂移。
 
-use providock_lib::adapters::accounts::{codex_appserver, common, glm_plan, kimi_server};
+use providock_lib::adapters::accounts::{
+    codex_appserver, common, glm_plan, kimi_code, kimi_server,
+};
 use providock_lib::services::accounts::SnapshotStatus;
 use serde_json::Value;
 use std::path::PathBuf;
@@ -240,6 +242,59 @@ fn glm_error_mapping() {
     assert_eq!(error.status(), SnapshotStatus::AuthRequired);
     assert!(error.failure_signal().is_failure());
 
+    // 真实 401 信封同时带 `code:401` 与 `success:false`：数值 code 优先，
+    // 不得误分类为 success_false（unavailable）。2026-10-12 误分类修复的回归。
+    let error = parse_response(
+        GlmEndpoint::QuotaLimit,
+        200,
+        &read_bytes("glm_plan/business-error-auth/input/quota_limit.json"),
+    )
+    .unwrap_err();
+    match &error {
+        GlmError::Business { code, message } => {
+            assert_eq!(code, "401");
+            assert_eq!(message, "token expired or incorrect");
+        }
+        other => panic!("expected business 401, got {other:?}"),
+    }
+    assert_eq!(error.status(), SnapshotStatus::AuthRequired);
+    let signal = error.failure_signal();
+    assert_eq!(signal.business_code.as_deref(), Some("401"));
+    assert_eq!(signal.status(), SnapshotStatus::AuthRequired);
+
+    // 无 Coding Plan（2026-10-12 双站实测原文）：code 500 + “不存在coding plan”
+    // → 独立状态 no_plan，不是通用失败。
+    let error = parse_response(
+        GlmEndpoint::QuotaLimit,
+        200,
+        &read_bytes("glm_plan/no-plan/input/quota_limit.json"),
+    )
+    .unwrap_err();
+    match &error {
+        GlmError::NoPlan { code, message } => {
+            assert_eq!(code, "500");
+            assert!(message.contains("不存在coding plan"));
+        }
+        other => panic!("expected no-plan, got {other:?}"),
+    }
+    assert_eq!(error.status(), SnapshotStatus::NoPlan);
+    let signal = error.failure_signal();
+    assert_eq!(signal.status_hint, Some(SnapshotStatus::NoPlan));
+    assert_eq!(signal.business_code.as_deref(), Some("500"));
+    assert!(signal.is_failure());
+    // success:false 且无业务码 → 仍是 success_false 通用失败（既有行为不变）。
+    let error = parse_response(
+        GlmEndpoint::QuotaLimit,
+        200,
+        br#"{"success":false,"msg":"unknown failure"}"#,
+    )
+    .unwrap_err();
+    match &error {
+        GlmError::Business { code, .. } => assert_eq!(code, "success_false"),
+        other => panic!("expected success_false, got {other:?}"),
+    }
+    assert_eq!(error.status(), SnapshotStatus::Unavailable);
+
     // 传输层 401/429/5xx。
     for (status, want) in [
         (401u16, SnapshotStatus::AuthRequired),
@@ -409,6 +464,176 @@ fn kimi_error_mapping() {
 }
 
 // ---------------------------------------------------------------------------
+// B-04 Kimi Code Coding Key 直连通道
+// ---------------------------------------------------------------------------
+
+#[test]
+fn kimi_code_request_shape() {
+    use kimi_code::{build_request, KimiCodeError, DEFAULT_BASE, GLOBAL_BASE};
+
+    let spec = build_request(DEFAULT_BASE).unwrap();
+    assert_eq!(spec.method, "GET");
+    assert_eq!(spec.scheme, "https");
+    assert_eq!(spec.host, "api.kimi.com");
+    assert_eq!(spec.path, "/coding/v1/usages");
+    assert_eq!(spec.url(), "https://api.kimi.com/coding/v1/usages");
+    assert_eq!(spec.auth, Some(common::AuthPlacement::bearer()));
+    assert!(spec
+        .headers
+        .iter()
+        .any(|(k, v)| k == "Accept" && v == "application/json"));
+    // 不装秘密：没有任何 Authorization 头（凭据由服务层注入）。
+    assert!(spec
+        .headers
+        .iter()
+        .all(|(k, _)| !k.eq_ignore_ascii_case("authorization")));
+
+    // 官方 CLI 的国际站 base 同样接受；尾斜杠归一。
+    assert_eq!(
+        build_request(&format!("{GLOBAL_BASE}/")).unwrap().url(),
+        "https://api.kimi.ai/coding/v1/usages"
+    );
+
+    // host 精确匹配：子串相似的域名不是 Kimi Code。
+    assert!(matches!(
+        build_request("https://api.kimi.com.evil.com/coding/v1"),
+        Err(KimiCodeError::UnrecognizedHost(_))
+    ));
+    assert!(matches!(
+        build_request("https://evil-api.kimi.com/coding/v1"),
+        Err(KimiCodeError::UnrecognizedHost(_))
+    ));
+    // 外网 http 与显式端口拒绝；缺 scheme 拒绝。
+    assert!(matches!(
+        build_request("http://api.kimi.com/coding/v1"),
+        Err(KimiCodeError::InvalidBase(_))
+    ));
+    assert!(matches!(
+        build_request("https://api.kimi.com:8443/coding/v1"),
+        Err(KimiCodeError::InvalidBase(_))
+    ));
+    assert!(matches!(
+        build_request("api.kimi.com/coding/v1"),
+        Err(KimiCodeError::InvalidBase(_))
+    ));
+    // userinfo 拒绝。
+    assert!(matches!(
+        build_request("https://user@api.kimi.com/coding/v1"),
+        Err(KimiCodeError::InvalidBase(_))
+    ));
+}
+
+#[test]
+fn kimi_code_usages_fixtures() {
+    use kimi_code::parse_usages;
+
+    // 完整形态（4 窗口 + booster_wallet/usage/limits 未解析段）。
+    let report = parse_usages(200, &read_bytes("kimi_code/usages/input/usages.json")).unwrap();
+    assert_eq!(report.windows.len(), 4);
+    assert_contains(
+        &serde_json::to_value(&report).unwrap(),
+        &read_json("kimi_code/usages/expected.json"),
+        "kimi_code.usages",
+    );
+    // 窗口身份与 B06 本机 Server 通道一致（两通道互为上游，快照窗口连续）。
+    assert_eq!(report.windows[0].window_id, "kimi:coding_plan:account:5h");
+    assert_eq!(report.windows[1].window_id, "kimi:coding_plan:account:7d");
+
+    // 无月窗 + 字符串比例 + 小数秒 reset_time（对照 2026-10-12 实测账户形态）。
+    let report = parse_usages(
+        200,
+        &read_bytes("kimi_code/usages-minimal/input/usages.json"),
+    )
+    .unwrap();
+    assert_eq!(report.windows.len(), 2);
+    assert_contains(
+        &serde_json::to_value(&report).unwrap(),
+        &read_json("kimi_code/usages-minimal/expected.json"),
+        "kimi_code.usages_minimal",
+    );
+}
+
+#[test]
+fn kimi_code_error_mapping() {
+    use kimi_code::{parse_usages, KimiCodeError};
+
+    // HTTP 401 + {"error":{"type":"invalid_authentication_error"}} → auth_required，
+    // 稳定机器码 type 记入 business_code（2026-10-12 实测形态）。
+    let error = parse_usages(
+        401,
+        &read_bytes("kimi_code/unauthorized-401/input/usages.json"),
+    )
+    .unwrap_err();
+    match &error {
+        KimiCodeError::Http { status, code } => {
+            assert_eq!(*status, 401);
+            assert_eq!(code.as_deref(), Some("invalid_authentication_error"));
+        }
+        other => panic!("expected http 401, got {other:?}"),
+    }
+    assert_eq!(error.status(), SnapshotStatus::AuthRequired);
+    let signal = error.failure_signal();
+    assert_eq!(signal.http_status, Some(401));
+    assert_eq!(
+        signal.business_code.as_deref(),
+        Some("invalid_authentication_error")
+    );
+
+    for (status, want) in [
+        (403u16, SnapshotStatus::AuthRequired),
+        (429, SnapshotStatus::RateLimited),
+        (500, SnapshotStatus::Unavailable),
+    ] {
+        let error = parse_usages(status, b"{}").unwrap_err();
+        assert_eq!(error.status(), want, "HTTP {status}");
+    }
+
+    // 缺 usages → schema 变化（不补零、不冒充成功空数据）。
+    let error = parse_usages(200, br#"{"usage":{"limit":"100"}}"#).unwrap_err();
+    assert!(matches!(error, KimiCodeError::SchemaChanged(_)));
+    assert_eq!(error.status(), SnapshotStatus::Incompatible);
+
+    // 窗口条目存在但缺 used_ratio → schema 变化。
+    let error = parse_usages(200, br#"{"usages":{"limit_5h":{}}}"#).unwrap_err();
+    assert!(matches!(error, KimiCodeError::SchemaChanged(_)));
+
+    // 窗口不是对象 → 记诊断并跳过；未知 usages 键 → unknown_usage_key 诊断。
+    let report = parse_usages(
+        200,
+        br#"{"usages":{"limit_5h":"oops","limit_30d":{"used_ratio":0.5}}}"#,
+    )
+    .unwrap();
+    assert!(report.windows.is_empty());
+    assert!(report
+        .diagnostics
+        .iter()
+        .any(|d| d == "limit_5h_not_object"));
+    assert!(report
+        .diagnostics
+        .iter()
+        .any(|d| d == "unknown_usage_key:limit_30d"));
+
+    // 超 100% 封顶：used=1、remaining=0、原值进 raw_ratio。
+    let report = parse_usages(200, br#"{"usages":{"limit_5h":{"used_ratio":1.2}}}"#).unwrap();
+    assert_eq!(report.windows[0].used_ratio.as_deref(), Some("1"));
+    assert_eq!(report.windows[0].remaining_ratio.as_deref(), Some("0"));
+    assert_eq!(report.windows[0].raw_ratio.as_deref(), Some("1.2"));
+    assert_eq!(report.windows[0].over_limit, Some(true));
+
+    // 非法 reset_time：记诊断、保持未知（不猜时间）。
+    let report = parse_usages(
+        200,
+        br#"{"usages":{"limit_5h":{"used_ratio":0.1,"reset_time":"next week"}}}"#,
+    )
+    .unwrap();
+    assert_eq!(report.windows[0].resets_at, None);
+    assert!(report
+        .diagnostics
+        .iter()
+        .any(|d| d == "limit_5h.reset_time_not_rfc3339"));
+}
+
+// ---------------------------------------------------------------------------
 // B07 Codex App Server
 // ---------------------------------------------------------------------------
 
@@ -573,6 +798,10 @@ fn account_adapters_do_not_reference_http_clients() {
             include_str!("../src/adapters/accounts/kimi_server.rs"),
         ),
         (
+            "kimi_code",
+            include_str!("../src/adapters/accounts/kimi_code.rs"),
+        ),
+        (
             "codex_appserver",
             include_str!("../src/adapters/accounts/codex_appserver.rs"),
         ),
@@ -608,4 +837,11 @@ fn request_specs_carry_no_credentials() {
         .iter()
         .all(|(k, _)| !k.eq_ignore_ascii_case("authorization")));
     assert_eq!(kimi.auth, Some(common::AuthPlacement::bearer()));
+
+    let kimi_code = kimi_code::build_request(kimi_code::DEFAULT_BASE).unwrap();
+    assert!(kimi_code
+        .headers
+        .iter()
+        .all(|(k, _)| !k.eq_ignore_ascii_case("authorization")));
+    assert_eq!(kimi_code.auth, Some(common::AuthPlacement::bearer()));
 }

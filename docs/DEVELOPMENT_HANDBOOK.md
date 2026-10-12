@@ -146,3 +146,7 @@ pnpm tauri build                   # 在目标 OS 构建
 ## v2.0.2 界面与原生行为
 
 当前统一纯黑主题，不再提供浅深切换。图标源文件 assets/app-icon.svg / tray-icon.svg；桌面图标通过 Tauri icon 命令生成，菜单模板的 36×36 RGBA 与 PNG 一起提交。macOS 窗口关闭只隐藏，退出处理集中在 RunEvent::ExitRequested；原生菜单任务独立读取本地统计库，不依赖 WebView。进行 UI 验证时使用独立开发标识及合成数据，不能把浏览器 mock 当作原生关窗/退出证明。
+
+## v2.0.3 交接补记
+
+当前入口和未完成项以 CURRENT_STATUS 为准，早期「未发布」说明仅指当时状态。v2.0.2 已发布账户 IPC/明文凭据/模型统计。v2.0.3 包含 Kimi 直连、GLM 错误状态、定价策略、Agent 可见性与趋势改进；新增 GitHub 更新流程见 specs/APP_UPDATES.md。局部账户已有 macOS 真实验证，不外推到其他平台。后续 Release 必须生成独立 v2 清单，并同时核对其平台 URL/签名及全部公开资产。

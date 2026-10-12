@@ -2,15 +2,15 @@
 
 本地优先的 Agent 用量监测与 AI 账户额度管理桌面应用。
 
-**当前状态：核心链路已实现并通过样本级验证（2026-10-12）。** 八个本地 Agent 的解析器、采集入库、聚合与用量/账户/会话/数据源四页 UI 均已落地；macOS 实机只读验证了 Kimi Code、Codex 与 OpenCode。账户查询全部接口为样本验证（mock），未做真实凭据实测；Windows 实机、Claude Desktop 网关演示、正文查看的实机联调尚未完成。**准确的逐项状态见 [CURRENT_STATUS.md](docs/CURRENT_STATUS.md)，不要把本文的功能描述当作已实机验收。**
+**当前状态：核心链路已实现并通过样本级验证（2026-10-12）。** 八个本地 Agent 的解析器、采集入库、聚合与用量/账户/会话/数据源四页 UI 均已落地；macOS 实机只读验证了 Kimi Code、Codex 与 OpenCode。Kimi Code 直连额度查询、GLM 无套餐/认证错误状态已做 macOS 真实凭据验证；其余账户能力仍以样本验证为主；Windows 实机、Claude Desktop 网关演示、正文查看的实机联调尚未完成。**准确的逐项状态见 [CURRENT_STATUS.md](docs/CURRENT_STATUS.md)，不要把本文的功能描述当作已实机验收。**
 
-## 下载 v2.0.2
+## 下载 v2.0.3
 
-正式版 **v2.0.2** 下载见 [GitHub Release](https://github.com/Abyssaler/Providock/releases/tag/v2.0.2)，变更、安装与兼容边界见 [发布说明](docs/releases/v2.0.2.md)。安装包有 Tauri/minisign 签名；Mac 应用另有 ad-hoc 完整性签名，但没有 Apple Developer ID 公证或 Windows 代码签名。Windows 实机、真实账户联网及完整产品验收仍未完成，详见当前状态。
+正式版 **v2.0.3** 下载见 [GitHub Release](https://github.com/Abyssaler/Providock/releases/tag/v2.0.3)，变更、安装与兼容边界见 [发布说明](docs/releases/v2.0.3.md)。安装包有 Tauri/minisign 签名；Mac 应用另有 ad-hoc 完整性签名，但没有 Apple Developer ID 公证或 Windows 代码签名。Windows 实机、多数账户平台真实联网及完整产品验收仍未完成，详见当前状态。
 
-旧 v1.0.0 是重建前的实现，不包含本次自动监测改动。新版采用独立的应用标识和数据目录，需要手动安装，不使用旧版自动更新协议，也不自动迁移旧账户或统计数据。当前应用没有自动更新入口；签名更新包为后续更新能力保留，不发布旧版 latest.json。CI 产出安装包，Release 按 [人工发布步骤](docs/specs/CROSS_PLATFORM_RELEASE.md#7-当前人工发布流程) 单独发布。
+旧 v1.0.0 是重建前的实现，不包含本次自动监测改动。新版采用独立的应用标识和数据目录，需要手动安装，不使用旧版自动更新协议，也不自动迁移旧账户或统计数据。v2.0.3 新增应用内更新通知和签名安装：启动及每 6 小时检查 GitHub 正式 Release，可在设置关闭或手动检查，用户点击后才下载、安装并重启。关闭应用后不检查更新；不发布旧版 latest.json，v2 使用独立 providock-v2-latest.json。v2.0.2 及更早版本需要手动替换应用包一次；同为 v2 时保留应用数据。CI 产出安装包，Release 按 [人工发布步骤](docs/specs/CROSS_PLATFORM_RELEASE.md#7-当前人工发布流程) 单独发布。
 
-发行资产来自同一次成功的双平台 CI，已检查包内清单、独立验签和远端摘要；不包含本机数据库、日志、账户配置或签名秘密。发布核验与 Mac 原生验证边界见 [v2.0.2 核验记录](docs/research/validation/2026-10-12-release-v2.0.2.md)。
+发行资产来自同一次成功的双平台 CI，已检查包内清单、独立验签和远端摘要；不包含本机数据库、日志、账户配置或签名秘密。发布核验与 Mac 原生验证边界见 [v2.0.3 核验记录](docs/research/validation/2026-10-12-release-v2.0.3.md)。
 
 ## 开发命令
 
@@ -45,11 +45,11 @@ Providock 聚合电脑上的 Agent Token 用量、输入输出、缓存读写及
 
 ## 模型定价与账户凭据
 
-当前源码在 v2.0.0 之后修复账户快照 IPC 字段不一致导致的白屏，并加入模型统计、Agent 统计、多分量趋势与分页计量明细。用量页「模型定价」或模型行「设置价格」支持按 Agent、精确模型名与可选来源填写每百万 Token 的输入/输出/缓存读写价格；USD/CNY 分开统计，留空表示未知，0 表示明确免费。保存后按当前价格比较所选历史用量，不覆盖源费用或已保存的历史估算，不代表平台实际账单。
+v2.0.2 已修复账户快照 IPC 字段不一致导致的白屏，并加入模型统计、Agent 统计、多分量趋势与分页计量明细。用量页「模型定价」或模型行「设置价格」支持按 Agent、精确模型名与可选来源填写每百万 Token 的输入/输出/缓存读写价格；USD/CNY 分开统计，留空表示未知，0 表示明确免费。保存后按当前价格比较所选历史用量，不覆盖源费用或已保存的历史估算，不代表平台实际账单。
 
 用户明确选择参考 CC Switch 的本地明文保存：Key 存在应用数据目录的独立 `credentials/keys.sqlite3`，重启后直接使用，不访问系统钥匙串。macOS 目录 0700、文件 0600；Windows 使用用户目录继承 ACL（未实机验证）。完整复制应用数据目录会包含明文 Key。旧 v2.0.0 的 Keychain 条目不会自动读取、迁移或删除，已有账户须重新输入一次 Key；账户和快照保留。
 
-以上为未发布的源码改进，现有 v2.0.0 正式资产保持原样。验证见 [账户与定价改进记录](docs/research/validation/2026-10-12-accounts-model-pricing.md)。
+上述能力已随 v2.0.2 发布。v2.0.3 另支持北京时间工作日分时段与长上下文整请求升档，分币种成本可在趋势图切换；设置页可选择用量页展示的 Agent。六条本机人民币规则属于用户本地数据，不随安装包分发；人民币折算和限时优惠需按规则备注复核。验证见 [账户与定价改进记录](docs/research/validation/2026-10-12-accounts-model-pricing.md)。
 
 ## 阅读入口
 
