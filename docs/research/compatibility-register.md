@@ -114,3 +114,7 @@ v2.0.0 固定提交 2662489 的 [双平台 CI](https://github.com/Abyssaler/Prov
 新增用户指定 AIHOT 公开价格页，证据见 [AIHOT 定价](evidence/aihot-pricing.md)，合成夹具 `fixtures/pricing/aihot/catalogue.html`。有界 SSR JSON 参考表、精确名称匹配、CNY/汇率来源、未知/零价、规则保护与事务回滚已做样本验证；真实页面读取、内存库导入及 Mac 原生隔离库一键导入已验证。第三方定价不改变账户接入证据等级。
 
 Grok/OpenCode/Pi/MCode 不再读取源自报成本，其 Token、身份、游标、去重和既有来源范围保持；费用矛盾不再影响 Token 完整性，旧 cost 输入夹具保留以验证被忽略。历史数据库成本列留作兼容且不再读写。没有新增 Agent 或账户实机声明。发行/Windows 边界见 [v2.0.4 记录](validation/2026-10-12-release-v2.0.4.md)。
+
+### v2.0.4 发行补验
+
+同 SHA 双平台 CI、11 项公开资产摘要和独立验签通过。Mac 正式应用内更新至 v2.0.4 并保留用户数据已实测；隔离测试产物已清理。Windows 仅 CI/NSIS 解包，未扩展为实机验证。详见本版核验记录。
