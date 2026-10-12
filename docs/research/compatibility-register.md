@@ -80,6 +80,10 @@ T00-G 状态：Desktop 模型映射最小网关演示**未完成**——需要�
 - E0：SiliconFlow **中国站** `/v1/user/info`（官方公告 2026-08-14 停用）；Xiaomi MiMo（仅控制台 Cookie 线索，接近 E0）。
 - 与 `docs/specs/ACCOUNT_ADAPTERS.md` 第 3 节的两处表述差异已按证据修正（MiniMax 路径、ZenMux 升级 E1），理由见该文档与审计文档。
 
+## 发布核验补记（2026-10-12）
+
+v2.0.0 固定提交 2662489 的 [双平台 CI](https://github.com/Abyssaler/Providock/actions/runs/38195092032) 全部成功；干净包清单、独立验签、远端摘要及 Mac 安装/启动/自动扫描冒烟通过，详见 [发布核验记录](validation/2026-10-12-release-v2.0.0.md)。这不增加适配器语义或真实账户的验证范围，不构成 Windows 实机证据。
+
 ## 下一步
 
 1. 按 fixture 计划编写合成样本与独立预期值（随 T04–T07 逐适配器落地，先 Codex/Kimi）。

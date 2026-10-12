@@ -20,9 +20,11 @@ pnpm test && cargo test --manifest-path src-tauri/Cargo.toml
 
 ## v2.0.0 发布
 
+[正式 Release](https://github.com/Abyssaler/Providock/releases/tag/v2.0.0) 已公开并设为 Latest，固定提交 2662489 的 [双平台 CI](https://github.com/Abyssaler/Providock/actions/runs/38195092032) 全部成功；10 项公开资产的远端摘要匹配，实际包内清单未含本机数据或签名秘密。本机 Mac 已安装 v2.0.0，启动、数据库完整性、旧事件保留与自动扫描周期观察通过。完整来源、校验和及验收边界见 [发布核验记录](research/validation/2026-10-12-release-v2.0.0.md)。
+
 维护者在 2026-10-12 明确要求将当前实现以 **v2.0.0 正式 Release / Latest** 发布，替代尚未发布的 1.1.0-preview.1 候选。[发布说明](releases/v2.0.0.md) 保留八源矩阵、已知缺口和手动安装方式；正式发布标记不代表 T15/T16、真实账户或所有 P0 门槛已经验收。
 
-此前 [候选 CI](https://github.com/Abyssaler/Providock/actions/runs/38139628694) 的 macOS 构建通过，但下载包的链接器签名没有封装完整应用资源；本机副本补签后已安装。Windows 测试通过，默认 MSI 打包因预发布后缀失败。本次改为显式 NSIS、Mac 完整 ad-hoc 签名/严格校验、签名资产齐全检查；正式资产必须来自 v2.0.0 对应完整提交成功的双平台 CI。
+此前 [候选 CI](https://github.com/Abyssaler/Providock/actions/runs/38139628694) 的 macOS 构建通过，但下载包的链接器签名没有封装完整应用资源；本机副本补签后曾安装，现已替换为 v2.0.0。Windows 测试通过，默认 MSI 打包因预发布后缀失败。本次改为显式 NSIS、Mac 完整 ad-hoc 签名/严格校验、签名资产齐全检查；正式资产必须来自 v2.0.0 对应完整提交成功的双平台 CI。
 
 Tauri/minisign 采用既有发布公钥及 CI Secrets，只给 push 构建签名；PR 禁用更新包签名生成，不需要私钥。该密钥不是 Apple Developer ID 或 Windows Authenticode 证书。
 
@@ -106,7 +108,8 @@ Tauri/minisign 采用既有发布公钥及 CI Secrets，只给 push 构建签名
 实现：services/{export,cleanup,pricing}.rs。
 
 任务：T15/T16（双平台实机/性能）
-状态：未开始。macOS 安装包可构建；Windows 完全未实机；百万事件基准未做。
+状态：部分完成。v2.0.0 双平台 CI/发行包核验通过；Mac 安装、启动、旧事件保留与自动扫描冒烟通过。
+      完整原生 GUI/凭据库、Windows 实机、睡眠唤醒、通用升级/回滚及百万事件基准未做。
 ```
 
 ## 关键不变量（改动前必读）

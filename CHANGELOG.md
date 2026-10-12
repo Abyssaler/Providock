@@ -33,6 +33,8 @@
 
 ### 验证与边界
 
+- v2.0.0 已作为非预览 Latest Release 公开；固定提交 2662489 的双平台 CI 通过。10 项公开资产包内清单、Tauri/minisign 独立验签与远端 SHA-256 已核对，本机 Mac 安装/启动、旧事件保留及自动扫描冒烟通过，未上传本机数据或签名秘密，见 [发布核验记录](docs/research/validation/2026-10-12-release-v2.0.0.md)。
+
 - 前端 48 项测试、类型检查、Prettier、Vite 构建、Rust 回归/fmt/Clippy 通过；Chrome 模拟 IPC 交互覆盖筛选、手动同步、开关保存、显示刷新分离和浅/深色布局。
 - macOS 的 Kimi/Codex 计量快照：全量与当天六项 Token 对独立计算一致，重扫守恒；具体数字和复现步骤见 [验证记录](docs/research/validation/2026-10-11-auto-monitoring.md)。
 - 该核对不覆盖平台余额/订阅额度；真实账户联网、Windows 实机、原生桌面端到端和性能基准未完成。
