@@ -415,11 +415,12 @@ export function metricMode(account: AccountSummaryDto, unsupportedHint = false):
   return "values";
 }
 
-export type StatusBucket = "ok" | "stale" | "auth" | "unsupported" | "failed";
+export type StatusBucket = "ok" | "stale" | "auth" | "unsupported" | "no_plan" | "failed";
 
 export function statusBucket(account: AccountSummaryDto, unsupportedHint = false): StatusBucket {
   if (metricMode(account, unsupportedHint) === "unsupported") return "unsupported";
   if (account.latestStatus === "auth_required") return "auth";
+  if (account.latestStatus === "no_plan") return "no_plan";
   if (account.stale) return "stale";
   const status = account.latestStatus;
   if (status && status !== "ok" && status !== "refreshing") return "failed";

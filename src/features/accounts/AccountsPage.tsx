@@ -38,6 +38,7 @@ const STATUS_FILTERS: { value: StatusBucket | "all"; label: string }[] = [
   { value: "stale", label: "快照已过期" },
   { value: "auth", label: "需要更新凭据" },
   { value: "unsupported", label: "暂未接入官方查询能力" },
+  { value: "no_plan", label: "无 Coding Plan 套餐" },
   { value: "failed", label: "暂时不可用" },
 ];
 

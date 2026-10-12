@@ -299,6 +299,11 @@ describe("metricMode / statusBucket：无能力与需更新凭据", () => {
     expect(statusBucket(acc)).toBe("auth");
   });
 
+  it("平台确认无套餐有独立分类，即使保留旧快照也不归入失败或过期", () => {
+    expect(statusBucket(account({ latestStatus: "no_plan" }))).toBe("no_plan");
+    expect(statusBucket(account({ latestStatus: "no_plan", stale: true }))).toBe("no_plan");
+  });
+
   it("失败后保留旧值记为过期", () => {
     const acc = account({ latestStatus: "unavailable", stale: true });
     expect(metricMode(acc)).toBe("values");

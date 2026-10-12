@@ -110,3 +110,7 @@ Agent 适配器提供 `detect_roots`、`detect_format`、`scan_incremental`、`c
 ## 2026-10-12 v2.0.2 运行策略
 
 macOS 原生 TrayIcon 与窗口 WebView 分离，模板图标随系统菜单栏明暗适配。菜单后台任务在阻塞线程短锁查询最近 24 小时 local_log 事件，然后释放 DB 锁再更新原生菜单项；每 30 秒或 usage-sync-updated 唤醒，不依赖前端是否可见。时间比较解析为 SQLite julianday，支持来源时区偏移；缺时间、网关域不计入，Token 用 u128 检查求和。关窗拦截后 hide，Dock Reopen/菜单打开恢复同一窗口，ExitRequested 取消 Agent、账户、菜单三个任务。未设置自启，不扩大网关范围。
+
+## v2.0.3 软件更新
+
+前端 features/updates 的控制器只维护检查/通知/下载进度与失败重试，官方 Tauri updater 负责固定 HTTPS 端点、版本比较、签名验证和安装；process 插件仅授权重启。开关保存在本机 WebView localStorage，独立于账本调度。更新清单、平台键及发布规则见 specs/APP_UPDATES.md，本版无 schema 变更。
