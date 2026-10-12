@@ -1,6 +1,16 @@
-# 当前状态与交接（2026-10-12）
+# 当前状态与交接（2026-10-13）
 
 本文是交接事实表：每块工作按 [开发手册](DEVELOPMENT_HANDBOOK.md) 第 10 节的格式给出，并遵守 [AGENTS.md](../AGENTS.md) 的交付约定。状态分级：`样本验证`（合成夹具+独立预期值通过）< `macOS 实测` < `live_verified`（真实凭据/双平台）。**尚未完成双平台完整验收；局部 macOS 真实账户验证见下文，不外推到整个账户域。各版本发行依据与验证边界分别记录。**
+
+## v2.1.0 改进与发布准备（2026-10-13）
+
+本轮以 v2.0.4 后 main `bad4942` 为基线，开发在独立本地副本；初期只做本地验证；用户已随后授权推送、发布 v2.1.0 和清理本地测试残余。发行核验另见 [v2.1.0 记录](research/validation/2026-10-13-release-v2.1.0.md)。详见[本地验证记录](research/validation/2026-10-13-local-redesign.md)和[实施计划](research/2026-10-13-local-redesign-plan.md)。以下状态优先于下方历史版本记录。
+
+- T12：保留顶部主导航；设置改为左侧采集/Agent 显示/更新/关于分组；统一页面操作、压缩摘要，常规覆盖说明移至少量提示或详情，错误/过期/未知/部分覆盖保留。用量增加滚动 1/3/6 小时和本机自定义日期时间，汇总/趋势/明细共用已应用区间；48 小时内小时桶。
+- A10 DeepSeek Harness：官方固定提交证据 + 合成独立预期 + parser/scanner/UI；session v3/v4、JSONL/.zstd、多代择高、重试、摘要、父分叉、重复副本回归。未知版本、无法核对的父链暂缓且不删历史；旧 v0–2、自定义 sessionsDir、真实 Harness 日志与 Windows 尚未验证。
+- B07：官方 stdio 已接线，添加账户支持本机 ChatGPT 登录，无 Key；实际 macOS 只读查询返回 5h/7d 窗口。认证由官方进程持有。未接 account/usage/read 写入、未做 Windows 实测。
+- T14：AIHOT 从批量写库改为选定 Agent/模型后仅获取候选报价，用户保存；官网公开 HTTPS 静态表程序解析 + 主动选择 DeepSeek/GLM/OpenRouter API 模型的一次辅助解析。无工具循环，结果校验后填表；付费推理仅合成验证，未使用真实 Key 验证。
+- 数据 schema 不变，发行版本升为 2.1.0；真实用户账本/账户/凭据不参与写入测试。新兼容状态见兼容登记；本轮测试和原生验证结果单独记录，不外推历史 Windows CI。
 
 ## 怎么跑起来
 
@@ -93,7 +103,7 @@ Tauri/minisign 采用既有发布公钥及 CI Secrets，只给 push 构建签名
       另有局部 macOS 真实凭据验证，其他平台不外推。实现：services/accounts.rs、account_query.rs（逐跳重定向剥
       Authorization 有 mock 验证）、account_scheduler.rs（已接后台循环与独立开关）、
       adapters/accounts/（common.rs 收口）+ fixtures/accounts/。
-缺口：Codex App Server 是进程协议只占位 unsupported；GLM 双 TOKENS_LIMIT 区分待官方证据；
+缺口：GLM 双 TOKENS_LIMIT 区分待官方证据；（B07 stdio 在 2026-10-13 本地改进中接通，见上文）
       usage_metrics 表就绪但暂无写入方（只有 B07 能产出）；Retry-After/指数退避、
       credential/scope 级并发与手动限频仍待实现，当前只有同账户请求排重。
 新增：逐账户到期时间（余额 15 分钟/计划 5 分钟、失败及手动均计入尝试），关闭时跳过启动首轮；

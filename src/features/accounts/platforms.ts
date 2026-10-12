@@ -135,22 +135,15 @@ export const PLATFORM_TEMPLATES: PlatformTemplate[] = [
   },
   {
     key: "codex",
-    label: "Codex",
+    label: "Codex / ChatGPT 官方额度",
     regions: GLOBAL_ONLY,
-    querySupported: false,
-    note: "官方 App Server 为进程协议，本版仅保留账户记录；额度查询显示“暂未接入官方查询能力”。",
+    querySupported: true,
+    note: "跟随本机 Codex 当前的 ChatGPT 登录，只读查询订阅额度。请先在官方 Codex 中登录；无需 API Key。",
     credentials: [
       {
-        type: "local_server_token",
-        label: "本机 App Server 令牌",
-        minimalPermission:
-          "官方 App Server 只读方法（account/rateLimits/read）的本地凭据；不驱动 turn。",
-      },
-      {
         type: "oauth_handle",
-        label: "官方登录凭据句柄",
-        minimalPermission:
-          "仅在用户明确选择该连接方式时读取官方登录凭据，不作为默认目录扫描的一部分。",
+        label: "使用本机 Codex 登录",
+        minimalPermission: "官方 App Server 只读额度，不复制登录令牌、不发起模型调用。",
       },
     ],
   },

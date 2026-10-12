@@ -1021,3 +1021,177 @@
     flex-direction: column;
   }
 }
+
+/* One toolbar, a compact summary, progressive details. */
+.usage-page .usage-heading {
+  margin-bottom: 24px;
+  align-items: center;
+}
+.usage-page .usage-heading h1 {
+  font-size: 28px;
+  margin: 0;
+  letter-spacing: -0.5px;
+}
+.usage-page .usage-toolbar {
+  gap: 14px;
+}
+.usage-page .agent-tabs {
+  border-radius: 12px;
+  padding: 4px;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.usage-page .agent-tabs button {
+  padding: 8px 12px;
+  min-height: 36px;
+  border-radius: 8px;
+  flex: 0 1 auto;
+  font-size: 13px;
+}
+.usage-page .usage-selects {
+  gap: 10px;
+}
+.usage-page .usage-select .pd-select-trigger {
+  min-height: 42px;
+  padding: 9px 13px;
+  font-size: 13px;
+}
+.usage-page .usage-price-button {
+  padding: 8px 14px;
+  min-height: 36px;
+}
+.usage-page .usage-sync-line {
+  margin: 12px 0 18px;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.usage-page .usage-overview {
+  padding: 24px;
+}
+.usage-page .usage-hero-row {
+  padding: 0;
+  margin-bottom: 24px;
+}
+.usage-page .usage-total-number {
+  font-size: 40px;
+  line-height: 1.3;
+}
+.usage-page .usage-bolt {
+  width: 54px;
+  height: 54px;
+  border-radius: 14px;
+}
+.usage-page .usage-bolt svg {
+  width: 28px;
+  height: 28px;
+}
+.usage-page .usage-mini-stats {
+  min-width: 100px;
+}
+.usage-page .usage-metrics {
+  gap: 12px;
+  margin-top: 0;
+}
+.usage-page .usage-metric {
+  min-height: 112px;
+  padding: 16px;
+  border-radius: 12px;
+  gap: 8px;
+}
+.usage-page .usage-metric strong {
+  font-size: 23px;
+  line-height: 1.4;
+}
+.usage-page .usage-metric-head {
+  font-size: 12px;
+}
+.usage-page .usage-dates {
+  margin: 14px 0;
+}
+.usage-page .usage-dates input {
+  color-scheme: dark;
+  max-width: 230px;
+}
+.usage-page .usage-chart-card {
+  margin-top: 24px;
+}
+.usage-page .usage-chart-card h2 span {
+  margin-left: 8px;
+  font-weight: 400;
+}
+@media (max-width: 1100px) {
+  .usage-page .usage-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 650px) {
+  .usage-page .usage-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .usage-page .usage-total-number {
+    font-size: 30px;
+  }
+  .usage-page .usage-total-number small {
+    display: none;
+  }
+}
+.pricing-fetch {
+  margin: 20px 0;
+  padding: 16px;
+  background: #0d0d0d;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.pricing-url-row {
+  display: flex;
+  gap: 8px;
+  margin: 12px 0;
+}
+.pricing-url-row input {
+  flex: 1;
+  min-width: 0;
+}
+.pricing-helper {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.pricing-helper p {
+  grid-column: 1/-1;
+  margin: 0;
+}
+.pricing-helper button {
+  justify-self: start;
+}
+.pricing-dialog .pricing-grid {
+  margin-top: 20px;
+}
+@media (max-width: 650px) {
+  .pricing-url-row {
+    flex-wrap: wrap;
+  }
+  .pricing-helper {
+    grid-template-columns: 1fr;
+  }
+}
+.usage-page .usage-dates label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.usage-page .usage-dates input {
+  background: #111;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  min-height: 38px;
+  padding: 8px 10px;
+  font: inherit;
+}
+.usage-page .usage-dates input:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}

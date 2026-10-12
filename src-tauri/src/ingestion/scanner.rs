@@ -1,4 +1,4 @@
-//! 源发现与增量扫描（A01–A08；本轮接入 A01/A03/A04/A05/A06/A07，A02/A08 既有）。
+//! 源发现与增量扫描（A01–A08 与 A10 DeepSeek Harness，共九个本地 Agent）。
 //!
 //! 路径规则（AGENT_ADAPTERS 第 2 节 + 证据文档）：
 //! - Kimi：`KIMI_CODE_HOME` > `~/.kimi-code`；会话在 `sessions/<wdKey>/<sessionId>/`，
@@ -41,6 +41,7 @@ use super::{
 };
 use crate::adapters::agents::claude_code::{self, ClaudeParseConfig};
 use crate::adapters::agents::codex_rollout::{self, CodexParseConfig, CodexStatus, EventSignature};
+use crate::adapters::agents::deepseek_harness;
 use crate::adapters::agents::gemini_cli::{self, GeminiParseConfig};
 use crate::adapters::agents::grok_build::{self, GrokParseConfig};
 use crate::adapters::agents::kimi_wire::{self, WireParseConfig};
@@ -234,6 +235,22 @@ pub fn discover_sources() -> Vec<DiscoveredSource> {
         }
     }
 
+    let dsh = env_path("DSH_HOME")
+        .filter(|p| !p.to_string_lossy().trim().is_empty())
+        .or_else(|| home.as_ref().map(|h| h.join(".dsh")));
+    if let Some(root) = dsh {
+        let root = root.join("sessions");
+        if root.is_dir() {
+            out.push(DiscoveredSource {
+                source_id: "deepseek_harness:default".into(),
+                agent: AgentKind::DeepseekHarness,
+                root,
+                parser_version: deepseek_harness::PARSER_VERSION,
+                resolution: "DSH_HOME 或 ~/.dsh/sessions".into(),
+            });
+        }
+    }
+
     out
 }
 
@@ -364,6 +381,7 @@ pub fn scan_source(
         AgentKind::Opencode => scan_opencode(db, src),
         AgentKind::Pi => scan_pi(db, src),
         AgentKind::Mcode => scan_mcode(db, src),
+        AgentKind::DeepseekHarness => scan_deepseek_harness(db, src),
         AgentKind::ClaudeDesktop => unreachable!("scanner not implemented for this agent"),
     }
 }
@@ -1828,6 +1846,204 @@ fn read_rollout_bytes(path: &Path) -> std::io::Result<Vec<u8>> {
     } else {
         Ok(bytes)
     }
+}
+
+/// Highest committed physical generation per session; old migration artifacts are not extra usage.
+fn dsh_files(root: &Path, depth: usize, out: &mut Vec<PathBuf>) {
+    if depth == 0 {
+        return;
+    }
+    let Ok(entries) = std::fs::read_dir(root) else {
+        return;
+    };
+    let mut selected: Option<(u64, bool, PathBuf)> = None;
+    for entry in entries.flatten() {
+        let Ok(kind) = entry.file_type() else {
+            continue;
+        };
+        if kind.is_symlink() {
+            continue;
+        }
+        let path = entry.path();
+        if kind.is_dir() {
+            dsh_files(&path, depth - 1, out);
+            continue;
+        }
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        let (base, compressed) = match name.strip_suffix(".zstd") {
+            Some(n) => (n, true),
+            None => (name.as_ref(), false),
+        };
+        let version = if base == "session.jsonl" {
+            Some(0)
+        } else {
+            base.strip_prefix("session.v")
+                .and_then(|s| s.strip_suffix(".jsonl"))
+                .filter(|v| !v.starts_with('0'))
+                .and_then(|v| v.parse::<u64>().ok())
+        };
+        if let Some(version) = version {
+            if selected
+                .as_ref()
+                .is_none_or(|(old, z, _)| version > *old || (version == *old && *z && !compressed))
+            {
+                selected = Some((version, compressed, path));
+            }
+        }
+    }
+    if let Some((_, _, path)) = selected {
+        out.push(path);
+    }
+}
+fn scan_deepseek_harness(
+    db: &mut Database,
+    src: &DiscoveredSource,
+) -> Result<SourceScanReport, IngestionError> {
+    use std::io::Read;
+    const LIMIT: u64 = 100 * 1024 * 1024;
+    let mut report = base_report(src);
+    let mut files = vec![];
+    dsh_files(&src.root, 6, &mut files);
+    files.sort();
+    let mut parsed = vec![];
+    for path in files {
+        report.files_seen += 1;
+        let identity = path.to_string_lossy().into_owned();
+        let Some((size, mtime)) = file_meta(&path) else {
+            continue;
+        };
+        if size > 50 * 1024 * 1024 {
+            report.files_deferred += 1;
+            report
+                .diagnostics
+                .push("deepseek_harness:file_too_large".into());
+            continue;
+        }
+        let read = (|| -> std::io::Result<Vec<u8>> {
+            let file = std::fs::File::open(&path)?;
+            let mut bytes = vec![];
+            if path.extension().is_some_and(|x| x == "zstd") {
+                zstd::stream::read::Decoder::new(file)?
+                    .take(LIMIT + 1)
+                    .read_to_end(&mut bytes)?;
+            } else {
+                file.take(LIMIT + 1).read_to_end(&mut bytes)?;
+            }
+            if bytes.len() as u64 > LIMIT {
+                return Err(std::io::Error::other("expanded log too large"));
+            }
+            Ok(bytes)
+        })();
+        let Ok(bytes) = read else {
+            report.files_deferred += 1;
+            report.diagnostics.push(format!(
+                "deepseek_harness:read_deferred:{}",
+                anon_id(&identity)
+            ));
+            continue;
+        };
+        let out = deepseek_harness::parse(
+            &bytes,
+            &deepseek_harness::Config {
+                source_id: &src.source_id,
+                file_identity: &identity,
+                observed_at: &observed_now(),
+                parent_available: true,
+            },
+        );
+        report.diagnostics.extend(out.diagnostics.iter().cloned());
+        parsed.push((identity, size, mtime, out));
+    }
+    let mut available = HashSet::<String>::new();
+    for _ in 0..=parsed.len() {
+        let before = available.len();
+        for (_, _, _, out) in &parsed {
+            if out.compatible
+                && (!out.seeded
+                    || out
+                        .parent_id
+                        .as_ref()
+                        .is_some_and(|p| available.contains(p)))
+            {
+                if let Some(id) = &out.session_id {
+                    available.insert(id.clone());
+                }
+            }
+        }
+        if before == available.len() {
+            break;
+        }
+    }
+    let run_id = start_parse_run(db, &src.source_id, src.parser_version)?;
+    for (identity, size, mtime, out) in parsed {
+        if !out.compatible
+            || out
+                .session_id
+                .as_ref()
+                .is_none_or(|id| !available.contains(id))
+        {
+            report.files_deferred += 1;
+            report
+                .diagnostics
+                .push("deepseek_harness:format_or_parent_unavailable".into());
+            continue;
+        }
+        let fingerprint = format!("{size}:{mtime}");
+        let cursor = read_cursor(db, &src.source_id, &identity, "byte_offset")?;
+        if cursor.as_ref().is_some_and(|c| {
+            c.tail_checksum.as_deref() == Some(&fingerprint)
+                && c.parser_version == src.parser_version
+        }) {
+            report.files_unchanged += 1;
+            continue;
+        }
+        let batch = ImportBatch {
+            source_id: src.source_id.clone(),
+            events: out
+                .events
+                .into_iter()
+                .map(|event| EventInput {
+                    event,
+                    replace_existing: false,
+                })
+                .collect(),
+            sessions: vec![SessionUpsert {
+                session_id: out.session_id.unwrap_or_default(),
+                parent_session_key: out
+                    .parent_id
+                    .map(|parent| format!("{}:{parent}", src.source_id)),
+                title: None,
+                project_ref: None,
+                last_seen_at: None,
+                archived: false,
+                has_subagents: out.subagent,
+            }],
+            cursor: Some(CursorUpdate {
+                file_identity: identity,
+                generation: 0,
+                parser_version: src.parser_version.into(),
+                cursor_kind: "byte_offset".into(),
+                cursor_value: out.consumed.to_string(),
+                tail_checksum: Some(fingerprint),
+            }),
+        };
+        commit_and_count(db, run_id, &batch, &mut report)?;
+        report.files_scanned += 1;
+    }
+    db.conn().execute(
+        "UPDATE sources SET compat_status=?1 WHERE source_id=?2",
+        rusqlite::params![
+            if report.files_deferred > 0 {
+                "partial"
+            } else {
+                "compatible"
+            },
+            src.source_id
+        ],
+    )?;
+    finish_parse_run(db, run_id, true, None)?;
+    Ok(report)
 }
 
 #[cfg(test)]

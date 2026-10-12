@@ -1,6 +1,6 @@
 import type { UsageFilter } from "../../contracts/usage";
 
-export type Period = "today" | "7d" | "30d" | "all" | "custom";
+export type Period = "1h" | "3h" | "6h" | "today" | "7d" | "30d" | "all" | "custom";
 export const AGENTS = [
   ["claude_code", "Claude Code"],
   ["codex", "Codex"],
@@ -10,6 +10,7 @@ export const AGENTS = [
   ["pi", "Pi"],
   ["mcode", "MCode"],
   ["kimi_code", "Kimi Code"],
+  ["deepseek_harness", "DeepSeek Harness"],
 ] as const;
 export function agentLabel(id: string): string {
   return AGENTS.find(([key]) => key === id)?.[1] ?? id;
@@ -47,7 +48,7 @@ export function isAgentVisible(visible: string[] | null | undefined, id: string)
 }
 
 /**
- * 查询过滤的 `agents` 字段：可见集合是全部 8 个（或未知）时省略（后端不加限制），
+ * 查询过滤的 `agents` 字段：可见集合是全部 Agent（或未知）时省略（后端不加限制），
  * 否则返回需要限定的 id 列表。
  */
 export function agentsFilter(visible: string[] | null | undefined): string[] | undefined {
@@ -58,7 +59,35 @@ export function agentsFilter(visible: string[] | null | undefined): string[] | u
 /** 日期按用户本地日历转换为 UTC 半开区间；结束日期包含整天。 */
 export function periodFilter(period: Period, now = new Date(), start = "", end = ""): UsageFilter {
   if (period === "all") return {};
+  if (period === "1h" || period === "3h" || period === "6h") {
+    return {
+      from: new Date(now.getTime() - Number(period[0]) * 3_600_000).toISOString(),
+      to: now.toISOString(),
+    };
+  }
   if (period === "custom") {
+    if (start.includes("T") || end.includes("T")) {
+      const pattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+      const from = new Date(start);
+      const to = new Date(end);
+      const exact = (date: Date, raw: string) => {
+        if (!Number.isFinite(date.getTime())) return false;
+        const pad = (n: number) => String(n).padStart(2, "0");
+        return (
+          `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}` ===
+          raw
+        );
+      };
+      if (
+        !pattern.test(start) ||
+        !pattern.test(end) ||
+        !exact(from, start) ||
+        !exact(to, end) ||
+        from >= to
+      )
+        throw new Error("请选择有效的起止时间，结束时间须晚于开始时间");
+      return { from: from.toISOString(), to: to.toISOString() };
+    }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end) || start > end)
       throw new Error("请选择有效的开始和结束日期");
     const from = new Date(`${start}T00:00:00`);
@@ -78,6 +107,14 @@ export function periodFilter(period: Period, now = new Date(), start = "", end =
   from.setHours(0, 0, 0, 0);
   if (period !== "today") from.setDate(from.getDate() - (period === "7d" ? 6 : 29));
   return { from: from.toISOString(), to: now.toISOString() };
+}
+
+export function usesHourlyBuckets(filter: UsageFilter): boolean {
+  return (
+    !!filter.from &&
+    !!filter.to &&
+    new Date(filter.to).getTime() - new Date(filter.from).getTime() <= 48 * 3_600_000
+  );
 }
 
 export function percentage(value: string | null): string {

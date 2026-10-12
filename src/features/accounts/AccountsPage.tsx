@@ -228,7 +228,6 @@ export default function AccountsPage() {
       <div className="page-head">
         <div>
           <h1>账户与额度</h1>
-          <p className="muted">API 余额与 Coding Plan 独立管理，无需绑定 Agent。</p>
         </div>
         <div className="actions">
           <button
@@ -271,7 +270,6 @@ export default function AccountsPage() {
             ))}
           </Select>
         </label>
-        <span className="small muted">额度是平台范围，不与本机 Token 求和</span>
       </div>
 
       {error && (
@@ -291,13 +289,7 @@ export default function AccountsPage() {
           <p>
             <strong>还没有账户。</strong>
           </p>
-          <p className="muted">
-            点击右上角「添加账户」：平台与区域 → 账户类型 → 凭据类型与最小权限说明 → 只读验证。 API
-            Key 明文保存在本机，重启后直接使用；不访问系统钥匙串。
-          </p>
-          <p className="muted small">
-            账户不绑定 Agent；平台没有官方查询能力时只保留管理与凭据，不显示虚构余额。
-          </p>
+          <p className="muted">添加账户以查看余额和订阅额度。</p>
         </div>
       )}
 
@@ -334,7 +326,10 @@ export default function AccountsPage() {
 
       {addOpen && (
         <AddAccountDrawer
-          onClose={() => setAddOpen(false)}
+          onClose={() => {
+            setAddOpen(false);
+            void reload();
+          }}
           onSaved={() => {
             setToast("账户已保存。可用「立即验证」做一次只读查询。");
             void reload();
@@ -424,7 +419,11 @@ function AccountCard({ account, mode, now, busy, onRefresh, onRotate, onDelete }
           {platformLabel(account.platform)}
           {region ? ` · ${region}` : ""} · {CONFIG_KIND_LABELS[account.configKind]}
         </p>
-        <p className="small muted">{credentialSummary(account.credentials)}</p>
+        <p className="small muted">
+          {account.platform === "codex"
+            ? "本机 ChatGPT 登录"
+            : credentialSummary(account.credentials)}
+        </p>
         {evidence && (
           <details className="acct-evidence">
             <summary className="badge">{evidence}</summary>
@@ -473,9 +472,11 @@ function AccountCard({ account, mode, now, busy, onRefresh, onRotate, onDelete }
             <button role="menuitem" disabled={busy} onClick={run(onRefresh)}>
               刷新
             </button>
-            <button role="menuitem" onClick={run(onRotate)}>
-              更新凭据
-            </button>
+            {account.platform !== "codex" && (
+              <button role="menuitem" onClick={run(onRotate)}>
+                更新凭据
+              </button>
+            )}
             <button role="menuitem" className="acct-menu-danger" onClick={run(onDelete)}>
               删除本地记录
             </button>

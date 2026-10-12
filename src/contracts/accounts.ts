@@ -140,7 +140,7 @@ export interface AccountSummaryDto {
   stale: boolean;
   /** 最近一行查询的状态（含失败），无任何查询为 null。 */
   latestStatus: SnapshotStatus | null;
-  /** Key is present in this process; false after restart until re-entered. */
+  /** 凭据库可提供 Key，或该账户使用官方进程持有的本机登录。 */
   credentialReady: boolean;
 }
 

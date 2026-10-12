@@ -18,3 +18,7 @@ pub mod usage_details;
 pub mod menu_usage;
 
 pub mod price_import;
+
+pub mod codex_connection;
+
+pub mod price_page;

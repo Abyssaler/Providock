@@ -154,3 +154,13 @@ pnpm tauri build                   # 在目标 OS 构建
 ## v2.0.4 接手注意
 
 当前费用仅模型价格估算，源自报费用业务已移除；旧 DB 三列不删。精确金额展示两位小数，费率/底层计算不截断。新导出契约为 statistics.v2。AIHOT 导入的证据、合成夹具和测试见 price_import 服务；只在隔离库运行真实价格核验例子，不用用户数据做 UI 夹具。统计卡默认当天口径，沿用筛选并标实际起止；共享 Select 需保持键盘、焦点及 dialog 层级。发布事实见本版核验记录，不将 CI 视为 Windows 实机。
+
+## 2026-10-13 本地开发补充
+
+本轮改进未发布，正式下载仍 v2.0.4。接手先读 CURRENT_STATUS 顶部本地改进和对应验证记录，不能将历史批量 AIHOT 导入或 B07 占位作为当前事实。新增九源 DSH、单次价格辅助约束见 AGENTS/数据/隐私规范。
+
+`cargo run --manifest-path src-tauri/Cargo.toml --example verify_codex_limits` 只通过官方 App Server 查询，不写 Providock 库、不输出身份。`prepare_local_review` 要求显式全新目录，生成四条合成 DSH 记录且关闭自动采集/账户刷新；原生测试必须另用标识/数据目录，不能指向正式账本。
+
+### v2.1.0 发行后接手
+
+用户已在本地验收后授权发布 v2.1.0；此前“未发布/不推送”为阶段记录，不再是当前限制。发行事实与清理结果以 2026-10-13-release-v2.1.0.md 为准。

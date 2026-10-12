@@ -90,3 +90,9 @@ Key 指纹使用本机带盐 HMAC，UI 默认显示掩码和别名。删除账�
 每项适配器先有 evidence manifest，再有脱敏响应夹具、请求 header 构造测试、单位换算和错误映射测试。mock 验证不发送推理请求、不向非白名单 host 传密钥、不跨 host 跟随鉴权重定向。实测需要拥有者提供对应权限，不用开发者的个人账户数据当公共夹具。
 
 余额 0、负余额、多币种、赠金包含关系、只给百分比、多个不同单位窗口、同账户多 Key、接口停用、业务错误 HTTP200、认证过期、断网、429、schema 变化和旧快照显示全部验收。没有真实凭据可验证的适配器标“样本验证”，不标“已实测”。
+
+## 2026-10-13 B07 当前接线
+
+Codex 官方登录已经接通 stdio（不再占位）。添加账户选 Codex / ChatGPT 官方额度，固定 Coding Plan，无凭据输入。CLI 按 CODEX_CLI_PATH、PATH 及已知官方安装路径查找；先 initialize，再 account/read 确认 ChatGPT 类型，最后 account/rateLimits/read。跟随本机当前登录，别名不代表另一独立身份。不读取 OAuth token，不创建对话/调用推理。未登录/API Key 登录/缺 CLI/未知协议分别失败或降级，保留旧快照。
+
+本机 macOS 命令及原生添加→验证已返回 5h/7d 窗口；Windows 仍未验证。account/usage/read 的持久化尚未接入，余额和本机 Token 仍分域。

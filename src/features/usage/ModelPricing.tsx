@@ -1,7 +1,8 @@
 import { SelectField as Select } from "../../components/Select";
+import Hint from "../../components/Hint";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import type { ModelPrice, PriceImportResult } from "../../contracts/pricing";
+import type { ModelPrice, PriceQuote } from "../../contracts/pricing";
 import type { UsageOptions } from "../../contracts/usage";
 import { AGENTS, agentLabel } from "./usageDisplay";
 import {
@@ -81,7 +82,13 @@ export default function ModelPricing({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [importResult, setImportResult] = useState<PriceImportResult | null>(null);
+  const [importResult, setImportResult] = useState<PriceQuote | null>(null);
+  const [pricingUrl, setPricingUrl] = useState("");
+  const [helperAccounts, setHelperAccounts] = useState<{ accountId: string; label: string }[]>([]);
+  const [helperAccount, setHelperAccount] = useState("");
+  const [helperModel, setHelperModel] = useState("");
+  const [helperEnabled, setHelperEnabled] = useState(false);
+  const [helperModels, setHelperModels] = useState<string[]>([]);
   const [importing, setImporting] = useState(false);
   const reload = useCallback(async () => {
     try {
@@ -107,6 +114,7 @@ export default function ModelPricing({
       await invoke("model_price_save", { input: rule });
       await reload();
       onSaved();
+      setImportResult(null);
       setSaved(true);
     } catch (e) {
       setError(String(e));
@@ -114,19 +122,39 @@ export default function ModelPricing({
       setBusy(false);
     }
   };
-  const importPrices = async () => {
+  const importPrices = async (fromPage = false, assisted = false) => {
+    if (!draft.model.trim()) {
+      setError("请先选择 Agent 和模型");
+      return;
+    }
     setBusy(true);
     setImporting(true);
     setError(null);
     setImportResult(null);
     setSaved(false);
     try {
-      const result = await invoke<PriceImportResult>("model_prices_import", {
-        target: draft.model.trim() ? { agent: draft.agent, model: draft.model.trim() } : null,
-      });
+      const target = { agent: draft.agent, model: draft.model.trim() };
+      const result = fromPage
+        ? await invoke<PriceQuote>("model_price_from_page", {
+            input: {
+              ...target,
+              url: pricingUrl.trim(),
+              accountId: assisted ? helperAccount : null,
+              parserModel: assisted ? helperModel.trim() : null,
+            },
+          })
+        : await invoke<PriceQuote>("model_prices_import", { target });
+      if ((form.peakOn || form.longOn) && result.currency !== draft.currency)
+        throw new Error("报价币种与现有分档不同，请先核对并调整分档。");
+      setDraft((prev) => ({
+        ...prev,
+        currency: result.currency,
+        input: result.input,
+        output: result.output,
+        cacheRead: result.cacheRead,
+        cacheWrite: result.cacheWrite,
+      }));
       setImportResult(result);
-      await reload();
-      onSaved();
     } catch (e) {
       setError(String(e));
     } finally {
@@ -134,6 +162,11 @@ export default function ModelPricing({
       setImporting(false);
     }
   };
+  useEffect(() => {
+    invoke<{ accountId: string; label: string }[]>("price_parser_accounts")
+      .then(setHelperAccounts)
+      .catch(() => {});
+  }, []);
   const update = (patch: Partial<StrategyForm>) => {
     setForm((prev) => ({ ...prev, ...patch }));
     setSaved(false);
@@ -158,51 +191,19 @@ export default function ModelPricing({
     >
       <div className="pricing-head">
         <div>
-          <span className="usage-eyebrow">COST SETTINGS</span>
-          <h2>模型成本定价</h2>
+          <h2>
+            模型成本定价{" "}
+            <Hint label="模型定价说明">
+              留空表示未知，0
+              表示明确免费。缺少用量或价格时只估算已知分量。特定来源规则优先；订阅用量的 API
+              等价估算不代表实际账单。
+            </Hint>
+          </h2>
         </div>
-        <button onClick={onClose} aria-label="关闭模型定价">
+        <button autoFocus onClick={onClose} aria-label="关闭模型定价">
           关闭
         </button>
       </div>
-      <p className="muted">
-        按每百万 Token 填写价格，用量页按当前价格估算所选范围；旧价格版本保留。
-      </p>
-      <div className="pricing-import">
-        <div>
-          <strong>导入 AIHOT 模型价格</strong>
-          <p className="small muted">
-            为本机已使用的模型及当前填写的模型匹配人民币价格。保留手动、分档和已停用规则；缓存创建等未提供的价格留空。
-          </p>
-          <a href="https://aihot.news/leaderboard" target="_blank" rel="noreferrer">
-            查看价格来源 ↗
-          </a>
-        </div>
-        <button
-          type="button"
-          className="primary"
-          disabled={busy}
-          onClick={() => void importPrices()}
-        >
-          {importing ? "正在获取价格…" : "一键导入价格"}
-        </button>
-      </div>
-      {importResult && (
-        <div className="pricing-import-result" role="status">
-          已导入 {importResult.imported} 条，保留 {importResult.preserved} 条已有规则。人民币汇率{" "}
-          {importResult.fxRate} · {importResult.fxDate}；来源更新{" "}
-          {new Date(importResult.sourceUpdatedAt).toLocaleString("zh-CN")}。
-          {importResult.unmatched.length > 0 && (
-            <details>
-              <summary>未匹配 {importResult.unmatched.length} 个模型</summary>
-              <p>{importResult.unmatched.join("、")}</p>
-              <p className="muted small">
-                请手动配置准确模型名与价格。网站未提供的模型和计费分档不会自动推断。
-              </p>
-            </details>
-          )}
-        </div>
-      )}
       <form
         noValidate
         onSubmit={(e) => {
@@ -223,10 +224,13 @@ export default function ModelPricing({
           <label>
             Agent
             <Select
+              disabled={busy}
               aria-label="定价 Agent"
               value={draft.agent}
               onChange={(e) => {
-                setDraft({ ...draft, agent: e.target.value, sourceId: null });
+                setDraft(blank(e.target.value));
+                setForm(blankStrategyForm());
+                setImportResult(null);
                 setSaved(false);
               }}
             >
@@ -240,6 +244,7 @@ export default function ModelPricing({
           <label>
             适用来源
             <Select
+              disabled={busy}
               aria-label="定价适用来源"
               value={draft.sourceId ?? ""}
               onChange={(e) => setDraft({ ...draft, sourceId: e.target.value || null })}
@@ -258,14 +263,31 @@ export default function ModelPricing({
             模型名称
             <input
               required
+              disabled={busy}
               maxLength={200}
               list="price-model-options"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
               placeholder="与日志中的模型名完全匹配"
               value={draft.model}
-              onChange={(e) => setDraft({ ...draft, model: e.target.value })}
+              onChange={(e) => {
+                setDraft({
+                  ...draft,
+                  model: e.target.value,
+                  ...(importResult
+                    ? { input: null, output: null, cacheRead: null, cacheWrite: null }
+                    : {}),
+                });
+                setImportResult(null);
+                setSaved(false);
+              }}
             />
             <datalist id="price-model-options">
-              {options.models.map((m) => (
+              {(options.modelsByAgent
+                ? (options.modelsByAgent[draft.agent] ?? [])
+                : options.models
+              ).map((m) => (
                 <option key={m} value={m} />
               ))}
             </datalist>
@@ -282,6 +304,137 @@ export default function ModelPricing({
             </Select>
           </label>
         </div>
+        <div className="pricing-fetch">
+          <div className="actions">
+            <button
+              type="button"
+              disabled={busy || !draft.model.trim()}
+              onClick={() => void importPrices()}
+            >
+              {importing ? "获取中…" : "从 AIHOT 导入"}
+            </button>
+            <span className="small muted">每百万 Token · 获取后核对保存</span>
+          </div>
+          <details className="pricing-section">
+            <summary>从官网链接获取</summary>
+            <div className="pricing-url-row">
+              <input
+                type="url"
+                aria-label="模型计费官网链接"
+                placeholder="https://… 模型计费官网"
+                value={pricingUrl}
+                disabled={busy}
+                onChange={(e) => setPricingUrl(e.target.value)}
+              />
+              <button
+                type="button"
+                disabled={busy || !pricingUrl.trim() || !draft.model.trim()}
+                onClick={() => void importPrices(true)}
+              >
+                程序解析
+              </button>
+            </div>
+            <label className="pricing-enable">
+              <input
+                type="checkbox"
+                checked={helperEnabled}
+                onChange={(e) => setHelperEnabled(e.target.checked)}
+              />
+              可选：模型辅助解析
+            </label>
+            {helperEnabled && (
+              <div className="pricing-helper">
+                <Select
+                  aria-label="解析用 API 账户"
+                  value={helperAccount}
+                  disabled={busy}
+                  onChange={(e) => {
+                    setHelperAccount(e.target.value);
+                    setHelperModel("");
+                    setHelperModels([]);
+                  }}
+                >
+                  <option value="">选择已有 API 账户</option>
+                  {helperAccounts.map((a) => (
+                    <option key={a.accountId} value={a.accountId}>
+                      {a.label}
+                    </option>
+                  ))}
+                </Select>
+                <input
+                  aria-label="解析用模型 ID"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  list="parser-model-options"
+                  placeholder="选择或输入解析模型 ID"
+                  value={helperModel}
+                  disabled={busy}
+                  onChange={(e) => setHelperModel(e.target.value)}
+                />
+                <datalist id="parser-model-options">
+                  {helperModels.map((id) => (
+                    <option key={id} value={id} />
+                  ))}
+                </datalist>
+                <button
+                  type="button"
+                  disabled={busy || !helperAccount}
+                  onClick={async () => {
+                    setBusy(true);
+                    setError(null);
+                    try {
+                      setHelperModels(
+                        await invoke<string[]>("price_parser_models", { accountId: helperAccount }),
+                      );
+                    } catch (e) {
+                      setError(String(e));
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                >
+                  获取账户模型列表
+                </button>
+                <p className="small muted">
+                  点击「用所选模型解析」会发送公开价格页文本，产生一次 API 调用费用。支持
+                  DeepSeek、GLM、OpenRouter 的 API Key。
+                </p>
+                <button
+                  type="button"
+                  disabled={
+                    busy ||
+                    !helperAccount ||
+                    !helperModel.trim() ||
+                    !pricingUrl.trim() ||
+                    !draft.model.trim()
+                  }
+                  onClick={() => void importPrices(true, true)}
+                >
+                  用所选模型解析
+                </button>
+              </div>
+            )}
+          </details>
+          {importResult && (
+            <div className="pricing-import-result" role="status">
+              <strong>
+                {importResult.method} · {importResult.model} · 报价已填入，待保存
+              </strong>
+              <details>
+                <summary>来源与核对说明</summary>
+                <a href={importResult.sourceUrl} target="_blank" rel="noreferrer">
+                  查看计费来源 ↗
+                </a>
+                {importResult.notes.map((note) => (
+                  <p key={note} className="small muted">
+                    {note}
+                  </p>
+                ))}
+              </details>
+            </div>
+          )}
+        </div>
         <RateFields
           rates={draft}
           currency={draft.currency}
@@ -290,11 +443,6 @@ export default function ModelPricing({
             setSaved(false);
           }}
         />
-        <p className="small muted">
-          留空 = 未知；0 =
-          明确免费。仅计算已知分量，缺少用量或价格时标为部分估算。特定来源规则优先，不从模型名称猜供应商。订阅用量的
-          API 等价估算不代表实际账单。
-        </p>
 
         <details className="pricing-section" open={form.peakOn}>
           <summary>
@@ -404,13 +552,14 @@ export default function ModelPricing({
             onClick={() => {
               setDraft(blank());
               setForm(blankStrategyForm());
+              setImportResult(null);
               setSaved(false);
             }}
           >
             新建规则
           </button>
           <button className="primary" disabled={busy}>
-            {busy ? "保存中…" : "保存并用于估算"}
+            {busy ? (importing ? "获取中…" : "保存中…") : "保存并用于估算"}
           </button>
         </div>
       </form>
@@ -458,6 +607,7 @@ export default function ModelPricing({
                 onClick={() => {
                   setDraft(rule);
                   setForm(strategyFormOf(rule));
+                  setImportResult(null);
                   setSaved(false);
                 }}
               >

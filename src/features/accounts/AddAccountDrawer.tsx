@@ -57,6 +57,7 @@ export default function AddAccountDrawer({ onClose, onSaved }: Props) {
 
   const onPlatformChange = (key: string) => {
     setPlatform(key);
+    if (key === "codex") setConfigKind("coding_plan");
     const next = platformTemplate(key);
     setRegion(next?.regions[0]?.value ?? "");
     setCredentialType(next?.credentials[0]?.type ?? "api_key");
@@ -68,7 +69,7 @@ export default function AddAccountDrawer({ onClose, onSaved }: Props) {
       setError("请先填写账户别名。");
       return;
     }
-    if (secret.length === 0) {
+    if (platform !== "codex" && secret.length === 0) {
       setError("请填写凭据（密码框输入，不回显、不落普通数据库）。");
       return;
     }
@@ -79,8 +80,8 @@ export default function AddAccountDrawer({ onClose, onSaved }: Props) {
       displayName: displayName.trim(),
       scope: scope.trim() || null,
       configKind,
-      credentialType,
-      secret,
+      credentialType: platform === "codex" ? null : credentialType,
+      secret: platform === "codex" ? null : secret,
       capabilities: null,
     };
     setSaving(true);
@@ -147,13 +148,8 @@ export default function AddAccountDrawer({ onClose, onSaved }: Props) {
             onSave();
           }}
         >
-          <p className="muted small">
-            账户独立于 Agent 采集，不需要绑定任何 Agent。API Key
-            保存在本机明文凭据文件中，重启后可直接使用，不访问系统钥匙串。
-          </p>
-
           <fieldset>
-            <legend>1. 平台与区域</legend>
+            <legend>平台与区域</legend>
             <label>
               <span>平台</span>
               <Select
@@ -201,13 +197,13 @@ export default function AddAccountDrawer({ onClose, onSaved }: Props) {
                 onChange={(e) => setScope(e.target.value)}
               />
             </label>
-            {template && <p className="small muted">{template.note}</p>}
+            {platform === "codex" && <p className="small muted">{template?.note}</p>}
           </fieldset>
 
           <fieldset>
-            <legend>2. 账户类型</legend>
+            <legend>账户类型</legend>
             <div className="acct-radios">
-              {CONFIG_KINDS.map((kind) => (
+              {(platform === "codex" ? ["coding_plan" as const] : CONFIG_KINDS).map((kind) => (
                 <label key={kind} className="acct-radio">
                   <input
                     type="radio"
@@ -220,52 +216,53 @@ export default function AddAccountDrawer({ onClose, onSaved }: Props) {
                 </label>
               ))}
             </div>
-            <p className="small muted">
-              两者并存时在同一张卡片分组显示，不需要为同一平台重复添加。
-            </p>
           </fieldset>
 
-          <fieldset>
-            <legend>3. 凭据类型与最小权限</legend>
-            <label>
-              <span>凭据类型</span>
-              <Select
-                aria-label="凭据类型"
-                value={credentialType}
-                onChange={(e) => setCredentialType(e.target.value as CredentialType)}
-              >
-                {template?.credentials.map((c) => (
-                  <option key={c.type} value={c.type}>
-                    {c.label}
-                  </option>
-                ))}
-              </Select>
-            </label>
-            {credential && (
-              <div className="acct-permission">
-                <strong className="small">最小权限说明</strong>
-                <p className="small muted">{credential.minimalPermission}</p>
-              </div>
-            )}
-          </fieldset>
+          {platform !== "codex" && (
+            <fieldset>
+              <legend>凭据</legend>
+              <label>
+                <span>凭据类型</span>
+                <Select
+                  aria-label="凭据类型"
+                  value={credentialType}
+                  onChange={(e) => setCredentialType(e.target.value as CredentialType)}
+                >
+                  {template?.credentials.map((c) => (
+                    <option key={c.type} value={c.type}>
+                      {c.label}
+                    </option>
+                  ))}
+                </Select>
+              </label>
+              {credential && (
+                <details className="acct-permission">
+                  <summary className="small muted">连接说明</summary>
+                  <p className="small muted">
+                    {template?.note} {credential.minimalPermission}
+                  </p>
+                </details>
+              )}
+            </fieldset>
+          )}
 
-          <fieldset>
-            <legend>4. 凭据输入</legend>
-            <label>
-              <span>凭据（密码框，不回显）</span>
-              <input
-                type="password"
-                autoComplete="off"
-                spellCheck={false}
-                value={secret}
-                placeholder="粘贴凭据"
-                onChange={(e) => setSecret(e.target.value)}
-              />
-            </label>
-            <p className="small muted">
-              Key 明文保存在本机，重启后直接使用。响应与日志不回显 Key。
-            </p>
-          </fieldset>
+          {platform !== "codex" && (
+            <fieldset>
+              <legend>凭据输入</legend>
+              <label>
+                <span>API Key / 令牌</span>
+                <input
+                  type="password"
+                  autoComplete="off"
+                  spellCheck={false}
+                  value={secret}
+                  placeholder="粘贴凭据"
+                  onChange={(e) => setSecret(e.target.value)}
+                />
+              </label>
+              <p className="small muted">凭据仅在本机明文保存。</p>
+            </fieldset>
+          )}
 
           {error && (
             <p className="acct-error" role="alert">
@@ -289,11 +286,11 @@ export default function AddAccountDrawer({ onClose, onSaved }: Props) {
               <strong>已保存：{saved.displayName}</strong>
             </p>
             <p className="small muted">
-              {credentialSummary(saved.credentials)} · 平台 {saved.platform}
+              {saved.platform === "codex"
+                ? "使用本机 ChatGPT 登录"
+                : credentialSummary(saved.credentials)}{" "}
+              · {saved.platform}
               {saved.region ? ` · ${saved.region}` : ""}
-            </p>
-            <p className="small muted">
-              Key 已保存到本机，重启后可直接使用。删除本地记录不会撤销平台 Key。
             </p>
           </div>
 

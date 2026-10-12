@@ -6,7 +6,7 @@
   "windows": [
     {
       "window_id": "codex:account:codex:primary",
-      "label": "codex (primary)",
+      "label": "5 小时滚动",
       "unit": "percent",
       "period_kind": "rolling",
       "duration_seconds": 18000,
@@ -16,7 +16,7 @@
     },
     {
       "window_id": "codex:account:codex:secondary",
-      "label": "codex (secondary)",
+      "label": "7 天滚动",
       "unit": "percent",
       "period_kind": "rolling",
       "duration_seconds": 604800,

@@ -7,3 +7,5 @@ pub mod kimi_wire;
 pub mod mcode_db;
 pub mod opencode_db;
 pub mod pi_log;
+
+pub mod deepseek_harness;

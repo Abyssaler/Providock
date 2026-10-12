@@ -113,7 +113,7 @@ describe("AccountMetrics 展示规则", () => {
     );
     const body = text(html);
     expect(body).toContain("需要更新凭据");
-    expect(body).toContain("不显示余额数字");
+    expect(body).toContain("平台返回认证失败或权限不足");
     expect(body).not.toContain("可用余额");
   });
 

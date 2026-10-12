@@ -11,8 +11,7 @@
 //! 边界：
 //! - 秘密只在构造请求头的瞬间从配置的凭据库解封，随后立即 drop；任何返回值、错误与日志都不回显。
 //! - 只做只读 GET；不重试有副作用请求（本服务只有只读查询，失败按契约记 stale/unavailable）。
-//! - `query_codex` 为进程协议占位：B07 依赖官方 App Server 的 JSON-RPC（stdio/ws/unix），
-//!   不属于简单 HTTP，本任务不接线，返回 `unsupported`。
+//! - Codex 通过官方 App Server stdio 查询，认证由官方进程持有；不读写认证文件、不发起推理。
 
 use crate::adapters::accounts::common::{self, RequestSpec};
 use crate::adapters::accounts::{deepseek, glm_plan, kimi_code, kimi_server, novita, openrouter};
@@ -624,10 +623,15 @@ fn execute_query(
     base_override: Option<&str>,
 ) -> Result<ParseOutcome> {
     if matches!(prepared.plan, AdapterPlan::Codex) {
-        return Ok(ParseOutcome::Fail(FailureSignal {
-            unsupported: true,
-            ..Default::default()
-        }));
+        return Ok(match super::codex_connection::read_limits() {
+            Ok(limits) => ParseOutcome::Ok(ParsedPayload {
+                provider_as_of: None,
+                evidence: Some(limits.evidence),
+                balances: Vec::new(),
+                quota_windows: limits.windows,
+            }),
+            Err(error) => ParseOutcome::Fail(error.failure_signal()),
+        });
     }
     let spec = build_spec(&prepared.plan)?;
     let Some(credential) = &prepared.credential else {
@@ -676,9 +680,6 @@ fn finish_query(
     outcome: ParseOutcome,
 ) -> Result<SnapshotOutcome> {
     let account_id = &prepared.account.account_id;
-    if matches!(prepared.plan, AdapterPlan::Codex) {
-        return Ok(codex_unsupported(account_id));
-    }
     match outcome {
         ParseOutcome::Ok(payload) => {
             let draft = NewSnapshot {
@@ -791,36 +792,6 @@ fn record_failure(
     Ok(SnapshotOutcome::from_failure(
         account_id, status, queried_at, signal, previous,
     ))
-}
-
-/// B07 Codex 官方 App Server 查询占位。
-///
-/// App Server 是 **JSON-RPC 进程协议**（默认 stdio，另有 `ws://` / `unix://`），不是简单
-/// HTTP 端点；`account/rateLimits/read`、`account/usage/read` 需先 `initialize` 协商能力，
-/// 且认证由对端持有。本任务的 HTTP 查询服务只覆盖 B01–B06，Codex 留占位：
-/// 返回 `unsupported`（能力缺失，不是暂时失败），由 UI 显示“平台暂未提供查询能力”。
-pub fn query_codex(
-    _db: &mut Database,
-    _vault: &dyn Vault,
-    account_id: &str,
-) -> Result<SnapshotOutcome> {
-    Ok(codex_unsupported(account_id))
-}
-
-fn codex_unsupported(account_id: &str) -> SnapshotOutcome {
-    SnapshotOutcome {
-        account_id: account_id.to_owned(),
-        status: SnapshotStatus::Unsupported,
-        snapshot_id: None,
-        queried_at: accounts::now_rfc3339(),
-        provider_as_of: None,
-        evidence: Some("codex:appserver:process_protocol_not_wired".to_owned()),
-        error_code: Some("unsupported".to_owned()),
-        balances: Vec::new(),
-        quota_windows: Vec::new(),
-        usage_metrics: Vec::new(),
-        stale: false,
-    }
 }
 
 /// 供上层构造鉴权头做单元测试：不暴露任何秘密来源。
@@ -1401,17 +1372,6 @@ mod tests {
         )
         .unwrap();
         assert_eq!(outcome.status, SnapshotStatus::AuthRequired);
-        assert!(outcome.snapshot_id.is_none());
-    }
-
-    #[test]
-    fn codex_query_is_unsupported_placeholder() {
-        let mut db = Database::open_in_memory().unwrap();
-        let account =
-            account_create(&db, &NewAccount::new("codex", "CX", ConfigKind::CodingPlan)).unwrap();
-        let vault = MemoryVault::new();
-        let outcome = query_codex(&mut db, &vault, &account.account_id).unwrap();
-        assert_eq!(outcome.status, SnapshotStatus::Unsupported);
         assert!(outcome.snapshot_id.is_none());
     }
 

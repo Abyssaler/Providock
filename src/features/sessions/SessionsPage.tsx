@@ -31,6 +31,7 @@ const AGENT_OPTIONS = [
   "pi",
   "mcode",
   "kimi_code",
+  "deepseek_harness",
 ];
 
 function periodRange(period: Period): { from?: string; to?: string } {
@@ -109,7 +110,6 @@ export default function SessionsPage() {
       <div className="page-head">
         <div>
           <h1>会话</h1>
-          <p className="muted">统计先呈现；对话正文由你选择是否按需查看。</p>
         </div>
         <label className="small muted">
           <input
@@ -117,7 +117,7 @@ export default function SessionsPage() {
             checked={hidePaths}
             onChange={(e) => setHidePaths(e.target.checked)}
           />{" "}
-          隐私显示（隐藏标题与项目路径）
+          隐私显示
         </label>
       </div>
 
@@ -163,10 +163,6 @@ export default function SessionsPage() {
           </button>
         </div>
       </form>
-
-      <p className="muted small" style={{ marginTop: 10 }}>
-        搜索只查索引元数据（会话 ID 与标题），不在后台扫描完整正文；时间按 UTC 半开区间筛选。
-      </p>
 
       {error && (
         <div className="card" role="alert">
@@ -226,10 +222,22 @@ export default function SessionsPage() {
                 <span className="num" title={formatTokenFull(item.tokenTotal)}>
                   {formatTokenCompact(item.tokenTotal)}
                 </span>
-                <span className="muted small">
-                  Token 小计 · 已知 {item.tokenKnownEvents}/{item.eventCount} 条
+                <span
+                  className="muted small"
+                  title={`已知 ${item.tokenKnownEvents}/${item.eventCount} 条`}
+                >
+                  Tokens{item.tokenKnownEvents < item.eventCount ? " · 部分数据" : ""}
                 </span>
-                <span className="muted small">{item.lastActiveAt ?? "时间未知"}</span>
+                <span className="muted small">
+                  {item.lastActiveAt
+                    ? new Date(item.lastActiveAt).toLocaleString("zh-CN", {
+                        month: "2-digit",
+                        day: "2-digit",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })
+                    : "时间未知"}
+                </span>
               </span>
             </button>
           ))}

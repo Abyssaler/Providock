@@ -41,7 +41,7 @@ src/
   contracts/           # 从 Rust 类型生成的 DTO
 src-tauri/src/
   domain/              # UsageEvent、QuotaWindow、Money、Evidence
-  adapters/agents/     # 八个 Agent 的独立适配器
+  adapters/agents/     # 九个 Agent 的独立适配器
   adapters/accounts/   # 平台、区域、认证类型适配器
   adapters/content/    # 各源的正文映射，独立于统计
   ingestion/           # 发现、定时扫描、游标、事务、去重
@@ -120,3 +120,9 @@ macOS 原生 TrayIcon 与窗口 WebView 分离，模板图标随系统菜单栏�
 `model_prices_import` IPC → blocking 线程固定 HTTPS 读取 AIHOT → 有界参考表解析 → 获取 DB 锁 → `price_import::apply` 批量 savepoint 追加规则。网络发生在锁外；已有规则保护、精确匹配和失败回滚集中在服务层。导入来源存于兼容的 `rates_json.source`，旧规则无此键照常读取，不新增表或依赖。
 
 `src/components/Select.tsx` 为共享 combobox/listbox，覆盖筛选和表单，弹出层位于当前 dialog 或 body。用量卡片明确显示实际筛选范围；金额共用精确字符串格式化。自报成本业务已移除，历史 SQLite 列仅保留兼容，详见数据契约。
+
+## 2026-10-13 本地模块扩展
+
+`adapters/agents/deepseek_harness` 为纯解析层，scanner 负责有界解压、多代选择和父链可用性；沿用 schema 与事务去重。`services/codex_connection` 管理官方 stdio 子进程的只读账户查询，锁外连接、锁内复核写快照，不读认证文件。
+
+`services/price_import::quote` 只返回所选目标候选价，当前 IPC 不再调用批量 apply。`services/price_page` 将公网页面下载与固定厂商 API 请求分开，程序/单次模型提取只返回 PriceQuote，既有 model_price_save 才持久化用户核定值。无 Agent 运行时、工具注册或任务循环。

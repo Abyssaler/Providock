@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { AGENTS, allAgentIds, normalizeVisibleAgents } from "./usageDisplay";
 import { AgentGlyph } from "./usageIcons";
 import { saveAgentVisibility } from "./agentVisibilityApi";
+import Hint from "../../components/Hint";
 import "./usage.css";
 
 type LoadState = "loading" | "ready" | "unavailable";
@@ -58,11 +59,12 @@ export default function AgentVisibilitySettings() {
 
   return (
     <div className="card agent-visibility">
-      <h2>用量页显示的 Agent</h2>
-      <p className="muted small">
-        取消勾选后，用量页不再显示对应 Agent
-        的选项卡与数据源，其记录也不进入统计范围。至少保留一个。
-      </p>
+      <h2>
+        Agent 显示{" "}
+        <Hint>
+          取消勾选后，用量页隐藏该 Agent，其记录不进入统计。至少保留一个；不会删除日志和历史记录。
+        </Hint>
+      </h2>
       <div className="agent-visibility-grid" role="group" aria-label="用量页显示的 Agent">
         {AGENTS.map(([id, label]) => {
           const isChecked = checked.has(id);
@@ -80,7 +82,6 @@ export default function AgentVisibilitySettings() {
           );
         })}
       </div>
-      <p className="muted small">更改立即保存到本机；模型筛选与菜单栏显示不受影响。</p>
       {error && (
         <p role="alert" className="monitor-error">
           {error}

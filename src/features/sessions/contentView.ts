@@ -15,6 +15,7 @@ export const AGENT_LABELS: Record<string, string> = {
   pi: "Pi",
   mcode: "MiniMax Code",
   kimi_code: "Kimi Code",
+  deepseek_harness: "DeepSeek Harness",
   claude_desktop: "Claude Desktop（网关）",
 };
 

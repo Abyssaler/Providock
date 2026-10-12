@@ -4,7 +4,6 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type {
   MetricTotal,
-  MonitoringSettings,
   SourceScanReport,
   SyncStatus,
   UsageOptions,
@@ -22,6 +21,7 @@ import {
   percentage,
   periodFilter,
   usageScopeText,
+  usesHourlyBuckets,
   visibleAgentTabs,
   type Period,
 } from "./usageDisplay";
@@ -39,7 +39,7 @@ import {
   RatioIcon,
   SourceIcon,
 } from "./usageIcons";
-import MonitoringControls from "./MonitoringControls";
+import Hint from "../../components/Hint";
 import ModelPricing from "./ModelPricing";
 import UsageTrend from "./UsageTrend";
 import UsageBreakdown, { moneyText } from "./UsageBreakdown";
@@ -69,22 +69,27 @@ function Metric({
   icon: ReactNode;
 }) {
   return (
-    <div className="usage-metric" data-tone={tone}>
+    <div
+      className="usage-metric"
+      data-tone={tone}
+      title={hint ?? `覆盖 ${metric.knownEvents}/${events} 条记录`}
+    >
       <span className="usage-metric-head">
         {icon}
         {label}
       </span>
       <strong>{formatUsageCompact(metric.value)}</strong>
-      <small className="muted" title={hint}>
-        {hint ?? `覆盖 ${metric.knownEvents}/${events} 条记录`}
-      </small>
+      {events > 0 && metric.knownEvents < events && (
+        <small className="metric-partial">部分数据</small>
+      )}
     </div>
   );
 }
 export default function UsagePage() {
-  const [monitoring, setMonitoring] = useState<MonitoringSettings | null>(null);
   const [period, setPeriod] = useState<Period>("today");
   const [dates, setDates] = useState({ start: "", end: "" });
+  const [dateDraft, setDateDraft] = useState({ start: "", end: "" });
+  const [dateError, setDateError] = useState<string | null>(null);
   const [agent, setAgent] = useState("");
   const [sourceId, setSourceId] = useState("");
   const [model, setModel] = useState("");
@@ -104,6 +109,7 @@ export default function UsagePage() {
   const refresh = useCallback(async () => {
     const version = ++request.current;
     try {
+      if (period === "custom" && (!dates.start || !dates.end)) return;
       const queryFilter = {
         ...periodFilter(period, new Date(), dates.start, dates.end),
         agent: agent || undefined,
@@ -116,7 +122,7 @@ export default function UsagePage() {
         invoke<UsageSummary>("usage_summary", { filter: queryFilter }),
         invoke<UsageDashboard>("usage_dashboard", {
           filter: queryFilter,
-          hourly: period === "today",
+          hourly: usesHourlyBuckets(queryFilter),
         }),
         invoke<UsageOptions>("usage_options"),
       ]);
@@ -215,9 +221,7 @@ export default function UsagePage() {
     <section className="usage-page" aria-label="用量页面">
       <div className="usage-heading">
         <div>
-          <span className="usage-eyebrow">USAGE ANALYTICS</span>
           <h1>使用统计</h1>
-          <p className="muted">查看本机 AI Agent 的使用情况与成本统计</p>
         </div>
         <div className="actions">
           <button
@@ -226,10 +230,9 @@ export default function UsagePage() {
           >
             <PriceIcon /> 模型定价
           </button>
-          <details className="usage-monitor">
-            <summary>数据采集与调度</summary>
-            <MonitoringControls onChange={setMonitoring} />
-          </details>
+          <button disabled={busy} onClick={() => void onSync()}>
+            {busy ? "同步中…" : "同步"}
+          </button>
         </div>
       </div>
       <div className="usage-toolbar">
@@ -309,7 +312,7 @@ export default function UsagePage() {
             >
               {[0, 5, 10, 30, 60].map((seconds) => (
                 <option key={seconds} value={seconds}>
-                  {seconds ? `显示刷新 · ${seconds}s` : "显示刷新 · 关闭"}
+                  {seconds ? `${seconds}s` : "暂停刷新"}
                 </option>
               ))}
             </Select>
@@ -319,13 +322,33 @@ export default function UsagePage() {
               icon={<CalendarIcon />}
               aria-label="日期范围"
               value={period}
-              onChange={(e) => setPeriod(e.target.value as Period)}
+              onChange={(e) => {
+                const next = e.target.value as Period;
+                if (next === "custom" && !dateDraft.start && !dateDraft.end) {
+                  const to = new Date();
+                  const from = detailFilter.from
+                    ? new Date(detailFilter.from)
+                    : new Date(to.getFullYear(), to.getMonth(), to.getDate());
+                  if (to.getTime() - from.getTime() < 60_000)
+                    from.setTime(to.getTime() - 3_600_000);
+                  const local = (d: Date) => {
+                    const pad = (n: number) => String(n).padStart(2, "0");
+                    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+                  };
+                  setDateDraft({ start: local(from), end: local(to) });
+                }
+                setDateError(null);
+                setPeriod(next);
+              }}
             >
+              <option value="1h">最近 1 小时</option>
+              <option value="3h">最近 3 小时</option>
+              <option value="6h">最近 6 小时</option>
               <option value="today">当天</option>
               <option value="7d">最近 7 天</option>
               <option value="30d">最近 30 天</option>
               <option value="all">全部时间</option>
-              <option value="custom">自定义日期</option>
+              <option value="custom">自定义时间</option>
             </Select>
           </span>
         </div>
@@ -335,36 +358,50 @@ export default function UsagePage() {
           <label>
             开始{" "}
             <input
-              type="date"
-              value={dates.start}
-              onChange={(e) => setDates({ ...dates, start: e.target.value })}
+              type="datetime-local"
+              value={dateDraft.start}
+              onChange={(e) => setDateDraft({ ...dateDraft, start: e.target.value })}
             />
           </label>
           <label>
             结束{" "}
             <input
-              type="date"
-              value={dates.end}
-              min={dates.start}
-              onChange={(e) => setDates({ ...dates, end: e.target.value })}
+              type="datetime-local"
+              value={dateDraft.end}
+              min={dateDraft.start}
+              onChange={(e) => setDateDraft({ ...dateDraft, end: e.target.value })}
             />
           </label>
+          <button
+            className="primary"
+            onClick={() => {
+              try {
+                periodFilter("custom", new Date(), dateDraft.start, dateDraft.end);
+                setDates(dateDraft);
+                setDateError(null);
+              } catch (e) {
+                setDateError(e instanceof Error ? e.message : String(e));
+              }
+            }}
+          >
+            应用范围
+          </button>
+          {dateError && (
+            <span role="alert" className="monitor-error">
+              {dateError}
+            </span>
+          )}
         </div>
       )}
       <div className="usage-sync-line">
         <span className="muted small" aria-live="polite">
           {busy
-            ? "正在同步本机日志…"
+            ? "正在同步…"
             : status.lastCompletedAt
-              ? `最近同步 ${new Date(status.lastCompletedAt).toLocaleString("zh-CN")}`
-              : "等待首次同步"}{" "}
-          · 本地日志账本
-          {monitoring &&
-            ` · ${monitoring.agentAutoSyncEnabled ? "每 60 秒自动同步" : "自动同步已关闭"}`}
+              ? `同步于 ${new Date(status.lastCompletedAt).toLocaleTimeString("zh-CN")}`
+              : "等待同步"}
         </span>
-        <button disabled={busy} onClick={() => void onSync()}>
-          {busy ? "同步中…" : "立即同步"}
-        </button>
+        <span className="muted small">{summary ? usageScopeText(detailFilter) : ""}</span>
       </div>
       {(error || status.lastError) && (
         <div className="card" role="alert">
@@ -381,36 +418,36 @@ export default function UsagePage() {
                   <BoltIcon />
                 </span>
                 <div>
-                  <span className="muted">本机消耗 Tokens</span>
+                  <span className="muted">
+                    本机 Tokens{" "}
+                    <Hint label="用量统计说明">
+                      按所选范围统计本地日志。缓存创建为新写入缓存的输入，缓存命中为读取缓存的输入；缺失数据保留未知。缓存命中率按命中
+                      Token / 输入总量加权计算，费用为当前定价估算。各指标悬停可查看覆盖范围。
+                    </Hint>
+                  </span>
                   <div className="usage-total-number">
                     {formatTokenFull(summary.total.value)}{" "}
-                    <small>≈ {formatUsageCompact(summary.total.value)}</small>
+                    {summary.total.value !== null && BigInt(summary.total.value) >= 10000n && (
+                      <small>≈ {formatUsageCompact(summary.total.value)}</small>
+                    )}
                   </div>
-                  <small className="muted">
-                    本机日志已知小计 · 覆盖 {summary.total.knownEvents}/{summary.events} 条记录
-                  </small>
+                  {summary.total.knownEvents < summary.events && (
+                    <small className="metric-partial">
+                      部分数据 · {summary.total.knownEvents}/{summary.events} 条
+                    </small>
+                  )}
                 </div>
               </div>
               <div className="usage-mini-stats">
                 <div>
                   <span className="muted">已知请求数</span>
                   <strong>{formatTokenFull(summary.requestCount)}</strong>
-                  <small className="muted">
-                    覆盖 {summary.requestCountKnownEvents}/{summary.events}
-                  </small>
-                </div>
-                <div>
-                  <span className="muted">当前定价估算</span>
-                  <strong className="usage-cost">{moneyText(dashboard?.currentCost ?? [])}</strong>
-                  <small className="muted">
-                    完整估算 {dashboard?.completeCostEvents ?? 0}/{summary.events} 条
-                  </small>
+                  {summary.requestCountKnownEvents < summary.events && (
+                    <small className="metric-partial">部分记录</small>
+                  )}
                 </div>
               </div>
             </div>
-            <p className="usage-metrics-scope muted small">
-              统计范围：{usageScopeText(detailFilter)} · 与上方筛选一致
-            </p>
             <div className="usage-metrics">
               <Metric
                 label="新增输入"
@@ -446,9 +483,15 @@ export default function UsagePage() {
                   成本估算
                 </span>
                 <strong className="usage-cost">{moneyText(dashboard?.currentCost ?? [])}</strong>
-                <small className="muted">
-                  完整估算 {dashboard?.completeCostEvents ?? 0}/{summary.events} 条
-                </small>
+                {(dashboard?.pricedEvents ?? 0) > 0 &&
+                  dashboard?.completeCostEvents !== summary.events && (
+                    <small
+                      className="metric-partial"
+                      title={`完整估算 ${dashboard?.completeCostEvents ?? 0}/${summary.events} 条`}
+                    >
+                      部分估算
+                    </small>
+                  )}
               </div>
               <div className="usage-metric" data-tone="ratio">
                 <span className="usage-metric-head">
@@ -463,22 +506,21 @@ export default function UsagePage() {
                     summary.cacheReadRatio === null ? undefined : Number(summary.cacheReadRatio)
                   }
                 />
-                <small className="muted">
-                  加权输入分母 · 覆盖 {summary.cacheRatioEligibleEvents}/{summary.events}
-                </small>
+                {summary.cacheRatioEligibleEvents < summary.events && (
+                  <small className="metric-partial">部分数据</small>
+                )}
               </div>
             </div>
           </div>
           {summary.events === 0 && (
             <div className="card">
               <strong>所选范围内没有计量记录。</strong>
-              <p className="muted">
-                可切换日期或筛选条件。自动同步开启时每 60 秒读取八种 Agent
-                的已发现日志，也可点击「立即同步」。
-              </p>
+              <p className="muted">调整时间范围或同步日志。</p>
             </div>
           )}
-          {dashboard && <UsageTrend series={dashboard.series} hourly={period === "today"} />}
+          {dashboard && (
+            <UsageTrend series={dashboard.series} hourly={usesHourlyBuckets(detailFilter)} />
+          )}
           {dashboard && (
             <UsageBreakdown
               dashboard={dashboard}
@@ -497,15 +539,9 @@ export default function UsagePage() {
               onPrice={(agent, model) => setPriceTarget({ agent, model })}
             />
           )}
-          <div className="usage-scope-note">
-            <span>ⓘ</span>
-            <p>
-              按当前价格估算已知用量；未定价和未知 Token 保留为空。
-              {dashboard &&
-                ` 已参与估算 ${dashboard.pricedEvents}/${summary.events} 条记录，其中 ${dashboard.completeCostEvents} 条价格与用量完整。`}
-              {summary.timeUnknownEvents > 0 && ` ${summary.timeUnknownEvents} 条记录时间未知。`}
-            </p>
-          </div>
+          {summary.timeUnknownEvents > 0 && (
+            <p className="muted small">{summary.timeUnknownEvents} 条记录时间未知</p>
+          )}
         </>
       )}
       {priceTarget && (

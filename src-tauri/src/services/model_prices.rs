@@ -127,6 +127,7 @@ fn persist(
         "pi",
         "mcode",
         "kimi_code",
+        "deepseek_harness",
     ]
     .contains(&rule.agent.as_str())
     {

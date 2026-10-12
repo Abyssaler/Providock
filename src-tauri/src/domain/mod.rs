@@ -102,6 +102,7 @@ string_enum!(AgentKind {
     Pi = "pi",
     Mcode = "mcode",
     KimiCode = "kimi_code",
+    DeepseekHarness = "deepseek_harness",
     ClaudeDesktop = "claude_desktop",
 });
 

@@ -49,10 +49,7 @@ export default function MonitoringControls({
       <label className="monitor-row">
         <span>
           <strong>Agent 自动同步</strong>
-          <small>
-            启动时同步，之后每 {settings?.agentIntervalSeconds ?? 60}{" "}
-            秒读取本机日志；关闭后仍可手动同步。
-          </small>
+          <small>每 {settings?.agentIntervalSeconds ?? 60} 秒</small>
         </span>
         <input
           type="checkbox"
@@ -67,9 +64,8 @@ export default function MonitoringControls({
         <span>
           <strong>账户自动刷新</strong>
           <small>
-            余额每 {Math.round((settings?.balanceIntervalSeconds ?? 900) / 60)} 分钟，计划额度每{" "}
-            {Math.round((settings?.planIntervalSeconds ?? 300) / 60)}{" "}
-            分钟；按账户到期刷新，含少量时间抖动。
+            余额 {Math.round((settings?.balanceIntervalSeconds ?? 900) / 60)} 分钟 · 额度{" "}
+            {Math.round((settings?.planIntervalSeconds ?? 300) / 60)} 分钟
           </small>
         </span>
         <input
@@ -81,9 +77,6 @@ export default function MonitoringControls({
           onChange={(e) => void update("accountAutoRefreshEnabled", e.target.checked)}
         />
       </label>
-      <p className="muted small">
-        设置保存到本机，重启后继续生效。关闭不会中断正在执行的一次读取或请求，后续任务停止。
-      </p>
       {error && (
         <p role="alert" className="monitor-error">
           {error}

@@ -147,7 +147,7 @@ export default function UsageBreakdown({
             </button>
           ))}
         </div>
-        <span className="small muted">与上方筛选一致 · Token 为已知小计</span>
+        <span className="small muted">当前筛选</span>
       </div>
       <div className="card usage-detail-card" role="tabpanel" aria-labelledby={`usage-tab-${tab}`}>
         {tab !== "events" ? (

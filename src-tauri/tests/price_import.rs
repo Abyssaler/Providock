@@ -7,6 +7,36 @@ use providock_lib::{
 };
 
 const HTML: &str = include_str!("../../fixtures/pricing/aihot/catalogue.html");
+#[test]
+fn quote_is_scoped_to_the_selected_target_without_writing_rules() {
+    let db = Database::open_in_memory().unwrap();
+    let c = price_import::parse(HTML).unwrap();
+    let q =
+        price_import::quote(&c, target("deepseek_harness", "synthetic-model-1").unwrap()).unwrap();
+    assert_eq!(q.agent, "deepseek_harness");
+    assert_eq!(q.model, "synthetic-model-1");
+    assert_eq!(q.input.as_deref(), Some("2.125"));
+    assert!(q.cache_write.is_none());
+    assert!(model_prices::list(&db).unwrap().is_empty());
+    let saved = model_prices::save(
+        &db,
+        ModelPrice {
+            agent: q.agent,
+            model: q.model,
+            input: q.input,
+            output: q.output,
+            cache_read: q.cache_read,
+            cache_write: q.cache_write,
+            ..manual("unused")
+        },
+    )
+    .unwrap();
+    assert_eq!(saved.agent, "deepseek_harness");
+    assert!(price_import::quote(&c, target("codex", "unlisted").unwrap()).is_err());
+    assert!(
+        price_import::quote(&c, target("unknown_agent", "synthetic-model-1").unwrap()).is_err()
+    );
+}
 fn target(agent: &str, model: &str) -> Option<ImportTarget> {
     Some(ImportTarget {
         agent: agent.into(),

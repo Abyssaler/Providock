@@ -76,6 +76,12 @@ export function AgentGlyph({ id }: { id: string }) {
           <path d="M3.4 12.8V3.6L8 9l4.6-5.4v9.2" />
         </Glyph>
       );
+    case "deepseek_harness":
+      return (
+        <Glyph>
+          <path d="M3 4.5h6.5a4 4 0 0 1 0 8H6L3 9.5V4.5ZM10 4.5l2-2" />
+        </Glyph>
+      );
     case "kimi_code":
       return (
         <Glyph>

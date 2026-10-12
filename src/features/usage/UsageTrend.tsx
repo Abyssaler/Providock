@@ -151,15 +151,13 @@ export default function UsageTrend({ series, hourly }: { series: UsagePoint[]; h
     <div className="card usage-chart-card">
       <div className="cardhead">
         <div>
-          <h2>使用趋势</h2>
-          <p className="small muted">
-            {hourly ? "按小时聚合 · 时间按本机时区显示" : "按 UTC 日聚合"} · 左轴
-            Token、右轴估算成本 · 已知小计，缺失值保留断点
-          </p>
+          <h2 title="左轴 Token，右轴估算成本；缺失数据保留断点">
+            使用趋势 <span className="small muted">{hourly ? "按小时" : "按日"}</span>
+          </h2>
         </div>
         {currencies.length > 1 && (
           <label className="small muted">
-            成本币种 · 分别查看
+            成本币种
             <Select
               aria-label="趋势成本币种"
               value={costCurrency}

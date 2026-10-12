@@ -2,7 +2,7 @@
 use crate::storage::Database;
 use std::collections::BTreeMap;
 
-pub const AGENTS: [(&str, &str); 8] = [
+pub const AGENTS: [(&str, &str); 9] = [
     ("claude_code", "Claude Code"),
     ("codex", "Codex"),
     ("gemini_cli", "Gemini CLI"),
@@ -11,6 +11,7 @@ pub const AGENTS: [(&str, &str); 8] = [
     ("pi", "Pi"),
     ("mcode", "MCode"),
     ("kimi_code", "Kimi Code"),
+    ("deepseek_harness", "DeepSeek Harness"),
 ];
 #[derive(Debug, Default)]
 pub struct RecentUsage {

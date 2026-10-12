@@ -164,3 +164,11 @@ ModelPrice 可选两种计费策略，随 rates_json 的 `strategy` 键追加存
 领域 UsageEvent、UsageSummary/EventRow IPC 及新统计导出无 `cost_reported`/`costReported`。旧 SQLite 的同名三列保留且不再读写，不删用户数据；统计导出契约为 `providock.statistics.v2`，只保留历史估值字段，不伪装兼容旧导出列集合。
 
 ModelPrice 可选 `source`：sourceUrl、officialUrl、retrievedAt、sourceUpdatedAt、fxRate、fxDate，存于 rates_json.source。手动保存清除导入来源。AIHOT 导入只使用 inputCny/outputCny/cachedCny 每百万 Token；cached 为缓存读，缓存创建保持未知。费率最多九位小数，极小正数若不能保持非零则留未知。价格变化追加版本，重复同价不追加；任意人工、复杂、特定来源或停用规则阻止该 Agent+模型的自动覆盖。
+
+## 2026-10-13 本地增量契约
+
+- AgentKind 新增 `deepseek_harness`，schema 不变。DSH usage inputTokens 为 fresh，cacheRead/Write 互斥输入，reasoning 包含于 output；totalTokens 可提供总量，但不据此把缺少的 cacheWrite 补成 0。身份为原生 session/turn/step/attempt 或 compactionId，重复压缩形态和文件副本归并。
+- UsageOptions 新增 `modelsByAgent: Record<string,string[]>`，用于选定 Agent 的模型建议；所有主用量筛选仍共用 UsageFilter。小时筛选为 now-时长 至 now，自定义本机 datetime 转 UTC [from,to)，严格验证日期及时序。
+- `model_prices_import({target:{agent,model}})` 仅返回 PriceQuote，不写库。PriceQuote 包括目标、币种、input/output/cacheRead/cacheWrite（十进制字符串/null）、sourceUrl/method/notes；官网解析同契约。用户保存仍用 model_price_save，按既有规则追加版本，视为用户核定价格并清除旧导入 metadata。
+- `model_price_from_page({input:{agent,model,url,accountId?,parserModel?}})`；无 accountId 时程序解析，有时一次所选 API 请求。`price_parser_accounts` 返回支持平台的 active API Key 账户别名/ID，不返回 Key；`price_parser_models({accountId})` 返回模型 ID 列表。
+- Codex 新建账户 configKind=coding_plan，无 credentialType/secret；凭据就绪表示使用本机官方进程登录。rateLimitsByLimitId 多桶优先，usedPercent/100 转 usedRatio，remainingRatio=1-usedRatio（异常按既有归一化规则），duration=windowDurationMins*60，resetsAt 为 Unix 秒。

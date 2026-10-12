@@ -4,8 +4,8 @@
 use crate::storage::Database;
 use serde::{Deserialize, Serialize};
 
-/// 用量页可选的 8 个 Agent，与采集适配器一一对应；顺序即默认展示顺序。
-pub const AGENT_IDS: [&str; 8] = [
+/// 用量页可选的 9 个 Agent，与采集适配器一一对应；顺序即默认展示顺序。
+pub const AGENT_IDS: [&str; 9] = [
     "claude_code",
     "codex",
     "gemini_cli",
@@ -14,6 +14,7 @@ pub const AGENT_IDS: [&str; 8] = [
     "pi",
     "mcode",
     "kimi_code",
+    "deepseek_harness",
 ];
 
 pub const SETTING_KEY: &str = "usage.visible_agents";
@@ -109,7 +110,7 @@ mod tests {
         let db = Database::open_in_memory().unwrap();
         assert_eq!(read(&db), all_visible());
         assert_eq!(all_visible().visible_agents.len(), AGENT_IDS.len());
-        assert_eq!(read(&db).visible_agents.len(), 8);
+        assert_eq!(read(&db).visible_agents.len(), 9);
     }
 
     #[test]

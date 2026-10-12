@@ -1,6 +1,6 @@
 # Agent 采集规范
 
-基线：cc-switch 当前监测实现固定在 `df40d53c36b604e044b4d5b9091aeb961aa56990`；UI 另固定 v3.20.4。下列定义稳定版必须具备的能力；八个本地解析器与扫描链路已实现，验证级别和未完成范围见 [兼容登记](../research/compatibility-register.md) 与 [当前状态](../CURRENT_STATUS.md)。源码入口和证据详见 [研究记录](../research/UPSTREAM_AUDIT.md)。
+基线：cc-switch 当前监测实现固定在 `df40d53c36b604e044b4d5b9091aeb961aa56990`；UI 另固定 v3.20.4。下列定义稳定版必须具备的能力；九个本地解析器与扫描链路已实现，验证级别和未完成范围见 [兼容登记](../research/compatibility-register.md) 与 [当前状态](../CURRENT_STATUS.md)。源码入口和证据详见 [研究记录](../research/UPSTREAM_AUDIT.md)。
 
 ## 1. 必需支持矩阵
 
@@ -14,6 +14,7 @@
 | A06 Pi | 会话 JSONL | message、compaction、branch_summary 的真实 usage | 嵌套复制历史不重复统计 |
 | A07 MiniMax Code / MCode | runtime-state.sqlite | CLI/TUI/桌面共享的用量投影表 | 同一数据库只采集一次 |
 | A08 Kimi Code | wire.jsonl + session 元数据 | 新 TypeScript 协议、子 Agent、旧 Python 格式独立适配 | 迁移后无 usage 的记录不能猜测 |
+| A10 DeepSeek Harness | sessions 下 session.vN.jsonl[.zstd] | v3/v4、重试、compaction、继承父链 | 旧版/未知格式与不完整父链暂缓并保留历史 |
 | A09 Claude Desktop（条件性） | 可选网关 | 经本机模型映射路径的请求 usage | 不能捕获未经过网关的原生流量 |
 
 OpenClaw / Hermes 不是本基线已确认的用量导入器，后续研究；不把“配置管理支持”误算为“用量统计支持”。Codex 桌面与 CLI 若共享同源日志，按同源采集，未发现桌面内部调用时标记覆盖缺口。
@@ -32,6 +33,7 @@ OpenClaw / Hermes 不是本基线已确认的用量导入器，后续研究；�
 | Pi | 根据 cc-switch `pi_config/mod.rs` 及 Pi 官方环境变量/目录规则解析；P0 固定具体默认目录，当前不猜测 Windows 路径 |
 | MCode | `MINIMAX_DATA_DIR`，其次兼容 `MAVIS_DATA_DIR`，否则主目录 `.minimax`；数据库相对路径 `v2/sqlite/runtime-state.sqlite` |
 | Kimi Code 新版 | `KIMI_CODE_HOME` 或主目录 `.kimi-code`；Windows 为 `%USERPROFILE%\.kimi-code` |
+| DeepSeek Harness | DSH_HOME 或主目录 .dsh，下 sessions/<project>/<session>；自定义 sessionsDir 尚不读取 |
 | Kimi 旧 Python | 历史 `.kimi` 数据目录；与新版分开注册，迁移后的重复来源需识别 |
 
 WSL、网络盘、外置盘只接受用户添加目录，不递归扫描整个主目录。源丢失保留已导入统计并标记离线。符号链接/目录联接经规范化后去重，扫描范围受选定根目录约束。
@@ -60,7 +62,7 @@ WSL、网络盘、外置盘只接受用户添加目录，不递归扫描整个�
 
 升级时强制重读 parser_version 不一致的文件，保留既有代数和事件身份；只将已证明的重复/零心跳身份退休，与该批事件和游标同事务提交，不清空其他历史。完整会话首个 total 目前以零为基线；对实际被截断的累计日志安全保留历史仍是发布缺口，不能宣称已解决所有截断/重放问题。压缩和 fork 为夹具验证，本次独立实机数字核对仅覆盖未压缩、无 fork、累计单调的日志。
 
-账户额度另外采用官方 App Server 只读能力（当前进程协议尚未接线），不能把额度快照混进 Token 账本。App Server 的实时通知仅覆盖其连接可见活动，不能假设订阅一条连接就监视所有独立 Codex 进程。
+账户额度另外采用官方 App Server 只读能力（2026-10-13 已接 stdio 额度查询），不能把额度快照混进 Token 账本。App Server 的实时通知仅覆盖其连接可见活动，不能假设订阅一条连接就监视所有独立 Codex 进程。
 
 ### A03 Gemini CLI
 
@@ -130,3 +132,9 @@ CLI/TUI 与桌面共用数据库，以规范化数据库身份作为 source_inst
 自动验收包含：全量=多次增量结果、重扫不变、重启恢复、游标事务失败重放、相同数字不丢计、复制/分叉不重计、日志截断、未知字段不崩溃、缓存分量不重复、源文件不被写入。对 supported schema 合成夹具，Token 算术误差必须为 0。
 
 对照 cc-switch 时对比原始记录和双方口径，不要求机械复现其总数；任何修正（例如包含关系）写明源码依据与差异。稳定版必须具备 A01–A09 的声明范围，不能将未完成项目静默移到“以后支持”。
+
+### A10 DeepSeek Harness（2026-10-13 本地）
+
+证据见 [A10](../research/evidence/a10-deepseek-harness.md)，固定官方提交。session v3/v4；同目录取最高 generation，默认 .zstd 多帧解压，有限递归、不跟随链接、大小有界。assistant/message usage 优先，stream 只取最后 usage；assistant/attempt 是独立失败/取消调用，compaction/summary 自己的真实 usage 单独计数，shadowedTokenCount 不作消费。
+
+DSH inputTokens 为 uncached/fresh，cacheRead/Write 可缺少，reasoning 包含于 output；缺少分量保持未知。稳定调用身份跨普通/压缩/副本/格式升级不变。seeded 会话只在父链可核对时跳过最后 inherited end-seed 前缀；父缺失或链不明暂缓，不猜继承量。未知版本不提交游标且不删除历史。v0–2、用户自定义 sessionsDir、真实 Harness 与 Windows 尚未验收。

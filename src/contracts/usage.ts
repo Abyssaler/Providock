@@ -88,6 +88,7 @@ export interface MonitoringSettings {
   planIntervalSeconds: number;
 }
 export interface UsageOptions {
+  modelsByAgent?: Record<string, string[]>;
   sources: { sourceId: string; agent: string; label: string }[];
   models: string[];
 }

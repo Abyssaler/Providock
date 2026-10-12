@@ -11,7 +11,14 @@ const AGENT_LABELS: Record<string, string> = {
   pi: "Pi",
   mcode: "MiniMax Code",
   kimi_code: "Kimi Code",
+  deepseek_harness: "DeepSeek Harness",
   claude_desktop: "Claude Desktop（网关）",
+};
+const COMPAT_LABELS: Record<string, string> = {
+  compatible: "兼容",
+  partial: "部分兼容",
+  incompatible: "不兼容",
+  unknown: "待识别",
 };
 
 export default function SourcesPage() {
@@ -21,7 +28,10 @@ export default function SourcesPage() {
 
   const refresh = useCallback(() => {
     invoke<SourceInfo[]>("sources_list")
-      .then(setSources)
+      .then((value) => {
+        setSources(value);
+        setError(null);
+      })
       .catch((e) => setError(String(e)));
   }, []);
 
@@ -32,7 +42,6 @@ export default function SourcesPage() {
       <div className="page-head">
         <div>
           <h1>数据源</h1>
-          <p className="muted">每个来源都显示格式、覆盖范围和最近同步。</p>
         </div>
         <label className="small muted">
           <input
@@ -40,7 +49,7 @@ export default function SourcesPage() {
             checked={showPaths}
             onChange={(e) => setShowPaths(e.target.checked)}
           />{" "}
-          显示目录路径（默认隐藏）
+          显示路径
         </label>
       </div>
 
@@ -55,45 +64,51 @@ export default function SourcesPage() {
           <p>
             <strong>尚未发现数据源。</strong>
           </p>
-          <p className="muted small">
-            到「用量」页点击「同步记录」触发目录发现。当前发现规则：Kimi Code（KIMI_CODE_HOME 或
-            ~/.kimi-code）、Codex（CODEX_HOME 或 ~/.codex）；其余六个 Agent
-            的接入已在开发中。自定义目录添加与暂停开关在后续任务提供。
-          </p>
+          <p className="muted">在用量页同步以发现本机日志。</p>
         </div>
       )}
 
       {sources !== null && sources.length > 0 && (
         <div className="card">
-          <table className="tablewrap">
-            <thead>
-              <tr>
-                <th>Agent</th>
-                <th>解析器</th>
-                <th>状态</th>
-                <th className="number">计量记录</th>
-                <th>最近同步</th>
-                {showPaths && <th>目录</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {sources.map((s) => (
-                <tr key={s.sourceId}>
-                  <td>{AGENT_LABELS[s.agent] ?? s.agent}</td>
-                  <td className="muted small">{s.parserVersion}</td>
-                  <td>
-                    <span className="badge">{s.compatStatus}</span>
-                  </td>
-                  <td className="number num">{s.events}</td>
-                  <td className="muted small">{s.lastSyncAt ?? "—"}</td>
-                  {showPaths && <td className="small">{s.rootPath}</td>}
+          <div className="source-table-scroll">
+            <table className="tablewrap">
+              <thead>
+                <tr>
+                  <th>Agent</th>
+                  <th>解析器</th>
+                  <th>状态</th>
+                  <th className="number">计量记录</th>
+                  <th>最近同步</th>
+                  {showPaths && <th>目录</th>}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          <p className="muted small" style={{ marginTop: 12 }}>
-            重新扫描是幂等操作，不会重复计数；停用/删除源在后续任务提供。网关默认关闭。
-          </p>
+              </thead>
+              <tbody>
+                {sources.map((s) => (
+                  <tr key={s.sourceId}>
+                    <td>{AGENT_LABELS[s.agent] ?? s.agent}</td>
+                    <td className="muted small">{s.parserVersion}</td>
+                    <td>
+                      <span className="badge">
+                        {COMPAT_LABELS[s.compatStatus] ?? s.compatStatus}
+                      </span>
+                    </td>
+                    <td className="number num">{s.events}</td>
+                    <td className="muted small">
+                      {s.lastSyncAt
+                        ? new Date(s.lastSyncAt).toLocaleString("zh-CN", {
+                            month: "2-digit",
+                            day: "2-digit",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
+                        : "—"}
+                    </td>
+                    {showPaths && <td className="small source-path">{s.rootPath}</td>}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </section>

@@ -52,6 +52,45 @@ pub struct ImportResult {
     pub fx_date: String,
 }
 
+/// Fetching a quote has no database side effects. The user reviews and saves the form.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PriceQuote {
+    pub agent: String,
+    pub model: String,
+    pub currency: String,
+    pub input: Option<String>,
+    pub output: Option<String>,
+    pub cache_read: Option<String>,
+    pub cache_write: Option<String>,
+    pub source_url: String,
+    pub method: String,
+    pub notes: Vec<String>,
+}
+
+pub fn quote(catalogue: &Catalogue, target: ImportTarget) -> Result<PriceQuote, String> {
+    if crate::domain::AgentKind::parse(&target.agent).is_none() || target.model.trim().is_empty() {
+        return Err("请先选择 Agent 和模型".into());
+    }
+    let price = match_price(catalogue, target.model.trim())
+        .ok_or("没有找到精确匹配的模型报价，请手动填写或使用官网链接")?;
+    Ok(PriceQuote {
+        agent: target.agent,
+        model: target.model.trim().into(),
+        currency: "CNY".into(),
+        input: price.input.clone(),
+        output: price.output.clone(),
+        cache_read: price.cached.clone(),
+        cache_write: None,
+        source_url: price.official_url.clone(),
+        method: "AIHOT".into(),
+        notes: vec![format!(
+            "汇率 {} · {}；来源更新 {}。请核对计费分档后保存。",
+            catalogue.fx_rate, catalogue.fx_date, catalogue.source_updated_at
+        )],
+    })
+}
+
 /// A single fixed HTTPS GET. Redirects, cookies and account authentication are disabled.
 pub fn fetch() -> Result<Catalogue, String> {
     let client = reqwest::blocking::Client::builder()

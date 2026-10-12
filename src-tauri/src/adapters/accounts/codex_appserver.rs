@@ -415,9 +415,20 @@ fn push_snapshot_windows(
             format!("codex:account:{limit_id}:{slot}"),
             QuotaUnit::Percent,
         );
-        quota.label = Some(match limit_name {
-            Some(name) => format!("{name} ({slot})"),
-            None => format!("{limit_id} ({slot})"),
+        let period = match duration_seconds {
+            Some(seconds) if seconds > 0 && seconds % 86400 == 0 => {
+                format!("{} 天滚动", seconds / 86400)
+            }
+            Some(seconds) if seconds > 0 && seconds % 3600 == 0 => {
+                format!("{} 小时滚动", seconds / 3600)
+            }
+            Some(seconds) if seconds > 0 => format!("{} 分钟滚动", seconds / 60),
+            _ => slot.to_owned(),
+        };
+        quota.label = Some(if limit_id == "codex" && limit_name.is_none() {
+            period
+        } else {
+            format!("{} · {period}", limit_name.unwrap_or(limit_id))
         });
         quota.resource = Some(limit_id.to_owned());
         quota.scope = Some("account".to_owned());

@@ -1,6 +1,6 @@
 # 兼容登记
 
-最近更新：2026-10-12（GLM 错误分类修正 + B-04 Kimi Code 直连真实凭据补验）；此前为 2026-10-11（T00 证据核实完成一轮）。状态含义：`researched` = 阅读固定提交源码/官方文档；`fixture_verified` = 合成/脱敏样本 + 独立预期值通过；`live_verified` = 真实环境实测。
+最近更新：2026-10-13（A10 Harness、B07 stdio 本地接线；验证见 2026-10-13 记录）；此前 2026-10-12（GLM 错误分类修正 + B-04 Kimi Code 直连真实凭据补验）；此前为 2026-10-11（T00 证据核实完成一轮）。状态含义：`researched` = 阅读固定提交源码/官方文档；`fixture_verified` = 合成/脱敏样本 + 独立预期值通过；`live_verified` = 真实环境实测。
 
 ## 实现状态（2026-10-11，随验收更新）
 
@@ -14,6 +14,7 @@
 | A06 Pi | ✅ pi_log.rs | 13 用例通过（含 usage kind 条目） | ✅ scanner | 未 | fixture_verified |
 | A07 MCode | ✅ mcode_db.rs | 6 用例通过 | ✅ scanner（row_id 游标+重叠回看） | 未 | fixture_verified |
 | A08 Kimi Code | ✅ kimi_wire.rs | 7 用例通过 | ✅ scanner | **macOS 实测：63 文件 4147 事件、六项 Token 全量/当天独立核对一致、重扫幂等**（Windows 待验） | fixture_verified + macOS live |
+| A10 DeepSeek Harness | ✅ deepseek_harness.rs v1 | 4 纯解析 + 2 扫描集成用例，独立预期 612 Token | ✅ scanner（v3/v4、.zstd、多代/父链） | 未 | fixture_verified |
 | A09 Desktop 网关 | 未开始（T00-G 演示待做） | — | — | 未 | researched |
 | 旧 Python Kimi | 未开始（独立适配器） | — | — | 未 | researched |
 
@@ -32,7 +33,7 @@ CI 补记：自动监测首轮 macOS CI 通过；Windows 在 Codex 升级回归�
 | B05 GLM Coding Plan | ✅ glm_plan.rs | 样本验证 | E2；双 TOKENS_LIMIT 区分待官方证据；`no_plan`/401 分类经 2026-10-12 真实凭据验证；`CREDIT_LIMIT` 保持未知诊断 |
 | B06 Kimi 本机 Server | ✅ kimi_server.rs | 样本验证 | 需用户已运行 Server；meta 协商已实现 |
 | B-04 Kimi Code 直连 | ✅ kimi_code.rs | 实机验证（仅 `/coding/v1/usages`，2026-10-12）+ 夹具 | `credential_type = api_key` → 直连；server token 保持 B06；`booster_wallet` 未解析 |
-| B07 Codex App Server | ✅ codex_appserver.rs | 样本验证（协议构造/响应解析） | 进程协议未接线，查询占位 unsupported |
+| B07 Codex App Server | ✅ codex_appserver.rs + codex_connection.rs | 样本 + macOS 真实只读验证（2026-10-13） | stdio 初始化/account/read/rateLimits；本机 ChatGPT 登录，Windows 未验 |
 | 账户域服务 | services/{accounts,account_query,account_scheduler}.rs | 单测 + mock HTTP 实测（重定向剥 Auth 等） | 后台循环及持久化开关已接；逐账户到期；禁用启动首轮、锁外 HTTP、并发和删除中请求回归通过 |
 
 账户页 UI（T12）已接 IPC。Kimi Code 直连额度和 GLM 无套餐/401 状态已有局部 macOS 实测，其余保持样本验证；不代表完整平台或 Windows 账户验收。
@@ -42,6 +43,8 @@ CI 补记：自动监测首轮 macOS CI 通过；Windows 在 Codex 升级回归�
 - [A01–A04 cc-switch 导入器](evidence/a01-a04-ccswitch-importers.md)（cc-switch `df40d53c`）
 - [A05–A07 cc-switch 导入器](evidence/a05-a07-ccswitch-importers.md)（cc-switch `df40d53c`）
 - [A08 Kimi 新/旧官方格式](evidence/a08-kimi-official.md)（kimi-code `c9f01f07`、kimi-cli 归档仓库）
+- [A10 DeepSeek Harness 固定官方源码](evidence/a10-deepseek-harness.md)
+- [Codex 接线与价格解析 API](evidence/2026-10-13-codex-and-price-parsing.md)
 - [A09 Desktop 网关捕获范围](evidence/a09-desktop-gateway.md)（cc-switch `df40d53c`）
 - [B01–B07 与账户候选审计](evidence/accounts-b01-b07-candidates.md)
 
@@ -118,3 +121,7 @@ Grok/OpenCode/Pi/MCode 不再读取源自报成本，其 Token、身份、游标
 ### v2.0.4 发行补验
 
 同 SHA 双平台 CI、11 项公开资产摘要和独立验签通过。Mac 正式应用内更新至 v2.0.4 并保留用户数据已实测；隔离测试产物已清理。Windows 仅 CI/NSIS 解包，未扩展为实机验证。详见本版核验记录。
+
+## 2026-10-13 本地价格解析边界
+
+AIHOT 当前 UI 只取选定模型报价，不批量写库；程序官网解析限明确单位/单币种/唯一模型行静态表。DeepSeek/GLM/OpenRouter 单次模型辅助的凭据隔离、无工具、原文校验有合成回归；未做真实付费推理或所有官网结构验收。详见[依据](evidence/2026-10-13-codex-and-price-parsing.md)。

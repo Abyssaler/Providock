@@ -31,9 +31,6 @@ export default function AccountMetrics({ account, mode, now, onRotateCredential 
         <p>
           <strong>{unsupportedNote()}</strong>
         </p>
-        <p className="small muted">
-          保留别名、区域与凭据管理；不使用第三方控制台 Cookie 查询，也不把未知显示成 0。
-        </p>
       </div>
     );
   }
@@ -49,15 +46,16 @@ export default function AccountMetrics({ account, mode, now, onRotateCredential 
       {mode === "auth" && (
         <div className="acct-alert" role="alert">
           <div>
-            <strong>需要更新凭据</strong>
+            <strong>{account.platform === "codex" ? "请在 Codex 中登录" : "需要更新凭据"}</strong>
             <p className="small muted">
-              {account.credentialReady === false
-                ? "请重新保存 API Key，以启用账户查询。"
-                : "平台返回认证失败或权限不足。"}
-              这里不显示余额数字，避免把“无法读取”当成 0。
+              {account.platform === "codex"
+                ? "请先在官方 Codex 中使用 ChatGPT 账户登录，再刷新额度。"
+                : account.credentialReady === false
+                  ? "请重新保存 API Key，以启用账户查询。"
+                  : "平台返回认证失败或权限不足。"}
             </p>
           </div>
-          <button onClick={onRotateCredential}>更新凭据</button>
+          {account.platform !== "codex" && <button onClick={onRotateCredential}>更新凭据</button>}
         </div>
       )}
 
@@ -147,13 +145,11 @@ export default function AccountMetrics({ account, mode, now, onRotateCredential 
                 >
                   <span style={{ width: `${display.barPercent ?? 0}%` }} />
                 </div>
-                <p className="small muted">
-                  {display.percent === null &&
-                    display.absoluteRemaining !== null &&
-                    `平台只返回绝对剩余量 ${display.absoluteRemaining} ${display.unitLabel} · `}
-                  {display.percentKind === "used" && "平台只返回已用比例 · "}
-                  按平台返回的{display.unitLabel}窗口显示，不反推绝对量
-                </p>
+                {display.percent === null && display.absoluteRemaining !== null && (
+                  <p className="small muted">
+                    剩余 {display.absoluteRemaining} {display.unitLabel}
+                  </p>
+                )}
               </div>
             );
           })}
@@ -173,14 +169,10 @@ export default function AccountMetrics({ account, mode, now, onRotateCredential 
         </div>
       )}
 
-      {snapshot === null && (
-        <p className="muted small">尚无快照。点击操作菜单的「刷新」获取一次只读查询结果。</p>
-      )}
+      {snapshot === null && <p className="muted small">尚无数据</p>}
 
       {snapshot !== null && balanceGroups.length === 0 && windows.length === 0 && (
-        <p className="muted small">
-          这次查询没有返回余额或额度字段。未提供 ≠ 0，刷新失败时保留最近成功值。
-        </p>
+        <p className="muted small">平台未提供余额或额度</p>
       )}
 
       {snapshot?.providerAsOf && (

@@ -196,6 +196,7 @@ async fn monitoring_update(
 struct UsageOptions {
     sources: Vec<UsageSourceOption>,
     models: Vec<String>,
+    models_by_agent: std::collections::BTreeMap<String, Vec<String>>,
 }
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -214,7 +215,11 @@ async fn usage_options(state: tauri::State<'_, AppState>) -> Result<UsageOptions
         let sources = sources.query_map([], |r| Ok(UsageSourceOption { source_id: r.get(0)?, agent: r.get(1)?, label: r.get(2)? })).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
         let mut models = db.conn().prepare("SELECT DISTINCT COALESCE(model_normalized, model_raw) FROM usage_events WHERE stream_domain = 'local_log' AND COALESCE(model_normalized, model_raw) IS NOT NULL ORDER BY 1").map_err(|e| e.to_string())?;
         let models = models.query_map([], |r| r.get::<_, String>(0)).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
-        Ok(UsageOptions { sources, models })
+        let mut pairs=db.conn().prepare("SELECT DISTINCT agent, COALESCE(model_normalized,model_raw) FROM usage_events WHERE stream_domain='local_log' AND COALESCE(model_normalized,model_raw) IS NOT NULL ORDER BY 1,2").map_err(|e|e.to_string())?;
+        let rows=pairs.query_map([],|r|Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?))).map_err(|e|e.to_string())?;
+        let mut models_by_agent=std::collections::BTreeMap::<String,Vec<String>>::new();
+        for row in rows{let(agent,model)=row.map_err(|e|e.to_string())?;models_by_agent.entry(agent).or_default().push(model);}
+        Ok(UsageOptions { sources, models, models_by_agent })
     }).await.map_err(|e| e.to_string())?
 }
 
@@ -352,7 +357,7 @@ fn build_account_summary(
         None => (None, false),
     };
     let latest_status = acc::snapshot_latest_status(db, account_id).map_err(|e| e.to_string())?;
-    let mut credential_ready = false;
+    let mut credential_ready = matches!(account.platform.as_str(), "codex" | "codex_appserver");
     let mut refs = db
         .conn()
         .prepare("SELECT vault_ref FROM credential_refs WHERE account_id=?1 AND retired_at IS NULL")
@@ -426,6 +431,13 @@ async fn account_save(
     let vault = Arc::clone(&state.vault);
     let result = tauri::async_runtime::spawn_blocking(move || {
         use services::accounts as acc;
+        if input.platform == "codex"
+            && (input.secret.is_some()
+                || input.credential_type.is_some()
+                || input.config_kind != "coding_plan")
+        {
+            return Err("Codex 官方额度使用本机 ChatGPT 登录，无需上传凭据".into());
+        }
         let secret = input.secret.take().map(vault::SecretString::new);
         let db = db.lock().map_err(|e| e.to_string())?;
         let config_kind = acc::ConfigKind::parse(&input.config_kind)
@@ -608,14 +620,46 @@ async fn model_price_save(
 }
 #[tauri::command]
 async fn model_prices_import(
-    state: tauri::State<'_, AppState>,
-    target: Option<services::price_import::ImportTarget>,
-) -> Result<services::price_import::ImportResult, String> {
-    let db = Arc::clone(&state.db);
+    target: services::price_import::ImportTarget,
+) -> Result<services::price_import::PriceQuote, String> {
+    if target.model.trim().is_empty() {
+        return Err("请先选择 Agent 和模型".into());
+    }
     tauri::async_runtime::spawn_blocking(move || {
         let catalogue = services::price_import::fetch()?;
-        let db = db.lock().map_err(|e| e.to_string())?;
-        services::price_import::apply(&db, &catalogue, target)
+        services::price_import::quote(&catalogue, target)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn price_parser_accounts(
+    state: tauri::State<'_, AppState>,
+) -> Result<Vec<services::price_page::ParserAccount>, String> {
+    services::price_page::parser_accounts(&*state.db.lock().map_err(|e| e.to_string())?)
+}
+#[tauri::command]
+async fn price_parser_models(
+    state: tauri::State<'_, AppState>,
+    account_id: String,
+) -> Result<Vec<String>, String> {
+    let db = Arc::clone(&state.db);
+    let vault = Arc::clone(&state.vault);
+    tauri::async_runtime::spawn_blocking(move || {
+        services::price_page::parser_models(&db, vault.as_ref(), &account_id)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn model_price_from_page(
+    state: tauri::State<'_, AppState>,
+    input: services::price_page::PageRequest,
+) -> Result<services::price_import::PriceQuote, String> {
+    let db = Arc::clone(&state.db);
+    let vault = Arc::clone(&state.vault);
+    tauri::async_runtime::spawn_blocking(move || {
+        services::price_page::extract(&db, vault.as_ref(), input)
     })
     .await
     .map_err(|e| e.to_string())?
@@ -880,6 +924,9 @@ pub fn run() {
             model_prices_list,
             model_price_save,
             model_prices_import,
+            price_parser_accounts,
+            price_parser_models,
+            model_price_from_page,
             usage_dashboard,
             usage_events,
             agent_visibility,

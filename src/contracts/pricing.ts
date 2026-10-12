@@ -99,3 +99,16 @@ export interface PriceImportResult {
   fxRate: string;
   fxDate: string;
 }
+
+export interface PriceQuote {
+  agent: string;
+  model: string;
+  currency: "USD" | "CNY";
+  input: string | null;
+  output: string | null;
+  cacheRead: string | null;
+  cacheWrite: string | null;
+  sourceUrl: string;
+  method: string;
+  notes: string[];
+}

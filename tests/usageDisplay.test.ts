@@ -29,3 +29,32 @@ describe("用量日期与未知值", () => {
     expect(percentage("0.936")).toBe("93.6%");
   });
 });
+
+describe("滚动小时与自定义时间", () => {
+  it("按实际小时跨越本机零点，而非按当天截断", () => {
+    const now = new Date(2026, 9, 13, 0, 30);
+    for (const [period, hours] of [
+      ["1h", 1],
+      ["3h", 3],
+      ["6h", 6],
+    ] as const) {
+      const range = periodFilter(period, now);
+      expect(new Date(range.to!).getTime() - new Date(range.from!).getTime()).toBe(
+        hours * 3_600_000,
+      );
+      expect(new Date(range.from!).getDate()).toBe(12);
+    }
+  });
+  it("自定义精确到分钟，结束边界不扩展一天", () => {
+    const range = periodFilter("custom", new Date(), "2026-10-12T22:15", "2026-10-13T00:20");
+    expect(new Date(range.from!).getMinutes()).toBe(15);
+    expect(new Date(range.to!).getHours()).toBe(0);
+    expect(new Date(range.to!).getMinutes()).toBe(20);
+    for (const [start, end] of [
+      ["2026-02-30T12:00", "2026-03-01T12:00"],
+      ["2026-10-13T00:00", "2026-10-13T00:00"],
+      ["2026-10-13T02:00", "2026-10-13T01:00"],
+    ])
+      expect(() => periodFilter("custom", new Date(), start, end)).toThrow();
+  });
+});

@@ -8,6 +8,7 @@ import SessionsPage from "../features/sessions/SessionsPage";
 import SourcesPage from "../features/sources/SourcesPage";
 import PageBoundary from "./PageBoundary";
 import AppUpdates from "../features/updates/AppUpdates";
+import Hint from "../components/Hint";
 import "./app.css";
 
 type PageId = "usage" | "accounts" | "sessions" | "sources" | "settings";
@@ -26,6 +27,7 @@ interface AppInfo {
 
 export default function App() {
   const [page, setPage] = useState<PageId>("usage");
+  const [settingsTab, setSettingsTab] = useState("monitoring");
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
 
   useEffect(() => {
@@ -78,7 +80,7 @@ export default function App() {
             title={appInfo ? `v${appInfo.version}` : "浏览器预览"}
           >
             <i className="dot" aria-hidden="true" />
-            {appInfo ? `本地优先 · v${appInfo.version}` : "浏览器预览模式"}
+            {appInfo ? `v${appInfo.version}` : "预览"}
           </span>
           <button
             onClick={() => setPage("settings")}
@@ -89,33 +91,85 @@ export default function App() {
         </div>
       </header>
       <main>
-        <AppUpdates version={appInfo?.version} settings={page === "settings"} />
-        <PageBoundary key={page}>
-          {page === "usage" && <UsagePage />}
-          {page === "accounts" && <AccountsPage />}
-          {page === "sessions" && <SessionsPage />}
-          {page === "sources" && <SourcesPage />}
+        {page === "settings" && (
+          <div className="page-head">
+            <h1>设置</h1>
+          </div>
+        )}
+        <div className={page === "settings" ? "settings-shell" : undefined}>
           {page === "settings" && (
-            <section aria-label="采集设置">
-              <div className="page-head">
-                <h1>自动监测设置</h1>
-                <p className="muted">Agent 用量与平台账户分别调度，关闭自动任务不影响手动刷新。</p>
-              </div>
-              <MonitoringControls />
-              <AgentVisibilitySettings />
-              <div className="card">
-                <h2>桌面运行</h2>
-                <p className="muted">
-                  macOS 关闭窗口后继续在菜单栏运行，自动任务遵循上方开关。点击菜单栏图标可查看最近
-                  24 小时用量、同步或重新打开窗口；使用 ⌘Q 或菜单栏「退出 Providock」结束程序。
-                </p>
-              </div>
-            </section>
+            <nav className="settings-nav" aria-label="设置分组">
+              {[
+                ["monitoring", "采集与刷新"],
+                ["display", "Agent 显示"],
+                ["updates", "软件更新"],
+                ["about", "关于与隐私"],
+              ].map(([id, label]) => (
+                <button
+                  key={id}
+                  className={settingsTab === id ? "active" : ""}
+                  aria-pressed={settingsTab === id}
+                  onClick={() => setSettingsTab(id)}
+                >
+                  {label}
+                </button>
+              ))}
+            </nav>
           )}
-        </PageBoundary>
-        <footer className="foot">
-          <span>Providock · 本地用量与账户管理</span>
-        </footer>
+          <div className={page === "settings" ? "settings-content" : undefined}>
+            <AppUpdates
+              version={appInfo?.version}
+              settings={page === "settings" && settingsTab === "updates"}
+            />
+            <PageBoundary key={page}>
+              {page === "usage" && <UsagePage />}
+              {page === "accounts" && <AccountsPage />}
+              {page === "sessions" && <SessionsPage />}
+              {page === "sources" && <SourcesPage />}
+              {page === "settings" && settingsTab === "monitoring" && (
+                <section className="card">
+                  <h2>
+                    采集与刷新{" "}
+                    <Hint>
+                      两类自动任务独立控制。更改立即生效并保存到本机；关闭后仍可手动刷新。
+                    </Hint>
+                  </h2>
+                  <MonitoringControls />
+                </section>
+              )}
+              {page === "settings" && settingsTab === "display" && <AgentVisibilitySettings />}
+              {page === "settings" && settingsTab === "about" && (
+                <section className="card settings-about">
+                  <h2>
+                    Providock{" "}
+                    <span className="muted small">
+                      {appInfo ? `v${appInfo.version}` : "开发预览"}
+                    </span>
+                  </h2>
+                  <p>本地用量与账户管理</p>
+                  <dl>
+                    <div>
+                      <dt>运行方式</dt>
+                      <dd>macOS 关窗后驻留菜单栏；⌘Q 退出。Windows 关窗退出。</dd>
+                    </div>
+                    <div>
+                      <dt>采集</dt>
+                      <dd>只读 Agent 日志；默认不保存对话正文。</dd>
+                    </div>
+                    <div>
+                      <dt>凭据</dt>
+                      <dd>API Key 明文保存在独立本机文件，受本地文件权限保护。</dd>
+                    </div>
+                    <div>
+                      <dt>价格解析</dt>
+                      <dd>程序优先；模型辅助仅在你主动点击后发送公开价格页内容。</dd>
+                    </div>
+                  </dl>
+                </section>
+              )}
+            </PageBoundary>
+          </div>
+        </div>
       </main>
     </div>
   );

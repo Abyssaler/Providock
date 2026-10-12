@@ -99,7 +99,7 @@ export default function AppUpdates({ version, settings }: { version?: string; se
       {settings && (
         <section className="card app-updates" aria-label="软件更新">
           <h2>软件更新{version ? ` · v${version}` : ""}</h2>
-          <label>
+          <label title="启动及每 6 小时检查；发现新版后由你点击下载与安装">
             <input
               type="checkbox"
               checked={autoCheck}
@@ -108,10 +108,7 @@ export default function AppUpdates({ version, settings }: { version?: string; se
             />
             自动检查正式版更新
           </label>
-          <p className="muted small">
-            启动时及运行期间每 6
-            小时检查一次；恢复窗口时补查到期更新。发现新版会在应用内通知，点击后才下载并安装。
-          </p>
+
           <p role="status">{version ? status : "浏览器预览不支持桌面更新。"}</p>
           <div className="actions">
             <button
