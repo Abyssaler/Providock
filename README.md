@@ -2,16 +2,16 @@
 
 本地优先的 AI Agent 用量统计与账户额度管理桌面应用。读取电脑上已有的 Agent 日志，查看 Token、缓存、模型成本估算和会话；API 余额与 Coding Plan 独立管理，账户无需绑定 Agent。
 
-[下载 v2.1.0](https://github.com/Abyssaler/Providock/releases/tag/v2.1.0) · [发布说明](docs/releases/v2.1.0.md) · [当前状态](docs/CURRENT_STATUS.md) · [变更记录](CHANGELOG.md)
+[下载 v2.1.1](https://github.com/Abyssaler/Providock/releases/tag/v2.1.1) · [发布说明](docs/releases/v2.1.1.md) · [当前状态](docs/CURRENT_STATUS.md) · [变更记录](CHANGELOG.md)
 
-v2.1.0 新增 DeepSeek Harness、小时/自定义时间、Codex 官方额度和按模型预填价格，统一简化界面及设置布局。见[本地验证](docs/research/validation/2026-10-13-local-redesign.md)与[发行核验](docs/research/validation/2026-10-13-release-v2.1.0.md)。
+v2.1.1 新增 Windows 关闭到托盘、左键恢复和右键退出。v2.1.0 的 DeepSeek Harness、时间筛选、Codex 官方额度和模型定价保持。见[Windows 验证记录](docs/research/validation/2026-10-13-windows-tray-v2.1.1.md)。
 
 ## 安装与更新
 
 | 系统                    | 安装包                                            |
 | ----------------------- | ------------------------------------------------- |
-| Apple Silicon macOS 13+ | `Providock_2.1.0_aarch64.dmg`，打开后拖入应用程序 |
-| Windows x64             | `Providock_2.1.0_x64-setup.exe`，每用户安装       |
+| Apple Silicon macOS 13+ | `Providock_2.1.1_aarch64.dmg`，打开后拖入应用程序 |
+| Windows x64             | `Providock_2.1.1_x64-setup.exe`，每用户安装       |
 
 v2.0.3 起支持应用内更新：在「设置 → 软件更新」检查，点击「下载、安装并重启」完成升级，保留本机统计、账户与价格规则。默认启动及运行每 6 小时检查 GitHub 正式 Release，可关闭自动检查。应用完全退出后不检查。
 
@@ -28,7 +28,7 @@ v2.0.2 及更早版本需要退出旧应用，手动替换应用包一次。v1 �
 
 应用默认启动同步一次，之后每 60 秒扫描，跳过未变化内容。用量页「显示刷新」只重新查询统计库，不改变采集周期。「设置 → 采集与刷新」可分别关闭 Agent 自动同步、账户自动刷新，重启保持选择。
 
-macOS 关闭窗口后驻留菜单栏，⌘Q 或菜单栏退出才停止。Windows 关闭主窗口退出。采集只读，不改 Agent 配置、不调用模型做测试补全。
+关闭窗口后继续后台运行：macOS 驻留菜单栏，⌘Q 或菜单栏退出才停止；Windows 隐藏到托盘，左键图标或右键「打开 Providock」恢复，右键「退出 Providock」才停止。隐藏期间自动任务仍遵循设置开关。采集只读，不改 Agent 配置、不调用模型做测试补全。
 
 ## 模型价格
 

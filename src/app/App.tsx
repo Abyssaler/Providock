@@ -150,7 +150,7 @@ export default function App() {
                   <dl>
                     <div>
                       <dt>运行方式</dt>
-                      <dd>macOS 关窗后驻留菜单栏；⌘Q 退出。Windows 关窗退出。</dd>
+                      <dd>关闭窗口后驻留菜单栏或托盘；右击托盘选择退出。macOS 也可 ⌘Q 退出。</dd>
                     </div>
                     <div>
                       <dt>采集</dt>

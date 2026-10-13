@@ -2,6 +2,10 @@
 
 本文是交接事实表：每块工作按 [开发手册](DEVELOPMENT_HANDBOOK.md) 第 10 节的格式给出，并遵守 [AGENTS.md](../AGENTS.md) 的交付约定。状态分级：`样本验证`（合成夹具+独立预期值通过）< `macOS 实测` < `live_verified`（真实凭据/双平台）。**尚未完成双平台完整验收；局部 macOS 真实账户验证见下文，不外推到整个账户域。各版本发行依据与验证边界分别记录。**
 
+## v2.1.1 Windows 托盘（2026-10-13，本机验证通过，待发行）
+
+用户最新明确要求 Windows 关窗隐藏到托盘、右键退出才停止，并授权验证后推送和发行，再仅配置本机模型价格。Windows 专用托盘已实现，macOS 不变；版本 2.1.1，无 schema 或依赖升级。本机前端 80 项、typecheck/lint/build、Rust fmt/Clippy 和 Rust 359 项/4 ignored 通过；隔离原生库 4 请求/612 Token、关窗隐藏实测通过，用户确认左键恢复、最小化恢复、菜单打开及退出均正常，进程退出已核实。NSIS/CI/发行结果见 [Windows 实测与发行记录](research/validation/2026-10-13-windows-tray-v2.1.1.md)，历史「Windows 关窗退出」由本次决定替代。用户仍自行更新正式应用。
+
 ## v2.1.0 已发布（2026-10-13）
 
 本轮以 v2.0.4 后 main `bad4942` 为基线，开发在独立本地副本；初期只做本地验证；用户已随后授权推送、发布 v2.1.0 和清理本地测试残余。发行核验另见 [v2.1.0 记录](research/validation/2026-10-13-release-v2.1.0.md)。详见[本地验证记录](research/validation/2026-10-13-local-redesign.md)和[实施计划](research/2026-10-13-local-redesign-plan.md)。[正式 Release](https://github.com/Abyssaler/Providock/releases/tag/v2.1.0) 已公开设为 Latest，代码/标签固定 `fcebe85`；[同提交双平台 CI](https://github.com/Abyssaler/Providock/actions/runs/38285861608)、11 项公开回下载摘要与独立验签通过。用户明确自行安装，本机仍为 v2.0.4，本轮未安装或替换。开发测试残余已清理，正式源码、数据及受限恢复备份保留。以下状态优先于下方历史版本记录。

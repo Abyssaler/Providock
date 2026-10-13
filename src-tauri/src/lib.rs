@@ -13,6 +13,8 @@ pub mod safepath;
 pub mod services;
 pub mod storage;
 pub mod vault;
+#[cfg(target_os = "windows")]
+mod windows_tray;
 
 use ingestion::scanner::SourceScanReport;
 use serde::{Deserialize, Serialize};
@@ -899,6 +901,8 @@ pub fn run() {
                 let tray = menu_bar::setup(app.handle())?;
                 *app.state::<AppState>().tray_scheduler.lock().unwrap() = Some(tray);
             }
+            #[cfg(target_os = "windows")]
+            windows_tray::setup(app.handle())?;
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -907,7 +911,15 @@ pub fn run() {
                 api.prevent_close();
                 let _ = window.hide();
             }
-            #[cfg(not(target_os = "macos"))]
+            #[cfg(target_os = "windows")]
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                // Keep the webview and background tasks alive. If hiding fails, allow
+                // the normal close instead of leaving an inaccessible process.
+                if window.label() == "main" && window.hide().is_ok() {
+                    api.prevent_close();
+                }
+            }
+            #[cfg(not(any(target_os = "macos", target_os = "windows")))]
             let _ = (window, event);
         })
         .invoke_handler(tauri::generate_handler![
