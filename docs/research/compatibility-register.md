@@ -1,5 +1,9 @@
 # 兼容登记
 
+## 2026-10-14 项目介绍核对
+
+README 与 GitHub About 按 v2.1.1 代码和已公开资产重新整理。对外介绍列九种本地数据源及 DeepSeek/OpenRouter/Novita/GLM/Kimi Code/Codex 账户查询能力，保留按区域、凭据、格式和实测范围区分的说明；没有新增适配器、端点或实机验证声明。Windows 托盘交互已实测，完整安装/实际更新、全部缩放与休眠仍待验。
+
 ## 2026-10-13 Windows 托盘增量（v2.1.1，本机行为通过）
 
 v2.1.1 已公开设为 Latest；[同提交双平台 CI](https://github.com/Abyssaler/Providock/actions/runs/38340576160)、11 项公开资产回下载摘要与独立验签通过，标签固定 `b3500e3`。发行标记不提升下述未验项目等级。

@@ -1,88 +1,126 @@
-# Providock
+<p align="center">
+  <img src="assets/app-icon.svg" width="88" height="88" alt="Providock logo" />
+</p>
 
-本地优先的 AI Agent 用量统计与账户额度管理桌面应用。读取电脑上已有的 Agent 日志，查看 Token、缓存、模型成本估算和会话；API 余额与 Coding Plan 独立管理，账户无需绑定 Agent。
+<h1 align="center">Providock</h1>
 
-[下载 v2.1.1](https://github.com/Abyssaler/Providock/releases/tag/v2.1.1) · [发布说明](docs/releases/v2.1.1.md) · [当前状态](docs/CURRENT_STATUS.md) · [变更记录](CHANGELOG.md)
+<p align="center">
+  <strong>一个桌面看板，掌握 AI Agent 用量、模型成本与账户额度。</strong>
+</p>
 
-v2.1.1 新增 Windows 关闭到托盘、左键恢复和右键退出。v2.1.0 的 DeepSeek Harness、时间筛选、Codex 官方额度和模型定价保持。见[Windows 验证记录](docs/research/validation/2026-10-13-windows-tray-v2.1.1.md)。
+<p align="center">
+  本地优先 · macOS &amp; Windows · 九种 Agent 数据源
+</p>
 
-## 安装与更新
+<p align="center">
+  <a href="https://github.com/Abyssaler/Providock/releases/latest"><img src="https://img.shields.io/github/v/release/Abyssaler/Providock?color=d4ff5f" alt="Latest release" /></a>
+  <a href="https://github.com/Abyssaler/Providock/actions/workflows/ci.yml"><img src="https://github.com/Abyssaler/Providock/actions/workflows/ci.yml/badge.svg" alt="Build status" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license" /></a>
+</p>
 
-| 系统                    | 安装包                                            |
-| ----------------------- | ------------------------------------------------- |
-| Apple Silicon macOS 13+ | `Providock_2.1.1_aarch64.dmg`，打开后拖入应用程序 |
-| Windows x64             | `Providock_2.1.1_x64-setup.exe`，每用户安装       |
+<p align="center">
+  <a href="https://github.com/Abyssaler/Providock/releases/latest">下载</a> ·
+  <a href="#功能">功能</a> ·
+  <a href="#快速开始">快速开始</a> ·
+  <a href="#开发">开发</a> ·
+  <a href="https://github.com/Abyssaler/Providock/issues">反馈问题</a>
+</p>
 
-v2.0.3 起支持应用内更新：在「设置 → 软件更新」检查，点击「下载、安装并重启」完成升级，保留本机统计、账户与价格规则。默认启动及运行每 6 小时检查 GitHub 正式 Release，可关闭自动检查。应用完全退出后不检查。
+Providock 将散落在不同 AI 编程工具中的用量记录汇集到本机：查看 Token 消耗与缓存效果，按模型估算成本，并单独管理 API 余额和 Coding Plan 额度。无需改动现有 Agent 配置，也不需要 Providock 云服务。
 
-v2.0.2 及更早版本需要退出旧应用，手动替换应用包一次。v1 使用独立标识和数据目录，不自动迁移。Release 同时提供 SHA-256 摘要、公钥及 minisign 签名；Mac 应用有 ad-hoc 完整性签名，尚无 Apple Developer ID 公证和 Windows Authenticode。
+## 功能
 
-## 用量统计
+- **用量看板**：输入、输出、缓存创建、缓存命中与命中率，配合趋势图、模型/Agent 汇总和分页明细。
+- **灵活筛选**：按 Agent、数据源、模型和时间查看；支持当天、最近 1/3/6 小时、7/30 天、全部时间及自定义日期时间。
+- **模型成本**：自定义 CNY/USD 价格，支持分时段与长上下文定价；从 AIHOT 或官网链接获取候选报价，核对后保存。
+- **账户额度**：独立展示 API 余额、订阅窗口剩余比例与重置时间，不要求账户绑定 Agent。
+- **会话与数据源**：检索会话、查看用量分解，检查数据源兼容状态与最近同步时间；部分来源支持按需查看正文。
+- **后台常驻**：macOS 菜单栏、Windows 托盘，关闭窗口后继续按设置采集；支持应用内检查更新。
 
-支持 Claude Code、Codex、Gemini CLI、Grok Build、OpenCode、Pi、MCode（MiniMax Code）、Kimi Code、DeepSeek Harness 九个本地数据源。设置中可选择用量页展示的 Agent。
+## 下载
 
-- 按 Agent、来源、精确模型名和日期筛选，查看输入、输出、缓存创建、缓存命中、加权缓存命中率与成本估算。
-- **默认范围为本机当天零点至最近一次统计刷新**。摘要、六张指标卡、趋势和明细使用同一筛选，页面直接显示起止时间。另可选滚动最近 1/3/6 小时、自定义起止日期时间（本机时间，结束时刻不包含）；48 小时以内按小时绘图。macOS 菜单栏另用最近 24 小时。
-- 趋势包含分量曲线、渐变、独立成本右轴、提示与图例；提供模型/Agent 汇总和分页计量明细。
-- 金额摘要、明细与提示显示两位小数，底层精确十进制计算。没有价格或未知 Token 保留为空，部分估算显示覆盖率，不把未知当免费；不同币种分别统计。
+当前版本：**v2.1.1**。
 
-应用默认启动同步一次，之后每 60 秒扫描，跳过未变化内容。用量页「显示刷新」只重新查询统计库，不改变采集周期。「设置 → 采集与刷新」可分别关闭 Agent 自动同步、账户自动刷新，重启保持选择。
+| 平台                      | 下载                                                                                                          | 安装方式                     |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| macOS 13+ · Apple Silicon | [下载 DMG](https://github.com/Abyssaler/Providock/releases/download/v2.1.1/Providock_2.1.1_aarch64.dmg)       | 打开后拖入「应用程序」       |
+| Windows 11 · x64          | [下载安装程序](https://github.com/Abyssaler/Providock/releases/download/v2.1.1/Providock_2.1.1_x64-setup.exe) | 运行安装程序，安装到当前用户 |
 
-关闭窗口后继续后台运行：macOS 驻留菜单栏，⌘Q 或菜单栏退出才停止；Windows 隐藏到托盘，左键图标或右键「打开 Providock」恢复，右键「退出 Providock」才停止。隐藏期间自动任务仍遵循设置开关。采集只读，不改 Agent 配置、不调用模型做测试补全。
+[全部版本与校验文件](https://github.com/Abyssaler/Providock/releases) · [变更记录](CHANGELOG.md)
+
+安装包附 SHA-256 校验和及 minisign 签名。目前尚无 Apple Developer ID 公证和 Windows Authenticode 签名，系统可能提示未知发布者，请使用本仓库 Releases 提供的文件。
+
+已有 v2.0.3 或更高版本，可在「设置 → 软件更新」检查并手动下载安装；更早版本需手动安装。v1 的账户与统计不会自动迁移到 v2。
+
+## 快速开始
+
+1. **打开应用**：默认自动发现并同步本机已有 Agent 日志；也可在用量页点击「立即同步」。
+2. **选择统计范围**：筛选 Agent、模型和时间，在「模型定价」中设置价格以查看成本估算。
+3. **添加账户（可选）**：在账户页选择平台与凭据，保存后点击「立即验证」，查看余额或订阅额度。
+
+「设置 → Agent 显示」可选择看板中的 Agent；「设置 → 采集与刷新」可分别控制自动同步与账户刷新。默认 Agent 每 60 秒同步，API 余额约每 15 分钟、Coding Plan 约每 5 分钟刷新。用量页的「显示刷新」只更新看板显示。
+
+关闭窗口后应用继续运行。Windows 左键托盘图标或右键「打开 Providock」恢复窗口，右键「退出 Providock」完全退出；macOS 从菜单栏恢复，使用菜单栏退出或 ⌘Q 完全退出。
+
+## 支持的 Agent
+
+Providock 读取以下工具的本地日志或数据库：
+
+**Claude Code · Codex · Gemini CLI · Grok Build · OpenCode · Pi · MiniMax Code（MCode） · Kimi Code · DeepSeek Harness**
+
+只统计本机已有且格式兼容的记录，未安装的工具无需配置。各 Agent 的原生平台支持、可用字段及日志格式不同；DeepSeek Harness 当前支持 session v3/v4，包括 `.zstd`。具体版本范围见[兼容说明](docs/research/compatibility-register.md)。
+
+## 账户与额度
+
+| 平台            | 可查询内容                                           |
+| --------------- | ---------------------------------------------------- |
+| DeepSeek        | API 余额                                             |
+| OpenRouter      | 当前 Key 的用量/预算；账户 Credits 需管理密钥        |
+| Novita          | 可用余额、现金及授信信息                             |
+| GLM / 智谱      | Coding Plan 额度                                     |
+| Kimi Code       | Coding Plan 额度，支持 Coding Key 或本机 Server 通道 |
+| Codex / ChatGPT | 当前本机 ChatGPT 登录的订阅额度窗口，无需 API Key    |
+
+Codex 额度需要本机可调用的官方 Codex CLI，并已使用 ChatGPT 登录；API Key 登录不提供订阅额度。CLI 未自动找到时，可通过 `CODEX_CLI_PATH` 指定路径。其他账户的查询范围取决于平台、区域及凭据权限，详见[账户说明](docs/specs/ACCOUNT_ADAPTERS.md)。
+
+**本机用量与平台额度分开展示。** 平台额度可能包含其他设备或成员的使用；模型成本是按所设价格计算的估算，不等同账单。未知数据与价格保留未知，不按零处理；不同币种分别统计。
 
 ## 模型价格
 
-在用量页打开「模型定价」，或从模型行点击「设置价格」。规则按 Agent、精确模型名和可选来源保存，输入/输出/缓存读取/缓存创建均为每百万 Token 价格。支持 CNY、USD、北京时间工作日分时段和长上下文整请求升档；空白表示未知，0 表示明确免费。
+在「模型定价」选择 Agent 和精确模型名后，可手动填写费率，或点击「从 AIHOT 导入」获取该模型的报价。也可提供公开 HTTPS 官网计费链接，由程序读取价格表；结果均需核对后保存。
 
-**选定模型后获取**：先选 Agent 和精确模型名，再点击「从 AIHOT 导入」，读取 [AIHOT 模型排行榜](https://aihot.news/leaderboard) 的人民币报价并填入当前表单；核对后点击「保存并用于估算」。不会批量写入其它模型；保存采用既有版本追加机制。来源未给出的缓存创建价保持未知，失败不改已有价格。来源/汇率日期可在本次候选报价中查看，保存后的规则作为用户核定价格。
+程序无法识别时，可主动选择已有 DeepSeek、GLM 或 OpenRouter API 账户和模型辅助解析。此操作仅发送公开价格页文本与目标模型，产生一次 API 调用费用，不运行工具或 Agent 循环。动态页面、复杂分档或信息缺失时可能需要手动填写。
 
-也可展开「从官网链接获取」，输入公开 HTTPS 计费页，点击「程序解析」。程序支持单位和币种明确的静态价格表，不执行网页脚本。无法可靠识别时可选已有 DeepSeek、GLM、OpenRouter API 账户和模型，点击「用所选模型解析」发起一次付费 API 请求，发送公开价格文本和目标模型，不发送本地日志或其它账户数据。DeepSeek/OpenRouter 可获取账户模型列表；GLM 直接输入模型 ID。结果仍需核对并保存，不运行工具、代理循环或后台解析。
+## 数据与隐私
 
-价格估算用于比较所选历史用量，不是平台账单，不改写 Token 或历史估值。v2.0.4 已移除源「已报告成本」采集、统计和展示。
+- **数据在本机**：统计保存在本地 SQLite，不上传 Agent 日志；采集只读源文件，不修改 Agent 配置、不发起模型调用。
+- **正文默认关闭**：启用后按需从源文件读取；当前支持 Claude Code、Codex 和 Kimi Code 的部分格式，不自动加载远程资源或执行脚本。
+- **凭据本地明文保存**：API Key 独立存放于应用数据目录的 `credentials/keys.sqlite3`，受本地文件权限保护，未加密。完整备份应用数据目录会包含凭据。
+- **网络按功能使用**：账户刷新访问对应平台，价格获取读取公开页面，软件更新访问 GitHub；模型辅助解析仅在主动点击后调用所选 API。
 
-## 账户与隐私
+更多细节见[隐私说明](docs/specs/SECURITY_PRIVACY.md)。
 
-账户页分别展示 API 余额、Coding Plan 各窗口剩余比例和重置时间。长来源信息折叠显示；每个额度窗口独立排列。Codex / ChatGPT 官方额度使用本机官方 Codex 当前登录；选择该平台即可添加，无需 API Key。需先安装官方 CLI/桌面并使用 ChatGPT 登录；自定义 CLI 路径可设置 `CODEX_CLI_PATH`。只读 App Server 额度窗口，不复制 OAuth 令牌，不发起对话，API Key 登录不支持订阅额度。
+## 开发
 
-账户按自身最近查询时间刷新：API 余额默认 15 分钟，Coding Plan 默认 5 分钟，带少量抖动。
-
-Key 按用户选择**明文保存在本机**独立 `credentials/keys.sqlite3`，重启直接使用，不访问系统钥匙串。Unix 目录/文件权限为 0700/0600，Windows 使用用户目录 ACL。完整复制应用数据目录会包含 Key，备份需要保护；普通统计库、前端响应及 Release 不包含明文 Key。
-
-默认无遥测、不上传日志、不复制保存对话正文。可选正文查看按需读取源文件，禁用脚本和远程资源。日志只代表本机保留的记录；平台额度可能覆盖其他设备或成员，两者不相加。
-
-## 验证范围
-
-九源解析器均有合成样本回归（DeepSeek Harness 当前支持 session v3/v4，含 .zstd；旧 v0–2、未知版本与自定义 sessionsDir 未接入，缺少可核对父会话的分叉暂缓采集并保留历史）；Codex、Kimi Code、OpenCode 已有 macOS 真实日志核对，Kimi Code 直连与 GLM 无套餐/认证错误已有局部真实验证，Codex 官方额度已有 macOS 真实只读验证；其余账户能力以样本验证为主。AIHOT 读取、匹配和导入已用隔离数据库及 macOS 原生 UI 实测。
-
-Windows 有 CI 构建和测试，尚未完成 Windows 实机安装、更新与缩放验收。可选网关只有 usage 解析层，转发本体未实现；导出/清理尚无 UI，更多正文读取和完整性能/休眠验收待完成。逐项事实以[当前状态](docs/CURRENT_STATUS.md)和[本版核验记录](docs/research/validation/2026-10-13-release-v2.1.0.md)为准。
-
-## 本地开发
-
-工具链：Node 24、pnpm 12.11.2、Rust 1.99.0，版本文件已固定。
+开发环境：**Node.js 24 · pnpm 12.11.2 · Rust 1.99.0**，使用仓库固定的版本及锁文件。系统依赖参考 [Tauri 开发环境](https://v2.tauri.app/start/prerequisites/)。
 
 ```bash
+git clone https://github.com/Abyssaler/Providock.git
+cd Providock
 pnpm install --frozen-lockfile
-pnpm dev          # 前端预览，原生能力不可用
-pnpm tauri dev    # 桌面联调
-pnpm typecheck
-pnpm lint
-pnpm test
-cargo fmt --manifest-path src-tauri/Cargo.toml --check
-cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
-cargo test --manifest-path src-tauri/Cargo.toml
-pnpm tauri build
+pnpm tauri dev
 ```
 
-CI 在 macos-15 ARM64 和 windows-2022 x64 检查并产出签名安装包；发布按[人工流程](docs/specs/CROSS_PLATFORM_RELEASE.md#7-当前人工发布流程)。Codex 只读核验可运行 `cargo run --manifest-path src-tauri/Cargo.toml --example verify_codex_limits`，不写 Providock 数据库、不输出身份或令牌。真实价格只读核验可运行 `cargo run --manifest-path src-tauri/Cargo.toml --example verify_aihot_prices`，仅写内存测试库。
+`pnpm dev` 仅预览前端，不包含桌面原生功能。测试、构建及贡献约定见[开发手册](docs/DEVELOPMENT_HANDBOOK.md)和 [AGENTS.md](AGENTS.md)。
 
-| 文档                                                                                                        | 内容                 |
-| ----------------------------------------------------------------------------------------------------------- | -------------------- |
-| [开发手册](docs/DEVELOPMENT_HANDBOOK.md) / [AGENTS](AGENTS.md)                                              | 接手流程与工程约定   |
-| [产品需求](docs/PRODUCT_REQUIREMENTS.md) / [路线图](docs/ROADMAP_AND_ACCEPTANCE.md)                         | 用户决定与待验收任务 |
-| [架构](docs/ARCHITECTURE.md) / [架构决策](docs/adr/0001-core-decisions.md)                                  | 模块、IPC 与取舍     |
-| [数据契约](docs/specs/DATA_CONTRACTS.md) / [界面设计](docs/specs/UI_UX.md)                                  | 统计口径与交互       |
-| [Agent 规范](docs/specs/AGENT_ADAPTERS.md) / [账户规范](docs/specs/ACCOUNT_ADAPTERS.md)                     | 来源与适配边界       |
-| [兼容登记](docs/research/compatibility-register.md) / [AIHOT 证据](docs/research/evidence/aihot-pricing.md) | 样本、实机与价格依据 |
-| [安全隐私](docs/specs/SECURITY_PRIVACY.md) / [软件更新](docs/specs/APP_UPDATES.md)                          | 凭据、网络及更新策略 |
+欢迎通过 [Issues](https://github.com/Abyssaler/Providock/issues) 反馈问题或建议，通过 [Pull Requests](https://github.com/Abyssaler/Providock/pulls) 提交改进。报告问题时请附系统、应用版本和复现步骤，并移除密钥、令牌及私密对话。
 
-MIT 许可证；上游参考与版权说明见 [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES.md)。
+## 兼容性
+
+macOS ARM64 与 Windows x64 均有 CI 检查和安装包构建。Windows 托盘交互已在实机验证，完整安装/更新、所有缩放与休眠场景仍在完善；不同 Agent 与账户的验证范围见[兼容说明](docs/research/compatibility-register.md)。
+
+Claude Desktop 网关转发、统计导出/清理界面及更多正文格式仍在开发中，当前版本不提供这些完整功能。
+
+## 许可证
+
+[MIT](LICENSE)。上游项目与第三方组件说明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
