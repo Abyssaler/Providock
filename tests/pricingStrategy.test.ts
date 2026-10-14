@@ -45,6 +45,7 @@ describe("定价策略序列化", () => {
     expect(payload.peakWindows).toEqual({
       timezone: "Asia/Shanghai",
       weekdaysOnly: true,
+      excludeChinaHolidays: false,
       ranges: DEFAULT_RANGES,
     });
     expect(payload.longContext).toBeUndefined();
@@ -117,5 +118,38 @@ describe("定价策略校验", () => {
     expect(validateModelPrice(base, { ...ok, longOn: true, threshold: "0" })).not.toBeNull();
     expect(validateModelPrice(base, { ...ok, longOn: true, threshold: "272000" })).toBeNull();
     expect(validateModelPrice(base, { ...ok, longOn: true, threshold: "1.5" })).not.toBeNull();
+  });
+});
+
+describe("官网策略编辑保存", () => {
+  it("保留节假日条件与组合分档，避免回填后静默丢失", () => {
+    const peak: ModelPrice = {
+      ...base,
+      peak: { input: "2", output: "8" },
+      peakWindows: {
+        timezone: "Asia/Shanghai",
+        weekdaysOnly: true,
+        excludeChinaHolidays: true,
+        ranges: DEFAULT_RANGES,
+      },
+    };
+    expect(serializeModelPrice(peak, strategyFormOf(peak)).peakWindows).toEqual(peak.peakWindows);
+    const tiers: ModelPrice = {
+      ...base,
+      contextTiers: [
+        {
+          label: "input >=32K",
+          inputMin: 32000,
+          inputMax: null,
+          outputMin: null,
+          outputMax: null,
+          input: "8",
+          output: "28",
+        },
+      ],
+    };
+    expect(serializeModelPrice(tiers, strategyFormOf(tiers)).contextTiers).toEqual(
+      tiers.contextTiers,
+    );
   });
 });

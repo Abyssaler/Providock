@@ -30,6 +30,11 @@ export default function AddAccountDrawer({ onClose, onSaved }: Props) {
   const [platform, setPlatform] = useState(PLATFORM_TEMPLATES[0].key);
   const [region, setRegion] = useState(PLATFORM_TEMPLATES[0].regions[0]?.value ?? "");
   const [displayName, setDisplayName] = useState("");
+  const [relayUrl, setRelayUrl] = useState("");
+  const [relayUserId, setRelayUserId] = useState("");
+  const [relayCurrency, setRelayCurrency] = useState("");
+  const [quotaPerUnit, setQuotaPerUnit] = useState("");
+  const isRelay = platform === "new_api" || platform === "one_api";
   const [scope, setScope] = useState("");
   const [configKind, setConfigKind] = useState<ConfigKind>("api_payg");
   const [credentialType, setCredentialType] = useState<CredentialType>(
@@ -58,6 +63,7 @@ export default function AddAccountDrawer({ onClose, onSaved }: Props) {
   const onPlatformChange = (key: string) => {
     setPlatform(key);
     if (key === "codex") setConfigKind("coding_plan");
+    if (key === "new_api" || key === "one_api") setConfigKind("api_payg");
     const next = platformTemplate(key);
     setRegion(next?.regions[0]?.value ?? "");
     setCredentialType(next?.credentials[0]?.type ?? "api_key");
@@ -82,7 +88,16 @@ export default function AddAccountDrawer({ onClose, onSaved }: Props) {
       configKind,
       credentialType: platform === "codex" ? null : credentialType,
       secret: platform === "codex" ? null : secret,
-      capabilities: null,
+      capabilities: isRelay
+        ? {
+            relay: {
+              baseUrl: relayUrl.trim(),
+              userId: relayUserId ? Number(relayUserId) : null,
+              currency: relayCurrency || null,
+              quotaPerUnit: relayCurrency && quotaPerUnit ? Number(quotaPerUnit) : null,
+            },
+          }
+        : null,
     };
     setSaving(true);
     setError(null);
@@ -200,10 +215,73 @@ export default function AddAccountDrawer({ onClose, onSaved }: Props) {
             {platform === "codex" && <p className="small muted">{template?.note}</p>}
           </fieldset>
 
+          {isRelay && (
+            <fieldset>
+              <legend>中转站连接</legend>
+              <label>
+                站点 HTTPS 根地址
+                <input
+                  aria-label="中转站根地址"
+                  type="url"
+                  placeholder="https://relay.example（不含 /v1）"
+                  value={relayUrl}
+                  onChange={(e) => setRelayUrl(e.target.value)}
+                />
+              </label>
+              {credentialType === "management_key" && (
+                <label>
+                  用户 ID
+                  <input
+                    aria-label="中转站用户 ID"
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={relayUserId}
+                    onChange={(e) => setRelayUserId(e.target.value)}
+                  />
+                </label>
+              )}
+              <label>
+                额度展示单位
+                <Select
+                  aria-label="中转站额度币种"
+                  value={relayCurrency}
+                  onChange={(e) => setRelayCurrency(e.target.value)}
+                >
+                  <option value="">原始站点额度（推荐）</option>
+                  <option value="CNY">CNY</option>
+                  <option value="USD">USD</option>
+                </Select>
+              </label>
+              {relayCurrency && (
+                <label>
+                  每 1 {relayCurrency} 对应额度
+                  <input
+                    aria-label="每货币单位额度"
+                    type="number"
+                    min="1"
+                    max="1000000000000"
+                    step="1"
+                    value={quotaPerUnit}
+                    onChange={(e) => setQuotaPerUnit(e.target.value)}
+                    placeholder="向站点确认后填写"
+                  />
+                </label>
+              )}
+              <p className="small muted">
+                请按站点协议选择；不同站点换算率可能不同。无限额 Key 不代表无限账户余额。
+              </p>
+            </fieldset>
+          )}
           <fieldset>
             <legend>账户类型</legend>
             <div className="acct-radios">
-              {(platform === "codex" ? ["coding_plan" as const] : CONFIG_KINDS).map((kind) => (
+              {(platform === "codex"
+                ? ["coding_plan" as const]
+                : isRelay
+                  ? ["api_payg" as const]
+                  : CONFIG_KINDS
+              ).map((kind) => (
                 <label key={kind} className="acct-radio">
                   <input
                     type="radio"

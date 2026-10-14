@@ -440,6 +440,23 @@ async fn account_save(
         {
             return Err("Codex 官方额度使用本机 ChatGPT 登录，无需上传凭据".into());
         }
+        if ["new_api", "one_api"].contains(&input.platform.as_str()) {
+            let c: adapters::accounts::relay::RelayConfig = serde_json::from_value(
+                input
+                    .capabilities
+                    .as_ref()
+                    .and_then(|v| v.get("relay"))
+                    .cloned()
+                    .ok_or("请填写中转站配置")?,
+            )
+            .map_err(|_| "中转站配置格式无效")?;
+            let credential = input
+                .credential_type
+                .as_deref()
+                .and_then(acc::CredentialType::parse)
+                .ok_or("请选择中转站凭据类型")?;
+            c.validate(&input.platform, credential)?;
+        }
         let secret = input.secret.take().map(vault::SecretString::new);
         let db = db.lock().map_err(|e| e.to_string())?;
         let config_kind = acc::ConfigKind::parse(&input.config_kind)

@@ -22,3 +22,5 @@ pub mod price_import;
 pub mod codex_connection;
 
 pub mod price_page;
+
+pub mod price_tables;

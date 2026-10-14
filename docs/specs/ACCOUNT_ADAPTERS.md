@@ -96,3 +96,7 @@ Key 指纹使用本机带盐 HMAC，UI 默认显示掩码和别名。删除账�
 Codex 官方登录已经接通 stdio（不再占位）。添加账户选 Codex / ChatGPT 官方额度，固定 Coding Plan，无凭据输入。CLI 按 CODEX_CLI_PATH、PATH 及已知官方安装路径查找；先 initialize，再 account/read 确认 ChatGPT 类型，最后 account/rateLimits/read。跟随本机当前登录，别名不代表另一独立身份。不读取 OAuth token，不创建对话/调用推理。未登录/API Key 登录/缺 CLI/未知协议分别失败或降级，保留旧快照。
 
 本机 macOS 命令及原生添加→验证已返回 5h/7d 窗口；Windows 仍未验证。account/usage/read 的持久化尚未接入，余额和本机 Token 仍分域。
+
+## B08 relay-v1（v2.2.0）
+
+New API 推理 Key：GET /api/usage/token；New API / One API 个人访问令牌：GET /api/user/self。New API 账户通道携带 New-Api-User，个人 ID 必须与应答一致。用户配置公网 HTTPS 根地址、凭据及可选额度换算；不自动尝试端点或发送推理。Key 只显示 Key 额度，授权明确返回的 user_quota 才额外显示账户范围；账户剩余额度与现金换算由站点设定，默认 vendor_unit。无限额 Key 不意味钱包无限。拒绝重定向/私网/带认证 URL，固定 DNS，不使用代理；401/429/未知格式保留旧快照。证据、合成样本、固定提交与未验分叉见 [审计](../research/evidence/2026-10-14-pricing-relays.md)。真实站点凭据与 Windows 原生联网尚未验证，不标 live_verified。

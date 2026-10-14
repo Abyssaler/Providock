@@ -58,7 +58,13 @@ pub struct RateSet {
 pub struct PeakWindows {
     pub timezone: String,
     pub weekdays_only: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub exclude_china_holidays: bool,
     pub ranges: Vec<String>,
+}
+
+fn is_false(value: &bool) -> bool {
+    !*value
 }
 
 /// 长上下文整请求升档：事件 `input_total` 超过 `input_over_tokens` 时，
@@ -77,11 +83,26 @@ pub struct LongContext {
     pub cache_write: Option<String>,
 }
 
+/// Bounds use inclusive minimum and exclusive maximum. All matching dimensions must be known.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ContextTier {
+    pub label: String,
+    pub input_min: Option<u64>,
+    pub input_max: Option<u64>,
+    pub output_min: Option<u64>,
+    pub output_max: Option<u64>,
+    #[serde(flatten)]
+    pub rates: RateSet,
+}
+
 /// 手动价格规则的计费策略（序列化在 `rates_json` 的 `strategy` 键下）。
 /// 全部字段可选；旧版本行没有该键，反序列化 `serde(default)` 得到 `None`。
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RateStrategy {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context_tiers: Option<Vec<ContextTier>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub peak: Option<RateSet>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

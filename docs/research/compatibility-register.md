@@ -1,5 +1,10 @@
 # 兼容登记
 
+## 2026-10-14 v2.2.0 增量
+
+T14 price-page-v2：MiMo、DeepSeek、智谱价格表 fixture_verified + macOS 公开页联网验证；合并/横表、多币种/Batch、输入输出组合分档、2026 节假日。模型辅助仅合成验证，未真实付费。B08 relay-v1：New API token_usage、New API/One API user/self 为官方固定源码/文档 + 合成样本 + 服务快照验证；真实站点及 Windows 原生联网未验，未知分叉不标支持。参考 [审计](evidence/2026-10-14-pricing-relays.md) 和 [发行核验](validation/2026-10-14-release-v2.2.0.md)。
+
+
 ## 2026-10-14 项目介绍核对
 
 README 与 GitHub About 按 v2.1.1 代码和已公开资产重新整理。对外介绍列九种本地数据源及 DeepSeek/OpenRouter/Novita/GLM/Kimi Code/Codex 账户查询能力，保留按区域、凭据、格式和实测范围区分的说明；没有新增适配器、端点或实机验证声明。Windows 托盘交互已实测，完整安装/实际更新、全部缩放与休眠仍待验。
@@ -44,6 +49,7 @@ CI 补记：自动监测首轮 macOS CI 通过；Windows 在 Codex 升级回归�
 | B06 Kimi 本机 Server | ✅ kimi_server.rs | 样本验证 | 需用户已运行 Server；meta 协商已实现 |
 | B-04 Kimi Code 直连 | ✅ kimi_code.rs | 实机验证（仅 `/coding/v1/usages`，2026-10-12）+ 夹具 | `credential_type = api_key` → 直连；server token 保持 B06；`booster_wallet` 未解析 |
 | B07 Codex App Server | ✅ codex_appserver.rs + codex_connection.rs | 样本 + macOS 真实只读验证（2026-10-13） | stdio 初始化/account/read/rateLimits；本机 ChatGPT 登录，Windows 未验 |
+| B08 New API / One API | ✅ relay.rs v1 | fixture_verified | Key/账户分域，明确单位换算；真实站点未验 |
 | 账户域服务 | services/{accounts,account_query,account_scheduler}.rs | 单测 + mock HTTP 实测（重定向剥 Auth 等） | 后台循环及持久化开关已接；逐账户到期；禁用启动首轮、锁外 HTTP、并发和删除中请求回归通过 |
 
 账户页 UI（T12）已接 IPC。Kimi Code 直连额度和 GLM 无套餐/401 状态已有局部 macOS 实测，其余保持样本验证；不代表完整平台或 Windows 账户验收。

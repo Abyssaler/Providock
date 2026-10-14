@@ -39,12 +39,12 @@ Providock 将散落在不同 AI 编程工具中的用量记录汇集到本机：
 
 ## 下载
 
-当前版本：**v2.1.1**。
+当前版本：**v2.2.0**。
 
 | 平台                      | 下载                                                                                                          | 安装方式                     |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------- | ---------------------------- |
-| macOS 13+ · Apple Silicon | [下载 DMG](https://github.com/Abyssaler/Providock/releases/download/v2.1.1/Providock_2.1.1_aarch64.dmg)       | 打开后拖入「应用程序」       |
-| Windows 11 · x64          | [下载安装程序](https://github.com/Abyssaler/Providock/releases/download/v2.1.1/Providock_2.1.1_x64-setup.exe) | 运行安装程序，安装到当前用户 |
+| macOS 13+ · Apple Silicon | [下载 DMG](https://github.com/Abyssaler/Providock/releases/download/v2.2.0/Providock_2.2.0_aarch64.dmg)       | 打开后拖入「应用程序」       |
+| Windows 11 · x64          | [下载安装程序](https://github.com/Abyssaler/Providock/releases/download/v2.2.0/Providock_2.2.0_x64-setup.exe) | 运行安装程序，安装到当前用户 |
 
 [全部版本与校验文件](https://github.com/Abyssaler/Providock/releases) · [变更记录](CHANGELOG.md)
 
@@ -72,14 +72,15 @@ Providock 读取以下工具的本地日志或数据库：
 
 ## 账户与额度
 
-| 平台            | 可查询内容                                           |
-| --------------- | ---------------------------------------------------- |
-| DeepSeek        | API 余额                                             |
-| OpenRouter      | 当前 Key 的用量/预算；账户 Credits 需管理密钥        |
-| Novita          | 可用余额、现金及授信信息                             |
-| GLM / 智谱      | Coding Plan 额度                                     |
-| Kimi Code       | Coding Plan 额度，支持 Coding Key 或本机 Server 通道 |
-| Codex / ChatGPT | 当前本机 ChatGPT 登录的订阅额度窗口，无需 API Key    |
+| 平台                     | 可查询内容                                           |
+| ------------------------ | ---------------------------------------------------- |
+| DeepSeek                 | API 余额                                             |
+| OpenRouter               | 当前 Key 的用量/预算；账户 Credits 需管理密钥        |
+| Novita                   | 可用余额、现金及授信信息                             |
+| GLM / 智谱               | Coding Plan 额度                                     |
+| Kimi Code                | Coding Plan 额度，支持 Coding Key 或本机 Server 通道 |
+| New API / One API 中转站 | Key 额度或个人账户余额；需配置站点及凭据权限         |
+| Codex / ChatGPT          | 当前本机 ChatGPT 登录的订阅额度窗口，无需 API Key    |
 
 Codex 额度需要本机可调用的官方 Codex CLI，并已使用 ChatGPT 登录；API Key 登录不提供订阅额度。CLI 未自动找到时，可通过 `CODEX_CLI_PATH` 指定路径。其他账户的查询范围取决于平台、区域及凭据权限，详见[账户说明](docs/specs/ACCOUNT_ADAPTERS.md)。
 
@@ -88,6 +89,10 @@ Codex 额度需要本机可调用的官方 Codex CLI，并已使用 ChatGPT 登�
 ## 模型价格
 
 在「模型定价」选择 Agent 和精确模型名后，可手动填写费率，或点击「从 AIHOT 导入」获取该模型的报价。也可提供公开 HTTPS 官网计费链接，由程序读取价格表；结果均需核对后保存。
+
+选择 CNY/USD 及标准实时/Batch 后解析。已适配 MiMo、DeepSeek 和智谱的合并单元格、横表、分时段与输入/输出组合分档；按小时缓存存储不混入 Token 价格。节假日排除目前覆盖 2026 年，缺条件或未覆盖的工作日不猜价。
+
+中转站账户请按 New API / One API 协议添加 HTTPS 根地址（不含 /v1）；推理 Key 的额度与账户余额分开。个人访问令牌查询需用户 ID，换算为现金前需向站点确认每 CNY/USD 对应额度；默认显示原始站点额度。
 
 程序无法识别时，可主动选择已有 DeepSeek、GLM 或 OpenRouter API 账户和模型辅助解析。此操作仅发送公开价格页文本与目标模型，产生一次 API 调用费用，不运行工具或 Agent 循环。动态页面、复杂分档或信息缺失时可能需要手动填写。
 

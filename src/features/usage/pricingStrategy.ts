@@ -13,6 +13,8 @@ export const PEAK_TIMEZONE = "Asia/Shanghai";
 
 export interface StrategyForm {
   peakOn: boolean;
+  weekdaysOnly?: boolean;
+  excludeChinaHolidays?: boolean;
   longOn: boolean;
   /** 空字符串 = 未填；保存时剔除空值键。 */
   peakRates: RateSet;
@@ -50,7 +52,8 @@ export function serializeModelPrice(draft: ModelPrice, form: StrategyForm): Mode
   const peakWindows: PeakWindowSpec | undefined = form.peakOn
     ? {
         timezone: PEAK_TIMEZONE,
-        weekdaysOnly: true,
+        weekdaysOnly: form.weekdaysOnly ?? true,
+        excludeChinaHolidays: form.excludeChinaHolidays ?? false,
         ranges: form.ranges.map((r) => r.trim()).filter(Boolean),
       }
     : undefined;
@@ -93,6 +96,8 @@ export function validateModelPrice(draft: ModelPrice, form: StrategyForm): strin
 export function blankStrategyForm(): StrategyForm {
   return {
     peakOn: false,
+    weekdaysOnly: true,
+    excludeChinaHolidays: false,
     longOn: false,
     peakRates: {},
     ranges: [...DEFAULT_RANGES],
@@ -107,6 +112,8 @@ export function strategyFormOf(rule: ModelPrice): StrategyForm {
   const long = rule.longContext ?? null;
   return {
     peakOn: rule.peak != null || rule.peakWindows != null,
+    weekdaysOnly: rule.peakWindows?.weekdaysOnly ?? true,
+    excludeChinaHolidays: rule.peakWindows?.excludeChinaHolidays ?? false,
     longOn: long != null,
     peakRates: { ...peak },
     ranges: rule.peakWindows?.ranges?.length ? [...rule.peakWindows.ranges] : [...DEFAULT_RANGES],

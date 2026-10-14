@@ -12,6 +12,7 @@ export interface RateSet {
 export interface PeakWindowSpec {
   timezone: string;
   weekdaysOnly: boolean;
+  excludeChinaHolidays?: boolean;
   /** `"HH:MM-HH:MM"`（如 `"09:00-12:00"`），开始早于结束。 */
   ranges: string[];
 }
@@ -19,7 +20,16 @@ export interface PeakWindowSpec {
 /** 长上下文分档：超过 inputOverTokens 的整请求按此档费率计费。 */
 export type LongContextSpec = { inputOverTokens: number } & RateSet;
 
+export type ContextTier = RateSet & {
+  label: string;
+  inputMin: number | null;
+  inputMax: number | null;
+  outputMin: number | null;
+  outputMax: number | null;
+};
+
 export interface ModelPrice {
+  contextTiers?: ContextTier[] | null;
   version: string;
   agent: string;
   sourceId: string | null;
@@ -101,6 +111,9 @@ export interface PriceImportResult {
 }
 
 export interface PriceQuote {
+  peak?: RateSet | null;
+  peakWindows?: PeakWindowSpec | null;
+  contextTiers?: ContextTier[] | null;
   agent: string;
   model: string;
   currency: "USD" | "CNY";

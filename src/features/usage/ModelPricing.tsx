@@ -83,6 +83,7 @@ export default function ModelPricing({
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const [importResult, setImportResult] = useState<PriceQuote | null>(null);
+  const [batch, setBatch] = useState(false);
   const [pricingUrl, setPricingUrl] = useState("");
   const [helperAccounts, setHelperAccounts] = useState<{ accountId: string; label: string }[]>([]);
   const [helperAccount, setHelperAccount] = useState("");
@@ -139,12 +140,18 @@ export default function ModelPricing({
             input: {
               ...target,
               url: pricingUrl.trim(),
+              currency: draft.currency,
+              batch,
               accountId: assisted ? helperAccount : null,
               parserModel: assisted ? helperModel.trim() : null,
             },
           })
         : await invoke<PriceQuote>("model_prices_import", { target });
-      if ((form.peakOn || form.longOn) && result.currency !== draft.currency)
+      if (
+        !fromPage &&
+        (form.peakOn || form.longOn || draft.contextTiers?.length) &&
+        result.currency !== draft.currency
+      )
         throw new Error("报价币种与现有分档不同，请先核对并调整分档。");
       setDraft((prev) => ({
         ...prev,
@@ -153,7 +160,34 @@ export default function ModelPricing({
         output: result.output,
         cacheRead: result.cacheRead,
         cacheWrite: result.cacheWrite,
+        source: {
+          sourceUrl: result.sourceUrl,
+          officialUrl: result.sourceUrl,
+          retrievedAt: new Date().toISOString(),
+          sourceUpdatedAt: "",
+          fxRate: "",
+          fxDate: "",
+        },
+        ...(fromPage
+          ? {
+              peak: result.peak,
+              peakWindows: result.peakWindows,
+              contextTiers: result.contextTiers,
+              longContext: null,
+            }
+          : {}),
       }));
+      if (fromPage)
+        setForm(
+          strategyFormOf({
+            ...draft,
+            ...result,
+            longContext: null,
+            sourceId: draft.sourceId,
+            enabled: true,
+            version: "",
+          }),
+        );
       setImportResult(result);
     } catch (e) {
       setError(String(e));
@@ -317,6 +351,18 @@ export default function ModelPricing({
           </div>
           <details className="pricing-section">
             <summary>从官网链接获取</summary>
+            <label>
+              调用方式
+              <Select
+                aria-label="官网价格调用方式"
+                value={batch ? "batch" : "standard"}
+                disabled={busy}
+                onChange={(e) => setBatch(e.target.value === "batch")}
+              >
+                <option value="standard">标准实时推理</option>
+                <option value="batch">Batch 批量推理</option>
+              </Select>
+            </label>
             <div className="pricing-url-row">
               <input
                 type="url"
@@ -444,6 +490,68 @@ export default function ModelPricing({
           }}
         />
 
+        {!!draft.contextTiers?.length && (
+          <details className="pricing-section" open>
+            <summary>输入 / 输出组合分档（{draft.contextTiers.length} 档）</summary>
+            <p className="small muted">
+              下限包含、上限不含；留空为无边界。缺少所需用量或不属于任何一档时不估算。
+            </p>
+            {draft.contextTiers.map((tier, index) => (
+              <fieldset key={index}>
+                <legend>{tier.label}</legend>
+                <div className="pricing-rates">
+                  {(["inputMin", "inputMax", "outputMin", "outputMax"] as const).map((key, i) => (
+                    <label key={key}>
+                      {["输入下限", "输入上限", "输出下限", "输出上限"][i]}
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={tier[key] ?? ""}
+                        onChange={(e) => {
+                          setDraft({
+                            ...draft,
+                            contextTiers: draft.contextTiers!.map((t, j) =>
+                              j === index
+                                ? {
+                                    ...t,
+                                    [key]: e.target.value === "" ? null : Number(e.target.value),
+                                  }
+                                : t,
+                            ),
+                          });
+                          setSaved(false);
+                        }}
+                      />
+                    </label>
+                  ))}
+                </div>
+                <RateFields
+                  rates={tier}
+                  currency={draft.currency}
+                  onChange={(key, value) => {
+                    setDraft({
+                      ...draft,
+                      contextTiers: draft.contextTiers!.map((t, j) =>
+                        j === index ? { ...t, [key]: value || undefined } : t,
+                      ),
+                    });
+                    setSaved(false);
+                  }}
+                />
+              </fieldset>
+            ))}
+            <button
+              type="button"
+              onClick={() => {
+                setDraft({ ...draft, contextTiers: null });
+                setSaved(false);
+              }}
+            >
+              移除组合分档
+            </button>
+          </details>
+        )}
         <details className="pricing-section" open={form.peakOn}>
           <summary>
             分时段价格（高峰）{form.peakOn && <span className="badge">已启用</span>}
@@ -451,6 +559,7 @@ export default function ModelPricing({
           <label className="pricing-enable">
             <input
               type="checkbox"
+              disabled={!!draft.contextTiers?.length}
               checked={form.peakOn}
               onChange={(e) =>
                 update({
@@ -496,8 +605,20 @@ export default function ModelPricing({
                   ＋ 添加时段
                 </button>
                 <label className="pricing-enable">
-                  <input type="checkbox" checked disabled onChange={() => {}} />
-                  仅工作日（法定节假日暂不剔除）
+                  <input
+                    type="checkbox"
+                    checked={form.weekdaysOnly ?? true}
+                    onChange={(e) => update({ weekdaysOnly: e.target.checked })}
+                  />
+                  仅周一至周五
+                </label>
+                <label className="pricing-enable">
+                  <input
+                    type="checkbox"
+                    checked={form.excludeChinaHolidays ?? false}
+                    onChange={(e) => update({ excludeChinaHolidays: e.target.checked })}
+                  />
+                  排除中国节假日（2026 年；其他年份不估算）
                 </label>
               </div>
             </>
@@ -509,6 +630,7 @@ export default function ModelPricing({
           <label className="pricing-enable">
             <input
               type="checkbox"
+              disabled={!!draft.contextTiers?.length}
               checked={form.longOn}
               onChange={(e) => update({ longOn: e.target.checked })}
             />
@@ -576,8 +698,14 @@ export default function ModelPricing({
                 <details className="pricing-provenance">
                   <summary className="badge">AIHOT 导入 · CNY</summary>
                   <p className="small muted">
-                    抓取 {new Date(rule.source.retrievedAt).toLocaleString("zh-CN")} · 汇率{" "}
-                    {rule.source.fxRate}（{rule.source.fxDate}）<br />
+                    抓取 {new Date(rule.source.retrievedAt).toLocaleString("zh-CN")}
+                    {rule.source.fxRate && (
+                      <>
+                        {" "}
+                        · 汇率 {rule.source.fxRate}（{rule.source.fxDate}）
+                      </>
+                    )}
+                    <br />
                     <a href={rule.source.sourceUrl} target="_blank" rel="noreferrer">
                       AIHOT 来源
                     </a>{" "}

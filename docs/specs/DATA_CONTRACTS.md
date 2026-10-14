@@ -172,3 +172,11 @@ ModelPrice 可选 `source`：sourceUrl、officialUrl、retrievedAt、sourceUpdat
 - `model_prices_import({target:{agent,model}})` 仅返回 PriceQuote，不写库。PriceQuote 包括目标、币种、input/output/cacheRead/cacheWrite（十进制字符串/null）、sourceUrl/method/notes；官网解析同契约。用户保存仍用 model_price_save，按既有规则追加版本，视为用户核定价格并清除旧导入 metadata。
 - `model_price_from_page({input:{agent,model,url,accountId?,parserModel?}})`；无 accountId 时程序解析，有时一次所选 API 请求。`price_parser_accounts` 返回支持平台的 active API Key 账户别名/ID，不返回 Key；`price_parser_models({accountId})` 返回模型 ID 列表。
 - Codex 新建账户 configKind=coding_plan，无 credentialType/secret；凭据就绪表示使用本机官方进程登录。rateLimitsByLimitId 多桶优先，usedPercent/100 转 usedRatio，remainingRatio=1-usedRatio（异常按既有归一化规则），duration=windowDurationMins*60，resetsAt 为 Unix 秒。
+
+## 2026-10-14 可选 JSON 契约扩展（v2.2.0）
+
+PriceQuote 增加可选 peak / peakWindows / contextTiers；官网请求可传 currency=CNY|USD 与 batch。ModelPrice / rates_json.strategy 增加 contextTiers: [{label,inputMin,inputMax,outputMin,outputMax,input,output,cacheRead,cacheWrite}]；Token 边界为整数，下限含、上限不含，null=无边界。至少 1 档、最多 12 档；不重叠，不与 longContext/peak 组合；无匹配或缺少所需输入/输出计数返回未知估算；turn_aggregate/session_delta/unknown 不能把合计当单请求上下文，组合分档保持未知。策略整体保存，价格来源随候选保存，人工改价清除旧来源。旧 JSON 无新字段保持旧含义；SQLite schema 不变，旧版本不能理解新分档，不建议降级。
+
+PeakWindows 增加 excludeChinaHolidays，缺省 false；true 使用 2026 中国节假日日历，周末/节假日为低谷，其他年份缺日历的工作日未知。weekdaysOnly 不强制覆盖用户已有规则。
+
+credential_refs.capabilities.relay = {baseUrl,userId,currency,quotaPerUnit}，不含秘密；凭据类型决定 token_usage 或 user/self。raw quota 用 vendor_unit；明确配置整数换算率后为 derived Currency。Key 的 used/remaining/limit 仅 Key 范围，无限额不构造大数/现金；New API 实际返回 user_quota 时额外创建 account 范围。额度换算使用 i128，最多 9 位小数截断，正数不能变零。

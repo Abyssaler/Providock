@@ -756,6 +756,7 @@ pub fn credentials_list(
 /// 服务层解封凭据所需的引用信息：**含 `vault_ref`，绝不出现在 DTO / IPC 响应里**。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ActiveCredential {
+    pub capabilities: Option<serde_json::Value>,
     pub credential_id: String,
     pub credential_type: CredentialType,
     /// 配置的凭据库条目名；仅供服务层短期解封。
@@ -777,6 +778,7 @@ pub fn active_credential_ref(db: &Database, account_id: &str) -> Result<Option<A
         Some(row) => {
             let stored = row_to_stored_credential(row)?;
             Ok(Some(ActiveCredential {
+                capabilities: stored.credential.capabilities,
                 credential_id: stored.credential.credential_id,
                 credential_type: stored.credential.credential_type,
                 vault_ref: stored.vault_ref,

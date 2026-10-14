@@ -66,6 +66,9 @@ pub struct PriceQuote {
     pub source_url: String,
     pub method: String,
     pub notes: Vec<String>,
+    pub peak: Option<super::pricing::RateSet>,
+    pub peak_windows: Option<super::pricing::PeakWindows>,
+    pub context_tiers: Option<Vec<super::pricing::ContextTier>>,
 }
 
 pub fn quote(catalogue: &Catalogue, target: ImportTarget) -> Result<PriceQuote, String> {
@@ -84,6 +87,9 @@ pub fn quote(catalogue: &Catalogue, target: ImportTarget) -> Result<PriceQuote, 
         cache_write: None,
         source_url: price.official_url.clone(),
         method: "AIHOT".into(),
+        peak: None,
+        peak_windows: None,
+        context_tiers: None,
         notes: vec![format!(
             "汇率 {} · {}；来源更新 {}。请核对计费分档后保存。",
             catalogue.fx_rate, catalogue.fx_date, catalogue.source_updated_at
@@ -377,6 +383,7 @@ pub fn apply(
                     enabled: true,
                     peak: None,
                     peak_windows: None,
+                    context_tiers: None,
                     long_context: None,
                     source: None,
                 },

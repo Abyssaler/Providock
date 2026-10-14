@@ -47,6 +47,8 @@ pub struct ModelPrice {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub long_context: Option<LongContext>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context_tiers: Option<Vec<pricing::ContextTier>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source: Option<pricing::PriceSource>,
 }
 fn yes() -> bool {
@@ -87,7 +89,8 @@ pub(crate) fn list_with_disabled(db: &Database) -> Result<Vec<ModelPrice>, Strin
             enabled: p.tier.as_deref() == Some(KIND),
             peak: strategy.as_ref().and_then(|s| s.peak.clone()),
             peak_windows: strategy.as_ref().and_then(|s| s.peak_windows.clone()),
-            long_context: strategy.and_then(|s| s.long_context),
+            long_context: strategy.as_ref().and_then(|s| s.long_context.clone()),
+            context_tiers: strategy.and_then(|s| s.context_tiers),
         };
         latest.insert(
             (
@@ -116,7 +119,41 @@ fn persist(
     mut rule: ModelPrice,
     source: Option<pricing::PriceSource>,
 ) -> Result<ModelPrice, String> {
-    rule.source = source;
+    if source.is_none() && rule.source.is_some() {
+        let prior = list_with_disabled(db)?.into_iter().find(|p| {
+            p.agent == rule.agent
+                && p.model == rule.model
+                && p.source_id == rule.source_id
+                && p.source == rule.source
+        });
+        if prior.is_some_and(|p| {
+            p.input != rule.input
+                || p.output != rule.output
+                || p.cache_read != rule.cache_read
+                || p.cache_write != rule.cache_write
+                || p.currency != rule.currency
+                || p.peak != rule.peak
+                || p.peak_windows != rule.peak_windows
+                || p.long_context != rule.long_context
+                || p.context_tiers != rule.context_tiers
+        }) {
+            rule.source = None;
+        }
+    }
+    rule.source = source.or(rule.source);
+    if let Some(source) = &rule.source {
+        for raw in [&source.source_url, &source.official_url] {
+            let url = reqwest::Url::parse(raw).map_err(|_| "价格来源链接无效")?;
+            if raw.len() > 2048
+                || url.scheme() != "https"
+                || !url.username().is_empty()
+                || url.password().is_some()
+            {
+                return Err("价格来源须为公开 HTTPS 链接".into());
+            }
+        }
+        OffsetDateTime::parse(&source.retrieved_at, &Rfc3339).map_err(|_| "价格抓取时间无效")?;
+    }
 
     if ![
         "claude_code",
@@ -179,11 +216,13 @@ fn persist(
     validate_strategy(&rule)?;
     let strategy = (rule.peak.is_some()
         || rule.peak_windows.is_some()
-        || rule.long_context.is_some())
+        || rule.long_context.is_some()
+        || rule.context_tiers.is_some())
     .then(|| RateStrategy {
         peak: rule.peak.clone(),
         peak_windows: rule.peak_windows.clone(),
         long_context: rule.long_context.clone(),
+        context_tiers: rule.context_tiers.clone(),
     });
     rule.version = format!(
         "{}-{}-{:08x}",
@@ -224,7 +263,49 @@ fn persist(
 
 /// 策略校验：分时段与长上下文档的费率与基础费率同一十进制规则；
 /// peak 与 peakWindows 必须成对出现；阈值与时段形状在此把关。
-fn validate_strategy(rule: &ModelPrice) -> Result<(), String> {
+pub(crate) fn validate_strategy(rule: &ModelPrice) -> Result<(), String> {
+    if let Some(tiers) = &rule.context_tiers {
+        if tiers.is_empty()
+            || tiers.len() > 12
+            || rule.long_context.is_some()
+            || rule.peak.is_some()
+        {
+            return Err("组合分档需为 1–12 档，不能与旧长上下文/高峰规则混合".into());
+        }
+        for tier in tiers {
+            if tier.label.len() > 200
+                || tier
+                    .input_min
+                    .zip(tier.input_max)
+                    .is_some_and(|(a, b)| a >= b)
+                || tier
+                    .output_min
+                    .zip(tier.output_max)
+                    .is_some_and(|(a, b)| a >= b)
+            {
+                return Err("组合分档范围无效".into());
+            }
+            let r = &tier.rates;
+            validate_rate_set(
+                [&r.input, &r.output, &r.cache_read, &r.cache_write],
+                "分档费率",
+            )?;
+        }
+        for (i, a) in tiers.iter().enumerate() {
+            for b in &tiers[i + 1..] {
+                let overlap =
+                    |amin: Option<u64>, amax: Option<u64>, bmin: Option<u64>, bmax: Option<u64>| {
+                        amin.unwrap_or(0) < bmax.unwrap_or(u64::MAX)
+                            && bmin.unwrap_or(0) < amax.unwrap_or(u64::MAX)
+                    };
+                if overlap(a.input_min, a.input_max, b.input_min, b.input_max)
+                    && overlap(a.output_min, a.output_max, b.output_min, b.output_max)
+                {
+                    return Err("组合分档不可重叠".into());
+                }
+            }
+        }
+    }
     match (&rule.peak, &rule.peak_windows) {
         (Some(_), None) => return Err("分时段价格需要同时配置高峰时段".into()),
         (None, Some(_)) => return Err("已配置高峰时段，请同时填写高峰费率".into()),
@@ -369,7 +450,7 @@ pub fn quote(
     input_total: Option<u64>,
 ) -> Result<Option<CostInfo>, String> {
     let Some([input, output, cache_read, cache_write]) =
-        select_rates(rule, occurred_at, input_total)
+        select_rates(rule, occurred_at, input_total, tokens.output_total)
     else {
         return Ok(None);
     };
@@ -401,6 +482,7 @@ fn select_rates<'a>(
     rule: &'a ModelPrice,
     occurred_at: Option<&str>,
     input_total: Option<u64>,
+    output_total: Option<u64>,
 ) -> Option<[&'a Option<String>; 4]> {
     let base = [
         &rule.input,
@@ -408,6 +490,31 @@ fn select_rates<'a>(
         &rule.cache_read,
         &rule.cache_write,
     ];
+    if let Some(tiers) = &rule.context_tiers {
+        let matches = |value: Option<u64>, min: Option<u64>, max: Option<u64>| -> Option<bool> {
+            if min.is_none() && max.is_none() {
+                return Some(true);
+            }
+            let v = value?;
+            Some(v >= min.unwrap_or(0) && max.is_none_or(|m| v < m))
+        };
+        let mut selected = None;
+        for t in tiers {
+            let i = matches(input_total, t.input_min, t.input_max)?;
+            if !i {
+                continue;
+            }
+            let o = matches(output_total, t.output_min, t.output_max)?;
+            if i && o {
+                if selected.is_some() {
+                    return None;
+                }
+                let r = &t.rates;
+                selected = Some([&r.input, &r.output, &r.cache_read, &r.cache_write]);
+            }
+        }
+        return selected;
+    }
     if let Some(long) = &rule.long_context {
         let input = input_total?;
         if input > long.input_over_tokens {
@@ -443,6 +550,27 @@ fn is_peak_time(windows: &PeakWindows, occurred_at: &str) -> Option<bool> {
     let t = t.to_offset(UtcOffset::from_hms(8, 0, 0).ok()?);
     if windows.weekdays_only && matches!(t.weekday(), Weekday::Saturday | Weekday::Sunday) {
         return Some(false);
+    }
+    if windows.exclude_china_holidays {
+        // State Council 2026 schedule; future/older calendars stay unknown.
+        if t.year() != 2026 {
+            return None;
+        }
+        let md = u16::from(t.month() as u8) * 100 + u16::from(t.day());
+        if [
+            (101, 103),
+            (215, 223),
+            (404, 406),
+            (501, 505),
+            (619, 621),
+            (925, 927),
+            (1001, 1007),
+        ]
+        .iter()
+        .any(|&(a, b)| a <= md && md <= b)
+        {
+            return Some(false);
+        }
     }
     let minute = u32::from(t.hour()) * 60 + u32::from(t.minute());
     let in_range = windows

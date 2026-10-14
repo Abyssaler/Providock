@@ -71,8 +71,10 @@ fn deepseek() -> ModelPrice {
         peak_windows: Some(PeakWindows {
             timezone: "Asia/Shanghai".into(),
             weekdays_only: true,
+            exclude_china_holidays: false,
             ranges: vec!["09:00-12:00".into(), "14:00-18:00".into()],
         }),
+        context_tiers: None,
         long_context: None,
     }
 }
@@ -93,6 +95,7 @@ fn openai_style() -> ModelPrice {
         enabled: true,
         peak: None,
         peak_windows: None,
+        context_tiers: None,
         long_context: Some(LongContext {
             input_over_tokens: 1500,
             input: Some("3.5".into()),
@@ -270,6 +273,7 @@ fn long_context_wins_over_peak_and_peak_never_combines_with_tier() {
     rule.peak_windows = Some(PeakWindows {
         timezone: "Asia/Shanghai".into(),
         weekdays_only: true,
+        exclude_china_holidays: false,
         ranges: vec!["09:00-12:00".into()],
     });
     let db = db();

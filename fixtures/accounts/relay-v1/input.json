@@ -1,0 +1,47 @@
+{
+  "token": {
+    "code": true,
+    "data": {
+      "object": "token_usage",
+      "total_granted": 1000000,
+      "total_used": 12345,
+      "total_available": 987655,
+      "unlimited_quota": false,
+      "expires_at": 0
+    }
+  },
+  "account": {
+    "success": true,
+    "data": {
+      "id": 42,
+      "quota": 987655,
+      "used_quota": 12345
+    }
+  },
+  "unlimited": {
+    "code": true,
+    "data": {
+      "object": "token_usage",
+      "total_granted": 0,
+      "total_used": 12345,
+      "total_available": -1,
+      "unlimited_quota": true,
+      "expires_at": 0
+    }
+  },
+  "owner_authorized": {
+    "code": true,
+    "data": {
+      "object": "token_usage",
+      "total_granted": 1000000,
+      "total_used": 12345,
+      "total_available": 987655,
+      "unlimited_quota": false,
+      "expires_at": 0,
+      "user_quota": {
+        "total_available": 2500000,
+        "total_used": 500000
+      }
+    }
+  }
+}

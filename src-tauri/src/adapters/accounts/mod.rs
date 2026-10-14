@@ -9,3 +9,5 @@ pub mod kimi_code;
 pub mod kimi_server;
 pub mod novita;
 pub mod openrouter;
+
+pub mod relay;

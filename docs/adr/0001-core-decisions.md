@@ -74,3 +74,9 @@ DeepSeek Harness 是第九个本地 Agent，以官方固定源码证据为依据
 ## 2026-10-13 Windows 托盘决定
 
 用户明确要求 Windows 与 Mac 一样关窗继续后台运行。v2.1.1 用 Windows 专用原生托盘替代关窗退出：左键/菜单恢复原窗口，右键退出共用 ExitRequested 调度清理。托盘建立失败不启动，隐藏失败不拦截关闭；Mac 菜单和任务保持。用户授权验证后推送和正式发行，再仅配置本机价格并自行更新正式应用。
+
+## 2026-10-14 D18：结构化价格与中转站
+
+采用 HTML5 DOM 展开价格表合并单元格；同一候选保存币种、调用方式与完整条件。新增 contextTiers（输入/输出半开矩形区间）随 rates_json.strategy 追加；与旧 longContext/peak 互斥，不改 SQLite schema。2026 日历引用国务院安排，未覆盖年份的工作日保持未知，不自动联网推断节假日。辅助模型必须有原文数值证据、结构化策略独立核验，不接受静默取最低档。
+
+New API / One API 使用用户显式配置的 HTTPS 站点与官方只读协议，不写统一第三方域名白名单；生产为该次请求固定公网 DNS 并拒绝重定向。非秘密 RelayConfig 保存于 credential capabilities，Key 仍在独立 vault；轮换继承配置。现金换算率必须由用户确认，不预设 500000，更不依赖旧 billing 的 USD 字段名。Key/账户范围分开；仅实际返回 user_quota 才显示 Key 获准读取的账户范围。

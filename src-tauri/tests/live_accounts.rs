@@ -30,6 +30,7 @@ fn http_request(spec: &RequestSpec, secret: &str) -> HttpRequest {
         .as_ref()
         .map(|auth| (auth.header.clone(), auth.header_value(secret)));
     HttpRequest {
+        follow_redirects: true,
         method: spec.method.clone(),
         url: spec.url(),
         headers: spec.headers.clone(),

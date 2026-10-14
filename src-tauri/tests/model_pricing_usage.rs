@@ -33,6 +33,7 @@ fn rule(agent: &str, model: &str) -> ModelPrice {
         enabled: true,
         peak: None,
         peak_windows: None,
+        context_tiers: None,
         long_context: None,
     }
 }

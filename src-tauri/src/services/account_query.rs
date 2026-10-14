@@ -14,7 +14,9 @@
 //! - Codex 通过官方 App Server stdio 查询，认证由官方进程持有；不读写认证文件、不发起推理。
 
 use crate::adapters::accounts::common::{self, RequestSpec};
-use crate::adapters::accounts::{deepseek, glm_plan, kimi_code, kimi_server, novita, openrouter};
+use crate::adapters::accounts::{
+    deepseek, glm_plan, kimi_code, kimi_server, novita, openrouter, relay,
+};
 use crate::services::accounts::{
     self, Account, AccountsError, BalanceEntry, CredentialType, FailureSignal, NewSnapshot,
     QuotaWindow, Snapshot, SnapshotStatus, UsageMetric,
@@ -156,6 +158,7 @@ impl SnapshotOutcome {
 /// 秘密不会出现在任何错误或日志里。
 #[derive(Clone)]
 pub struct HttpRequest {
+    pub follow_redirects: bool,
     pub method: String,
     pub url: String,
     pub headers: Vec<(String, String)>,
@@ -293,7 +296,27 @@ impl HttpTransport for ReqwestTransport {
     /// 跨 host 重定向时**剥离 `Authorization`**（SECURITY_PRIVACY 第 4 节）；同 host 保留。
     /// 每一跳的目标都重新做 scheme/host 策略校验，防止重定向到非白名单或不安全目标。
     fn send(&self, request: &HttpRequest) -> std::result::Result<HttpResponse, TransportError> {
-        let client = self.client();
+        let relay_client;
+        let client = if request.follow_redirects {
+            self.client()
+        } else {
+            let u = reqwest::Url::parse(&request.url)
+                .map_err(|_| TransportError::BlockedHost("invalid relay URL".into()))?;
+            let addresses = super::price_page::public_addresses(&u).map_err(|_| {
+                TransportError::BlockedHost(
+                    "relay must resolve to public internet addresses".into(),
+                )
+            })?;
+            relay_client = reqwest::blocking::Client::builder()
+                .no_proxy()
+                .redirect(reqwest::redirect::Policy::none())
+                .connect_timeout(Duration::from_secs(CONNECT_TIMEOUT_SECONDS))
+                .timeout(Duration::from_secs(TOTAL_TIMEOUT_SECONDS))
+                .resolve_to_addrs(u.host_str().unwrap_or(""), &addresses)
+                .build()
+                .map_err(map_reqwest_error)?;
+            &relay_client
+        };
         let mut url = reqwest::Url::parse(&request.url)
             .map_err(|e| TransportError::Network(format!("invalid url: {e}")))?;
         ensure_url_allowed(&url)?;
@@ -318,6 +341,9 @@ impl HttpTransport for ReqwestTransport {
             let response = builder.send().map_err(map_reqwest_error)?;
             let status = response.status().as_u16();
             if is_redirect(status) {
+                if !request.follow_redirects {
+                    return Err(TransportError::BlockedHost("relay redirect refused".into()));
+                }
                 let location = response
                     .headers()
                     .get(reqwest::header::LOCATION)
@@ -358,6 +384,11 @@ impl HttpTransport for ReqwestTransport {
 
 /// 一次查询要调用的适配器与端点。
 enum AdapterPlan {
+    Relay {
+        config: relay::RelayConfig,
+        platform: String,
+        credential_type: CredentialType,
+    },
     Deepseek,
     OpenRouter(openrouter::Endpoint),
     Novita,
@@ -439,6 +470,11 @@ fn resolve_plan(
 fn build_spec(plan: &AdapterPlan) -> Result<RequestSpec> {
     let build = |e: String| QueryError::Build(e);
     match plan {
+        AdapterPlan::Relay {
+            config,
+            platform,
+            credential_type,
+        } => relay::build_request(config, platform, *credential_type).map_err(build),
         AdapterPlan::Deepseek => deepseek::build_request(&deepseek::RequestConfig::canonical(
             deepseek::CANONICAL_HOST,
         ))
@@ -512,6 +548,17 @@ fn split(signal: common::ParsedAccountResponse) -> ParseOutcome {
 
 fn parse_payload(plan: &AdapterPlan, status: u16, body: &[u8]) -> ParseOutcome {
     match plan {
+        AdapterPlan::Relay {
+            config,
+            credential_type,
+            ..
+        } => match std::str::from_utf8(body) {
+            Ok(s) => split(relay::parse_response(config, *credential_type, status, s)),
+            Err(_) => ParseOutcome::Fail(FailureSignal {
+                schema_changed: true,
+                ..Default::default()
+            }),
+        },
         AdapterPlan::Deepseek | AdapterPlan::OpenRouter(_) | AdapterPlan::Novita => {
             let Ok(text) = std::str::from_utf8(body) else {
                 return ParseOutcome::Fail(FailureSignal {
@@ -607,7 +654,29 @@ fn prepare_query(db: &Database, account_id: &str) -> Result<PreparedQuery> {
         return Err(QueryError::AccountDeleted(account_id.to_owned()));
     }
     let credential = accounts::active_credential_ref(db, account_id)?;
-    let plan = resolve_plan(db, &account, credential.as_ref().map(|c| c.credential_type))?;
+    let plan = if ["new_api", "one_api"].contains(&account.platform.as_str()) {
+        let c = credential
+            .as_ref()
+            .ok_or_else(|| QueryError::Build("relay credential required".into()))?;
+        let config: relay::RelayConfig = serde_json::from_value(
+            c.capabilities
+                .as_ref()
+                .and_then(|v| v.get("relay"))
+                .cloned()
+                .ok_or_else(|| QueryError::Build("relay configuration missing".into()))?,
+        )
+        .map_err(|_| QueryError::Build("relay configuration incompatible".into()))?;
+        config
+            .validate(&account.platform, c.credential_type)
+            .map_err(QueryError::Build)?;
+        AdapterPlan::Relay {
+            config,
+            platform: account.platform.clone(),
+            credential_type: c.credential_type,
+        }
+    } else {
+        resolve_plan(db, &account, credential.as_ref().map(|c| c.credential_type))?
+    };
     Ok(PreparedQuery {
         account,
         credential,
@@ -656,6 +725,7 @@ fn execute_query(
         .filter(|a| !a.is_server_held())
         .map(|auth| (auth.header.clone(), auth.header_value(secret.expose())));
     let request = HttpRequest {
+        follow_redirects: !matches!(prepared.plan, AdapterPlan::Relay { .. }),
         method: spec.method.clone(),
         url: resolve_url(&spec, base_override),
         headers: spec.headers.clone(),
@@ -1133,6 +1203,7 @@ mod tests {
             AdapterPlan::Kimi { .. } => "kimi_loopback",
             AdapterPlan::KimiCode { .. } => "kimi_code_direct",
             AdapterPlan::Codex => "codex",
+            AdapterPlan::Relay { .. } => "relay",
         }
     }
 
@@ -1477,6 +1548,7 @@ mod tests {
     #[test]
     fn request_debug_does_not_leak_secret() {
         let request = HttpRequest {
+            follow_redirects: true,
             method: "GET".into(),
             url: "https://api.deepseek.com/user/balance".into(),
             headers: vec![],
@@ -1542,6 +1614,59 @@ mod tests {
         assert_eq!(outcome.status, SnapshotStatus::Ok);
         assert_eq!(outcome.balances[0].amount, "3.00");
     }
+    struct RelayTransport {
+        fail: bool,
+    }
+    impl HttpTransport for RelayTransport {
+        fn send(&self, r: &HttpRequest) -> std::result::Result<HttpResponse, TransportError> {
+            assert_eq!(r.url, "https://relay.example/api/user/self");
+            assert!(!r.follow_redirects);
+            assert_eq!(
+                r.auth_header.as_ref().unwrap().1,
+                format!("Bearer {SECRET}")
+            );
+            assert!(r.headers.contains(&("New-Api-User".into(), "42".into())));
+            assert!(!format!("{r:?}").contains(SECRET));
+            Ok(HttpResponse {
+                status: if self.fail { 401 } else { 200 },
+                body: br#"{"success":true,"data":{"id":42,"quota":987655,"used_quota":12345}}"#
+                    .to_vec(),
+            })
+        }
+    }
+    #[test]
+    fn relay_selected_credential_snapshot_and_failure_keep_scope_and_values() {
+        let mut db = Database::open_in_memory().unwrap();
+        let vault = MemoryVault::new();
+        let a = account_create(
+            &db,
+            &NewAccount::new("new_api", "synthetic", ConfigKind::ApiPayg),
+        )
+        .unwrap();
+        credential_save(&db,&vault,&a.account_id,CredentialType::ManagementKey,Some(serde_json::json!({"relay":{"baseUrl":"https://relay.example","userId":42,"currency":"USD","quotaPerUnit":500000}})),&SecretString::new(SECRET)).unwrap();
+        let result = query_account_via(
+            &mut db,
+            &vault,
+            &a.account_id,
+            &RelayTransport { fail: false },
+            None,
+        )
+        .unwrap();
+        assert_eq!(result.balances[0].amount, "1.97531");
+        assert_eq!(result.quota_windows[0].scope.as_deref(), Some("account"));
+        let stale = query_account_via(
+            &mut db,
+            &vault,
+            &a.account_id,
+            &RelayTransport { fail: true },
+            None,
+        )
+        .unwrap();
+        assert!(stale.stale);
+        assert_eq!(stale.status, SnapshotStatus::AuthRequired);
+        assert_eq!(stale.balances, result.balances);
+    }
+
     struct InspectTransport<'a> {
         db: &'a Mutex<Database>,
         account_id: &'a str,

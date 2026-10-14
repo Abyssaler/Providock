@@ -195,7 +195,15 @@ fn row(row: &rusqlite::Row<'_>, rules: &[ModelPrice]) -> Result<(Event, [Option<
     };
     let occurred_at = get_string(1)?;
     let estimate = model_prices::matching(rules, &agent, &source, model.as_deref())
-        .map(|p| model_prices::quote(p, &tokens, occurred_at.as_deref(), tokens.input_total))
+        .map(|p| {
+            let granularity = get_string(5)?;
+            if p.context_tiers.is_some()
+                && !matches!(granularity.as_deref(), Some("request" | "message"))
+            {
+                return Ok(None);
+            }
+            model_prices::quote(p, &tokens, occurred_at.as_deref(), tokens.input_total)
+        })
         .transpose()?
         .flatten();
     let cost_calculated = estimate.map(|c| {

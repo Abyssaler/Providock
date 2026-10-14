@@ -147,6 +147,31 @@ export const PLATFORM_TEMPLATES: PlatformTemplate[] = [
       },
     ],
   },
+  ...(["new_api", "one_api"] as const).map((key) => ({
+    key,
+    label: key === "new_api" ? "New API 中转站" : "One API 中转站",
+    regions: [],
+    querySupported: true,
+    note: "需填写站点 HTTPS 根地址。API Key 查 Key 额度；个人访问令牌查账户额度。原始额度默认不换算现金。",
+    credentials: [
+      ...(key === "new_api"
+        ? [
+            {
+              type: "api_key" as const,
+              label: "推理 API Key（仅 Key 额度）",
+              minimalPermission:
+                "GET /api/usage/token；只返回当前 Key 的额度与用量，不等于账户余额。",
+            },
+          ]
+        : []),
+      {
+        type: "management_key" as const,
+        label: "个人访问令牌（账户余额）",
+        minimalPermission:
+          "GET /api/user/self；使用个人设置中的访问令牌和用户 ID。无需管理员令牌。",
+      },
+    ],
+  })),
   {
     key: "other",
     label: "其他平台",
