@@ -2,11 +2,11 @@
 
 本文是交接事实表：每块工作按 [开发手册](DEVELOPMENT_HANDBOOK.md) 第 10 节的格式给出，并遵守 [AGENTS.md](../AGENTS.md) 的交付约定。状态分级：`样本验证`（合成夹具+独立预期值通过）< `macOS 实测` < `live_verified`（真实凭据/双平台）。**尚未完成双平台完整验收；局部 macOS 真实账户验证见下文，不外推到整个账户域。各版本发行依据与验证边界分别记录。**
 
-## v2.2.0 官网定价 / 中转站（2026-10-14）
+## v2.2.0 官网定价 / 中转站（2026-10-14，已发布）
 
 本轮用户授权检查三份官网、适配分时段/中转站账户，完成后推送及发行。T14 价格页 v2 和 B08 relay-v1 已实现；证据与独立样本见 [审计](research/evidence/2026-10-14-pricing-relays.md)，范围见 [发布说明](releases/v2.2.0.md)。HTML5 表格标准化、显式币种/Batch、完整策略回填/持久化、输入/输出组合档位和 2026 节假日日历；New API Key 与 New/One API 个人账户分开，站点配置随凭据引用保存，不改 schema。新增策略不宜降级旧版解释。
 
-本机 macOS：前端 81 项、Rust 373 项 / 5 ignored、typecheck/build/fmt/Clippy 通过；价格页 ignored 联网探针另主动执行通过四种组合（MiMo CNY 实时/USD Batch，DeepSeek，智谱）。没有真实中转站账号或真实付费辅助模型调用；Windows 新流程待 CI/实机证据分别登记。发行核验见 [本轮记录](research/validation/2026-10-14-release-v2.2.0.md)，不安装/替换正式应用，不访问正式数据或凭据。
+本机 macOS：前端 81 项、Rust 373 项 / 5 ignored、typecheck/build/fmt/Clippy 通过；价格页 ignored 联网探针另主动执行通过四种组合（MiMo CNY 实时/USD Batch，DeepSeek，智谱）。没有真实中转站账号或真实付费辅助模型调用；[同提交双平台 CI](https://github.com/Abyssaler/Providock/actions/runs/38514677987) 已通过，Windows 新流程的原生实机仍未验证。[正式 Release](https://github.com/Abyssaler/Providock/releases/tag/v2.2.0) 已公开设为 Latest，标签固定 `526349f`；11 项公开回下载摘要与独立验签通过。发行核验见 [本轮记录](research/validation/2026-10-14-release-v2.2.0.md)，不安装/替换正式应用，不访问正式数据或凭据。
 
 ## 项目展示更新（2026-10-14）
 

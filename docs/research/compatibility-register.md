@@ -2,6 +2,8 @@
 
 ## 2026-10-14 v2.2.0 增量
 
+[v2.2.0](https://github.com/Abyssaler/Providock/releases/tag/v2.2.0) 已公开设为 Latest，固定提交 `526349f` 的双平台 CI 与 11 项公开资产摘要/验签通过，不提升真实站点或 Windows 原生等级。
+
 T14 price-page-v2：MiMo、DeepSeek、智谱价格表 fixture_verified + macOS 公开页联网验证；合并/横表、多币种/Batch、输入输出组合分档、2026 节假日。模型辅助仅合成验证，未真实付费。B08 relay-v1：New API token_usage、New API/One API user/self 为官方固定源码/文档 + 合成样本 + 服务快照验证；真实站点及 Windows 原生联网未验，未知分叉不标支持。参考 [审计](evidence/2026-10-14-pricing-relays.md) 和 [发行核验](validation/2026-10-14-release-v2.2.0.md)。
 
 
